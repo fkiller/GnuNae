@@ -17,8 +17,8 @@ const About: React.FC<AboutProps> = ({ isOpen, onClose }) => {
                 </div>
 
                 <div className="about-content">
-                    <div className="about-logo">🚀</div>
-                    <h1>GnuNae Antigravity</h1>
+                    <img className="about-logo-img" src="../assets/gnunae.ico" alt="GnuNae" />
+                    <h1>GnuNae</h1>
                     <p className="version">Version 1.0.0</p>
 
                     <p className="about-description">
@@ -42,7 +42,7 @@ const About: React.FC<AboutProps> = ({ isOpen, onClose }) => {
                     </div>
 
                     <div className="about-links">
-                        <a href="https://github.com/yourusername/GnuNae.Antigravity" target="_blank" rel="noreferrer">
+                        <a href="https://github.com/fkiller/GnuNae" target="_blank" rel="noreferrer">
                             GitHub
                         </a>
                         <span>•</span>

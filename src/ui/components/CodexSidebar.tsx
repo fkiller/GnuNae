@@ -16,6 +16,23 @@ interface CodexSidebarProps {
     onLogout: () => void;
 }
 
+type CodexMode = 'chat' | 'agent' | 'full-access';
+type CodexModel = 'gpt-5.1-codex-max' | 'gpt-5.1-codex' | 'gpt-5.2' | 'gpt-5.1' | 'gpt-5.1-codex-mini';
+
+const MODELS: { value: CodexModel; label: string }[] = [
+    { value: 'gpt-5.1-codex-max', label: 'GPT-5.1-Codex-Max' },
+    { value: 'gpt-5.1-codex', label: 'GPT-5.1-Codex' },
+    { value: 'gpt-5.2', label: 'GPT-5.2' },
+    { value: 'gpt-5.1', label: 'GPT-5.1' },
+    { value: 'gpt-5.1-codex-mini', label: 'GPT-5.1-Codex-Mini' },
+];
+
+const MODES: { value: CodexMode; label: string; icon: string }[] = [
+    { value: 'chat', label: 'Chat', icon: '💬' },
+    { value: 'agent', label: 'Agent', icon: '🤖' },
+    { value: 'full-access', label: 'Full Access', icon: '⚡' },
+];
+
 const CodexSidebar: React.FC<CodexSidebarProps> = ({
     currentUrl,
     pageTitle,
@@ -27,30 +44,63 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
     const [prompt, setPrompt] = useState('');
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [mode, setMode] = useState<CodexMode>('agent');
+    const [model, setModel] = useState<CodexModel>('gpt-5.1-codex-max');
+    const [activeMenu, setActiveMenu] = useState<'mode' | 'model' | null>(null);
     const logContainerRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
     const logIdRef = useRef(0);
 
     // Subscribe to Codex output streams
     useEffect(() => {
-        const unsubOutput = window.electronAPI?.onCodexOutput?.((data) => {
-            addLog(data.type === 'stderr' ? 'error' : 'codex', data.data.trim());
+        const unsubOutput = (window as any).electronAPI?.onCodexOutput?.((data: any) => {
+            const message = data.data.trim();
+            if (!message) return;
+
+            // Filter verbose debug output from stderr
+            if (data.type === 'stderr') {
+                // Skip common verbose messages that aren't actual errors
+                const skipPatterns = [
+                    /^Reading prompt/i,
+                    /^No prompt provided/i,
+                    /^Processing/i,
+                    /^Loading/i,
+                    /^Connecting/i,
+                    /^Initializing/i,
+                    /^\[debug\]/i,
+                    /^\[info\]/i,
+                    /^text:/i,
+                    /^div:/i,
+                    /^span:/i,
+                    /^a:/i,
+                    /^button:/i,
+                    /^input:/i,
+                    /^h[1-6]:/i,
+                    /^li:/i,
+                    /^p:/i,
+                ];
+
+                if (skipPatterns.some(pattern => pattern.test(message))) {
+                    return; // Skip this message
+                }
+            }
+
+            addLog(data.type === 'stderr' ? 'error' : 'codex', message);
         });
 
-        const unsubComplete = window.electronAPI?.onCodexComplete?.((data) => {
+        const unsubComplete = (window as any).electronAPI?.onCodexComplete?.((data: any) => {
             setIsProcessing(false);
             if (data.code === 0) {
-                addLog('info', '✓ Codex completed successfully');
+                addLog('info', '✓ Completed');
             } else {
-                addLog('error', `✗ Codex exited with code ${data.code}`);
+                addLog('error', `✗ Exited with code ${data.code}`);
             }
         });
 
-        const unsubError = window.electronAPI?.onCodexError?.((data) => {
+        const unsubError = (window as any).electronAPI?.onCodexError?.((data: any) => {
             setIsProcessing(false);
-            addLog('error', `Codex error: ${data.error}`);
+            addLog('error', `Error: ${data.error}`);
         });
-
-        addLog('info', 'Codex Sidebar ready. Type a prompt and press Execute.');
 
         return () => {
             unsubOutput?.();
@@ -66,6 +116,13 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
         }
     }, [logs]);
 
+    // Close menus on outside click
+    useEffect(() => {
+        const handleClick = () => setActiveMenu(null);
+        document.addEventListener('click', handleClick);
+        return () => document.removeEventListener('click', handleClick);
+    }, []);
+
     const addLog = useCallback((type: LogEntry['type'], message: string) => {
         if (!message.trim()) return;
         const entry: LogEntry = {
@@ -80,7 +137,6 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
     const handleExecutePrompt = useCallback(async () => {
         if (!prompt.trim()) return;
 
-        // Check auth first
         if (!isAuthenticated) {
             addLog('error', '⚠ Please sign in to use Codex features.');
             onRequestLogin();
@@ -92,15 +148,14 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
         setPrompt('');
         setIsProcessing(true);
 
-        // Send to Codex CLI
-        addLog('info', 'Sending to Codex...');
-        await window.electronAPI?.executeCodex?.(userPrompt);
-    }, [prompt, addLog, isAuthenticated, onRequestLogin]);
+        addLog('info', `[${MODES.find(m => m.value === mode)?.label}] Sending...`);
+        await (window as any).electronAPI?.executeCodex?.(userPrompt);
+    }, [prompt, addLog, isAuthenticated, onRequestLogin, mode]);
 
     const handleStopCodex = useCallback(async () => {
-        await window.electronAPI?.stopCodex?.();
+        await (window as any).electronAPI?.stopCodex?.();
         setIsProcessing(false);
-        addLog('info', 'Codex execution stopped.');
+        addLog('info', 'Stopped.');
     }, [addLog]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -110,89 +165,131 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
         }
     };
 
+    const autoResize = () => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 150) + 'px';
+        }
+    };
+
+    const toggleMenu = (menu: 'mode' | 'model', e: React.MouseEvent) => {
+        e.stopPropagation();
+        setActiveMenu(activeMenu === menu ? null : menu);
+    };
+
     return (
         <div className="codex-sidebar">
+            {/* Header */}
             <div className="sidebar-header">
-                <h2>Codex Control</h2>
-                <div className="connection-status connected">
-                    <span className="status-dot"></span>
-                    Codex CLI
-                </div>
-            </div>
-
-            {/* Auth Status */}
-            <div className="auth-status">
-                {isAuthenticated ? (
-                    <div className="auth-logged-in">
-                        <span className="auth-icon">✓</span>
-                        <div className="auth-info">
-                            <span className="auth-label">Signed in</span>
-                            {userEmail && <span className="auth-email">{userEmail}</span>}
+                <h2>Codex</h2>
+                <div className="header-actions">
+                    {isAuthenticated ? (
+                        <div className="user-badge" onClick={onLogout} title="Click to sign out">
+                            <span className="user-icon">👤</span>
+                            <span className="user-email">{userEmail || 'Signed in'}</span>
                         </div>
-                        <button className="auth-logout-btn" onClick={onLogout} title="Sign out">
-                            ⎋
-                        </button>
-                    </div>
-                ) : (
-                    <div className="auth-logged-out">
-                        <span className="auth-warning">⚠ Not signed in</span>
-                        <button className="auth-login-btn" onClick={onRequestLogin}>
-                            Sign in to OpenAI
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            <div className="page-info">
-                <div className="page-title" title={pageTitle}>{pageTitle}</div>
-                <div className="page-url" title={currentUrl}>{currentUrl}</div>
-            </div>
-
-            <div className="prompt-section">
-                <textarea
-                    className="prompt-input"
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder={isAuthenticated
-                        ? "Enter prompt for Codex (e.g., 'Navigate to github.com and take a snapshot')"
-                        : "Sign in to use Codex..."
-                    }
-                    disabled={isProcessing || !isAuthenticated}
-                    rows={3}
-                />
-                <div className="button-row">
-                    <button
-                        className="execute-btn"
-                        onClick={handleExecutePrompt}
-                        disabled={!prompt.trim() || isProcessing || !isAuthenticated}
-                    >
-                        {isProcessing ? 'Running...' : 'Execute'}
-                    </button>
-                    {isProcessing && (
-                        <button
-                            className="stop-btn"
-                            onClick={handleStopCodex}
-                        >
-                            Stop
-                        </button>
+                    ) : (
+                        <button className="sign-in-btn" onClick={onRequestLogin}>Sign in</button>
                     )}
                 </div>
             </div>
 
+            {/* Context Info */}
+            <div className="context-info">
+                <div className="context-url" title={currentUrl}>
+                    {currentUrl ? `📍 ${new URL(currentUrl).hostname}` : '📍 No page loaded'}
+                </div>
+            </div>
+
+            {/* Output Log */}
             <div className="log-section">
-                <div className="log-header">Output</div>
                 <div className="log-container" ref={logContainerRef}>
-                    {logs.map((entry) => (
-                        <div key={entry.id} className={`log-entry log-${entry.type}`}>
-                            <span className="log-time">
-                                {entry.timestamp.toLocaleTimeString()}
-                            </span>
-                            <pre className="log-message">{entry.message}</pre>
+                    {logs.length === 0 ? (
+                        <div className="log-welcome">
+                            <div className="welcome-icon">🚀</div>
+                            <h3>Welcome to Codex</h3>
+                            <p>Type a prompt below to get started.</p>
+                            <div className="welcome-hints">
+                                <div className="hint">💡 "Summarize this page"</div>
+                                <div className="hint">💡 "Find all links"</div>
+                            </div>
                         </div>
-                    ))}
-                    {logs.length === 0 && (
-                        <div className="log-empty">Ready for prompts.</div>
+                    ) : (
+                        logs.map((entry) => (
+                            <div key={entry.id} className={`log-entry log-${entry.type}`}>
+                                <span className="log-time">
+                                    {entry.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                                <pre className="log-message">{entry.message}</pre>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+
+            {/* Input Area */}
+            <div className="input-area">
+                <div className="input-container">
+                    <textarea
+                        ref={textareaRef}
+                        className="prompt-textarea"
+                        value={prompt}
+                        onChange={(e) => { setPrompt(e.target.value); autoResize(); }}
+                        onKeyDown={handleKeyDown}
+                        placeholder={isAuthenticated ? "Ask Codex..." : "Sign in to use Codex..."}
+                        disabled={isProcessing || !isAuthenticated}
+                        rows={1}
+                    />
+                    <button
+                        className="send-btn"
+                        onClick={isProcessing ? handleStopCodex : handleExecutePrompt}
+                        disabled={!isAuthenticated || (!prompt.trim() && !isProcessing)}
+                    >
+                        {isProcessing ? '⬛' : '↑'}
+                    </button>
+                </div>
+            </div>
+
+            {/* Bottom Bar - Mode and Model only */}
+            <div className="bottom-bar">
+                <div className="bar-item mode-selector" onClick={(e) => toggleMenu('mode', e)}>
+                    <span>{MODES.find(m => m.value === mode)?.icon}</span>
+                    <span>{MODES.find(m => m.value === mode)?.label}</span>
+                    {activeMenu === 'mode' && (
+                        <div className="dropdown-menu">
+                            <div className="dropdown-title">Mode</div>
+                            {MODES.map(m => (
+                                <div
+                                    key={m.value}
+                                    className={`dropdown-item ${mode === m.value ? 'active' : ''}`}
+                                    onClick={() => { setMode(m.value); setActiveMenu(null); }}
+                                >
+                                    <span className="item-icon">{m.icon}</span>
+                                    <span className="item-label">{m.label}</span>
+                                    {mode === m.value && <span className="check">✓</span>}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                <div className="bar-item model-selector" onClick={(e) => toggleMenu('model', e)}>
+                    <span>⬡</span>
+                    <span>{MODELS.find(m => m.value === model)?.label}</span>
+                    {activeMenu === 'model' && (
+                        <div className="dropdown-menu">
+                            <div className="dropdown-title">Model</div>
+                            {MODELS.map(m => (
+                                <div
+                                    key={m.value}
+                                    className={`dropdown-item ${model === m.value ? 'active' : ''}`}
+                                    onClick={() => { setModel(m.value); setActiveMenu(null); }}
+                                >
+                                    <span className="item-label">{m.label}</span>
+                                    {model === m.value && <span className="check">✓</span>}
+                                </div>
+                            ))}
+                        </div>
                     )}
                 </div>
             </div>

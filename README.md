@@ -1,4 +1,4 @@
-# GnuNae Antigravity
+# GnuNae
 
 An Electron-based browser with an AI-powered Codex sidebar for intelligent web automation.
 
@@ -25,8 +25,8 @@ An Electron-based browser with an AI-powered Codex sidebar for intelligent web a
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/GnuNae.Antigravity.git
-cd GnuNae.Antigravity
+git clone https://github.com/fkiller/GnuNae.git
+cd GnuNae
 
 # Install dependencies
 npm install
