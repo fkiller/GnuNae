@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AddressBar from './components/AddressBar';
 import CodexSidebar from './components/CodexSidebar';
+import Settings from './components/Settings';
 
 // Type for electronAPI (defined in preload.ts)
 declare global {
@@ -36,6 +37,7 @@ const App: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [userEmail, setUserEmail] = useState<string | null>(null);
+    const [showSettings, setShowSettings] = useState(false);
 
     const checkAuthStatus = useCallback(async () => {
         console.log('[App] Checking auth status...');
@@ -142,6 +144,7 @@ const App: React.FC = () => {
                 onGoBack={handleGoBack}
                 onGoForward={handleGoForward}
                 onReload={handleReload}
+                onOpenSettings={() => setShowSettings(true)}
             />
             <div className="main-content">
                 <div className="browser-placeholder">
@@ -155,6 +158,7 @@ const App: React.FC = () => {
                     onRequestLogin={handleRequestLogin}
                     onLogout={handleLogout}
                 />
+                <Settings isOpen={showSettings} onClose={() => setShowSettings(false)} />
             </div>
         </div>
     );

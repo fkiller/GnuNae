@@ -11,6 +11,10 @@ export interface ElectronAPI {
     checkNow: () => Promise<{ authenticated: boolean }>;
     onAuthStatusChanged: (callback: (authenticated: boolean) => void) => () => void;
 
+    // UI
+    hideBrowser: () => Promise<{ success: boolean }>;
+    showBrowser: () => Promise<{ success: boolean }>;
+
     // Browser navigation
     navigate: (url: string) => Promise<{ success: boolean; url?: string; error?: string }>;
     goBack: () => Promise<{ success: boolean; error?: string }>;
@@ -47,6 +51,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('auth:status-changed', handler);
         return () => ipcRenderer.removeListener('auth:status-changed', handler);
     },
+
+    // UI
+    hideBrowser: () => ipcRenderer.invoke('ui:hide-browser'),
+    showBrowser: () => ipcRenderer.invoke('ui:show-browser'),
 
     // Browser navigation
     navigate: (url: string) => ipcRenderer.invoke('browser:navigate', url),

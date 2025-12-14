@@ -1,0 +1,10 @@
+# GnuNae Codex Configuration
+# This config is used by the local Codex CLI within GnuNae
+
+model = "gpt-5.1-codex-max"
+model_reasoning_effort = "xhigh"
+
+# MCP server for browser control
+[mcp_servers.browser]
+command = "node"
+args = ["scripts/mcp-server.cjs"]

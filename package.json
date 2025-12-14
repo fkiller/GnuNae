@@ -1,7 +1,7 @@
 {
-  "name": "gnunae-antigravity",
-  "version": "1.0.0",
-  "productName": "GnuNae Antigravity",
+  "name": "gnunae",
+  "version": "0.0.1",
+  "productName": "GnuNae",
   "main": "dist/electron/main.js",
   "author": {
     "name": "Won Dong",
@@ -11,7 +11,7 @@
   "license": "MIT",
   "scripts": {
     "build:electron": "tsc",
-    "build:ui": "vite build",
+    "build:ui": "vite build && cp src/ui/login.html dist/ui/ && cp -r assets dist/",
     "build": "npm run build:electron && npm run build:ui",
     "dev:ui": "vite --config vite.config.ts",
     "dev:electron": "npm run build:electron && electron .",
@@ -23,8 +23,8 @@
     "pack:all": "npm run build && electron-builder --mac --win --linux"
   },
   "build": {
-    "appId": "com.gnunae.antigravity",
-    "productName": "GnuNae Antigravity",
+    "appId": "com.gnunae.browser",
+    "productName": "GnuNae",
     "directories": {
       "output": "release"
     },
@@ -34,21 +34,21 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
-      "icon": "assets/icon.icns",
+      "icon": "assets/gnunae.png",
       "target": [
         "dmg",
         "zip"
       ]
     },
     "win": {
-      "icon": "assets/icon.ico",
+      "icon": "assets/gnunae.ico",
       "target": [
         "nsis",
         "portable"
       ]
     },
     "linux": {
-      "icon": "assets/icon.png",
+      "icon": "assets/gnunae.ico",
       "target": [
         "AppImage",
         "deb"
@@ -74,6 +74,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.24.3",
+    "@openai/codex": "^0.72.0",
     "@playwright/mcp": "^0.0.30",
     "playwright": "^1.57.0",
     "react": "^19.2.3",

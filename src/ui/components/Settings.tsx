@@ -18,8 +18,13 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
 
     useEffect(() => {
         if (isOpen) {
+            // Hide BrowserView so settings overlay is visible
+            (window as any).electronAPI?.hideBrowser?.();
             // Load settings via IPC
-            window.electronAPI?.getSettings?.().then(setSettings);
+            (window as any).electronAPI?.getSettings?.().then(setSettings);
+        } else {
+            // Show BrowserView when settings closes
+            (window as any).electronAPI?.showBrowser?.();
         }
     }, [isOpen]);
 
