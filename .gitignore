@@ -1,0 +1,40 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Code signing
+*.pem
+*.p12
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Electron
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.exe
+*.msi
+
+# Personal files (never commit)
+resume*.json
+*.docx

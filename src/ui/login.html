@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Codex Autopilot - Sign In</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #f1f5f9;
+        }
+
+        .container {
+            max-width: 480px;
+            padding: 48px;
+            text-align: center;
+        }
+
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 32px;
+            background: linear-gradient(135deg, #e94560 0%, #0ea5e9 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            box-shadow: 0 10px 40px rgba(233, 69, 96, 0.3);
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #e94560 0%, #0ea5e9 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .description {
+            color: #94a3b8;
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 40px;
+        }
+
+        .features {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 32px;
+            text-align: left;
+        }
+
+        .features h3 {
+            font-size: 14px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            color: #cbd5e1;
+            font-size: 14px;
+        }
+
+        .feature-icon {
+            width: 24px;
+            height: 24px;
+            background: rgba(14, 165, 233, 0.2);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .login-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            padding: 16px 24px;
+            background: #fff;
+            border: none;
+            border-radius: 12px;
+            color: #333;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .login-btn:active {
+            transform: translateY(0);
+        }
+
+        .login-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .footer {
+            margin-top: 32px;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .footer a {
+            color: #0ea5e9;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="logo">🚀</div>
+
+        <h1>Welcome to Codex Autopilot</h1>
+
+        <p class="description">
+            Sign in to your OpenAI account to enable AI-powered browser automation.
+            This connects you to OpenAI's Codex for intelligent form filling and web navigation.
+        </p>
+
+        <div class="features">
+            <h3>What you can do after signing in</h3>
+            <div class="feature-item">
+                <span class="feature-icon">🤖</span>
+                <span>Control the browser with natural language commands</span>
+            </div>
+            <div class="feature-item">
+                <span class="feature-icon">📝</span>
+                <span>Auto-fill job applications using your resume</span>
+            </div>
+            <div class="feature-item">
+                <span class="feature-icon">🔍</span>
+                <span>Navigate and interact with any website</span>
+            </div>
+        </div>
+
+        <button class="login-btn" onclick="startGoogleLogin()">
+            <svg viewBox="0 0 24 24" width="20" height="20">
+                <circle cx="12" cy="12" r="10" fill="#10a37f" />
+                <path fill="white" d="M12 7v5l3 3" stroke="white" stroke-width="1.5" stroke-linecap="round"
+                    fill="none" />
+            </svg>
+            Sign in to OpenAI
+        </button>
+
+        <p class="footer">
+            You'll be redirected to OpenAI to sign in with your Google account
+        </p>
+    </div>
+
+    <script>
+        function startGoogleLogin() {
+            // Navigate directly to OpenAI login page
+            // The BrowserView will handle the OAuth flow
+            window.location.href = 'https://chatgpt.com/auth/login';
+        }
+    </script>
+</body>
+
+</html>
