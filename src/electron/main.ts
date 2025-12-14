@@ -143,6 +143,22 @@ function updateLayout(): void {
 
 // IPC Handlers
 function setupIpcHandlers(): void {
+    // UI handlers - toggle BrowserView for overlays
+    ipcMain.handle('ui:hide-browser', () => {
+        if (browserView && mainWindow) {
+            mainWindow.removeBrowserView(browserView);
+        }
+        return { success: true };
+    });
+
+    ipcMain.handle('ui:show-browser', () => {
+        if (browserView && mainWindow) {
+            mainWindow.setBrowserView(browserView);
+            updateLayout();
+        }
+        return { success: true };
+    });
+
     // Auth handlers
     ipcMain.handle('auth:is-authenticated', () => {
         return authService.isAuthenticated();
@@ -299,17 +315,25 @@ function setupIpcHandlers(): void {
 
             const fullPrompt = pageContext + prompt;
 
-            // Spawn codex exec with the prompt using npx
-            // Quote the prompt to handle spaces
-            const escapedPrompt = fullPrompt.replace(/"/g, '\\"');
-            codexProcess = spawn('npx', [
-                '@openai/codex',
-                'exec',
-                `"${escapedPrompt}"`,
-            ], {
+            // Use local Codex CLI from node_modules with app's config
+            const codexBin = path.join(__dirname, '../../node_modules/.bin/codex');
+            const codexConfig = path.join(__dirname, '../../config/codex.toml');
+
+            codexProcess = spawn(codexBin, ['exec'], {
                 shell: true,
-                env: { ...process.env, PATH: process.env.PATH + ':/opt/homebrew/bin:/usr/local/bin' },
+                cwd: path.join(__dirname, '../..'),
+                env: {
+                    ...process.env,
+                    PATH: process.env.PATH + ':/opt/homebrew/bin:/usr/local/bin',
+                    CODEX_CONFIG: codexConfig,
+                },
             });
+
+            // Write prompt to stdin
+            if (codexProcess.stdin) {
+                codexProcess.stdin.write(fullPrompt);
+                codexProcess.stdin.end();
+            }
 
             codexProcess.stdout?.on('data', (data: Buffer) => {
                 const chunk = data.toString();
