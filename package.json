@@ -1,0 +1,83 @@
+{
+  "name": "gnunae-antigravity",
+  "version": "1.0.0",
+  "productName": "GnuNae Antigravity",
+  "main": "dist/electron/main.js",
+  "author": {
+    "name": "Won Dong",
+    "email": "contact@example.com"
+  },
+  "description": "AI-powered browser with Codex sidebar for intelligent web automation",
+  "license": "MIT",
+  "scripts": {
+    "build:electron": "tsc",
+    "build:ui": "vite build",
+    "build": "npm run build:electron && npm run build:ui",
+    "dev:ui": "vite --config vite.config.ts",
+    "dev:electron": "npm run build:electron && electron .",
+    "dev": "concurrently \"npm run dev:ui\" \"wait-on http://localhost:5173 && npm run dev:electron\"",
+    "start": "electron .",
+    "pack:mac": "npm run build && electron-builder --mac",
+    "pack:win": "npm run build && electron-builder --win",
+    "pack:linux": "npm run build && electron-builder --linux",
+    "pack:all": "npm run build && electron-builder --mac --win --linux"
+  },
+  "build": {
+    "appId": "com.gnunae.antigravity",
+    "productName": "GnuNae Antigravity",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "scripts/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.icns",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "concurrently": "^9.0.0",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7",
+    "wait-on": "^8.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.24.3",
+    "@playwright/mcp": "^0.0.30",
+    "playwright": "^1.57.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "zod": "^4.1.13"
+  }
+}
