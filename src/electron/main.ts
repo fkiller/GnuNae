@@ -1,8 +1,13 @@
-import { app, BrowserWindow, BrowserView, ipcMain, session } from 'electron';
+import { app, BrowserWindow, BrowserView, ipcMain, session, Menu } from 'electron';
 import * as path from 'path';
 import { spawn, ChildProcess } from 'child_process';
 import { AuthService } from '../core/auth';
 import { startMcpServer, updateBrowserView } from './mcp-server';
+
+// Read package.json for app info
+const packageJson = require('../../package.json');
+const APP_NAME = packageJson.productName || 'GnuNae';
+const APP_VERSION = packageJson.version || '0.0.1';
 
 let codexProcess: ChildProcess | null = null;
 
@@ -16,6 +21,95 @@ const TOPBAR_HEIGHT = 50;
 // OpenAI/ChatGPT OAuth URLs
 const OPENAI_AUTH_URL = 'https://chatgpt.com/auth/login';
 const CHATGPT_DOMAIN = 'chatgpt.com';
+
+// Set app name for macOS menu bar
+app.setName(APP_NAME);
+
+// Create custom menu for macOS
+function createMenu(): void {
+    const isMac = process.platform === 'darwin';
+
+    const template: Electron.MenuItemConstructorOptions[] = [
+        // App menu (macOS only)
+        ...(isMac ? [{
+            label: APP_NAME,
+            submenu: [
+                {
+                    label: `About ${APP_NAME}`,
+                    click: () => {
+                        const { dialog } = require('electron');
+                        dialog.showMessageBox({
+                            type: 'info',
+                            title: `About ${APP_NAME}`,
+                            message: APP_NAME,
+                            detail: `Version ${APP_VERSION}\n\nAI-powered browser with Codex sidebar for intelligent web automation.\n\n© 2024 Won Dong`,
+                        });
+                    }
+                },
+                { type: 'separator' as const },
+                { role: 'services' as const },
+                { type: 'separator' as const },
+                { role: 'hide' as const },
+                { role: 'hideOthers' as const },
+                { role: 'unhide' as const },
+                { type: 'separator' as const },
+                { role: 'quit' as const }
+            ] as Electron.MenuItemConstructorOptions[]
+        }] : []),
+        // File menu
+        {
+            label: 'File',
+            submenu: [
+                isMac ? { role: 'close' as const } : { role: 'quit' as const }
+            ]
+        },
+        // Edit menu
+        {
+            label: 'Edit',
+            submenu: [
+                { role: 'undo' as const },
+                { role: 'redo' as const },
+                { type: 'separator' as const },
+                { role: 'cut' as const },
+                { role: 'copy' as const },
+                { role: 'paste' as const },
+                { role: 'selectAll' as const }
+            ]
+        },
+        // View menu
+        {
+            label: 'View',
+            submenu: [
+                { role: 'reload' as const },
+                { role: 'forceReload' as const },
+                { role: 'toggleDevTools' as const },
+                { type: 'separator' as const },
+                { role: 'resetZoom' as const },
+                { role: 'zoomIn' as const },
+                { role: 'zoomOut' as const },
+                { type: 'separator' as const },
+                { role: 'togglefullscreen' as const }
+            ]
+        },
+        // Window menu
+        {
+            label: 'Window',
+            submenu: [
+                { role: 'minimize' as const },
+                { role: 'zoom' as const },
+                ...(isMac ? [
+                    { type: 'separator' as const },
+                    { role: 'front' as const }
+                ] : [
+                    { role: 'close' as const }
+                ])
+            ]
+        }
+    ];
+
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
+}
 
 function createWindow(): void {
     // Initialize auth service
@@ -41,7 +135,9 @@ function createWindow(): void {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            sandbox: true,
+            sandbox: false, // Disable sandbox to allow WebAuthn/passkeys
+            webSecurity: true,
+            allowRunningInsecureContent: false,
         },
     });
 
@@ -156,6 +252,18 @@ function setupIpcHandlers(): void {
             mainWindow.setBrowserView(browserView);
             updateLayout();
         }
+        return { success: true };
+    });
+
+    // Settings handlers
+    ipcMain.handle('settings:get', () => {
+        const { settingsService } = require('../core/settings');
+        return settingsService.getAll();
+    });
+
+    ipcMain.handle('settings:update', (_, settings) => {
+        const { settingsService } = require('../core/settings');
+        settingsService.update(settings);
         return { success: true };
     });
 
@@ -313,7 +421,12 @@ function setupIpcHandlers(): void {
             let output = '';
             let errorOutput = '';
 
-            const fullPrompt = pageContext + prompt;
+            // Get prePrompt from settings
+            const { settingsService } = require('../core/settings');
+            const prePrompt = settingsService.get('codex')?.prePrompt || '';
+
+            // Combine: prePrompt + pageContext + user prompt
+            const fullPrompt = (prePrompt ? prePrompt + '\n\n---\n\n' : '') + pageContext + prompt;
 
             // Use local Codex CLI from node_modules with app's config
             const codexBin = path.join(__dirname, '../../node_modules/.bin/codex');
@@ -378,6 +491,7 @@ function setupIpcHandlers(): void {
 }
 
 app.whenReady().then(() => {
+    createMenu();
     createWindow();
     setupIpcHandlers();
 

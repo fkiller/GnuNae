@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 interface Settings {
     debug: { enabled: boolean };
     browser: { startPage: string; userAgent: string };
-    codex: { model: string; mode: 'ask' | 'agent' | 'full-access' };
+    codex: { model: string; mode: 'ask' | 'agent' | 'full-access'; prePrompt: string };
     ui: { sidebarWidth: number; theme: 'dark' | 'light' | 'system' };
 }
 
@@ -21,7 +21,13 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
             // Hide BrowserView so settings overlay is visible
             (window as any).electronAPI?.hideBrowser?.();
             // Load settings via IPC
-            (window as any).electronAPI?.getSettings?.().then(setSettings);
+            (window as any).electronAPI?.getSettings?.().then((s: Settings | null) => {
+                setSettings(s);
+                // Sync debug mode to localStorage
+                if (s?.debug?.enabled !== undefined) {
+                    localStorage.setItem('gnunae-debug', s.debug.enabled ? 'true' : 'false');
+                }
+            });
         } else {
             // Show BrowserView when settings closes
             (window as any).electronAPI?.showBrowser?.();
@@ -40,8 +46,13 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
         }
         obj[keys[keys.length - 1]] = value;
 
+        // Sync debug mode to localStorage for sidebar filter
+        if (path === 'debug.enabled') {
+            localStorage.setItem('gnunae-debug', value ? 'true' : 'false');
+        }
+
         setSettings(newSettings);
-        window.electronAPI?.updateSettings?.(newSettings);
+        (window as any).electronAPI?.updateSettings?.(newSettings);
     };
 
     if (!isOpen) return null;
@@ -113,7 +124,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                     )}
 
                     {/* Codex Section */}
-                    {filterBySearch('codex model') && (
+                    {filterBySearch('codex model prompt') && (
                         <div className="settings-section">
                             <h3>Codex</h3>
                             <div className="settings-item">
@@ -137,6 +148,17 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                                     <option value="agent">Agent</option>
                                     <option value="full-access">Full Access</option>
                                 </select>
+                            </div>
+                            <div className="settings-item pre-prompt-item">
+                                <label>Pre-Prompt (System Instructions)</label>
+                                <span className="setting-hint">Instructions sent before every user message</span>
+                                <textarea
+                                    className="pre-prompt-textarea"
+                                    value={settings?.codex?.prePrompt ?? ''}
+                                    onChange={(e) => updateSetting('codex.prePrompt', e.target.value)}
+                                    rows={10}
+                                    placeholder="Enter system instructions..."
+                                />
                             </div>
                         </div>
                     )}
