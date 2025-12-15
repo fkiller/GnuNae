@@ -57,10 +57,21 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
             const message = data.data.trim();
             if (!message) return;
 
-            // Filter verbose debug output from stderr
-            if (data.type === 'stderr') {
-                // Skip common verbose messages that aren't actual errors
+            // Check if debug mode is enabled (async - use localStorage cache)
+            const isDebugMode = localStorage.getItem('gnunae-debug') === 'true';
+
+            // In non-debug mode, aggressively filter verbose output
+            if (!isDebugMode) {
+                // Patterns to skip - DOM elements, debug info, verbose logs
                 const skipPatterns = [
+                    // DOM element dumps
+                    /^(text|div|span|a|button|input|h[1-6]|li|p|ul|ol|table|tr|td|th|nav|header|footer|section|article|aside|form|label|select|option|img|svg|path|main|body|html):/i,
+                    /^<[a-z]/i, // HTML tags
+                    /^\s*<\//i, // Closing tags
+                    /^ref=\d+/i, // Element references
+                    /^role=/i, // ARIA roles
+                    /^aria-/i, // ARIA attributes
+                    // Debug/info messages
                     /^Reading prompt/i,
                     /^No prompt provided/i,
                     /^Processing/i,
@@ -69,19 +80,28 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
                     /^Initializing/i,
                     /^\[debug\]/i,
                     /^\[info\]/i,
-                    /^text:/i,
-                    /^div:/i,
-                    /^span:/i,
-                    /^a:/i,
-                    /^button:/i,
-                    /^input:/i,
-                    /^h[1-6]:/i,
-                    /^li:/i,
-                    /^p:/i,
+                    /^\[verbose\]/i,
+                    /^DEBUG:/i,
+                    /^INFO:/i,
+                    // Very short messages (likely fragments)
+                    /^.{1,3}$/,
+                    // Whitespace-heavy lines
+                    /^\s{4,}/,
+                    // JSON-like fragments
+                    /^[{}\[\],"':]+$/,
+                    // Number-only lines
+                    /^\d+$/,
+                    // Empty-ish content
+                    /^[-_=*#]+$/,
                 ];
 
                 if (skipPatterns.some(pattern => pattern.test(message))) {
-                    return; // Skip this message
+                    return; // Skip this message in non-debug mode
+                }
+
+                // Also skip very long messages (likely DOM dumps) unless they look like actual content
+                if (message.length > 500 && !message.includes('Error') && !message.includes('error')) {
+                    return;
                 }
             }
 
