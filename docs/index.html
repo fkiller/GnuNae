@@ -296,6 +296,69 @@
             .other-platforms {
                 flex-direction: column;
             }
+
+            .video-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Video Section */
+        .videos {
+            padding: 80px 0;
+        }
+
+        .videos h2 {
+            text-align: center;
+            font-size: 36px;
+            margin-bottom: 16px;
+        }
+
+        .videos .section-desc {
+            text-align: center;
+            color: var(--text-secondary);
+            margin-bottom: 48px;
+            font-size: 18px;
+        }
+
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 32px;
+        }
+
+        .video-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+
+        .video-card:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .video-card video {
+            width: 100%;
+            display: block;
+            background: #000;
+        }
+
+        .video-card .video-info {
+            padding: 20px 24px;
+        }
+
+        .video-card h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        .video-card p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.5;
         }
     </style>
 </head>
@@ -365,6 +428,34 @@
                         </svg>
                         Linux
                     </a>
+                </div>
+            </section>
+
+            <section class="videos">
+                <h2>See It in Action</h2>
+                <p class="section-desc">Watch how GnuNae transforms your browsing experience</p>
+                <div class="video-grid">
+                    <div class="video-card">
+                        <video controls preload="metadata" poster="">
+                            <source src="assets/GnuNae.UseCase.1.mp4" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                        <div class="video-info">
+                            <h3>Use Case 1: Smart Form Filling</h3>
+                            <p>Watch GnuNae intelligently identify and fill form fields using natural language commands.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="video-card">
+                        <video controls preload="metadata" poster="">
+                            <source src="assets/GnuNae.UseCase.2.mp4" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                        <div class="video-info">
+                            <h3>Use Case 2: Page Analysis</h3>
+                            <p>See how GnuNae analyzes page content and helps you extract information efficiently.</p>
+                        </div>
+                    </div>
                 </div>
             </section>
 
