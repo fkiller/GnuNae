@@ -133,16 +133,32 @@ args = ["/path/to/scripts/mcp-server.cjs"]
 
 ```
 src/
-├── electron/          # Main process
-│   ├── main.ts       # App entry, window management
-│   ├── preload.ts    # Context bridge
-│   └── mcp-server.ts # MCP server for browser control
-├── ui/               # Renderer process (React)
-│   ├── App.tsx       # Main UI component
-│   ├── App.css       # Styling
-│   └── components/   # UI components
-└── core/             # Shared utilities
-    └── auth.ts       # Authentication service
+├── electron/              # Main process
+│   ├── main.ts           # App entry, window management, IPC handlers
+│   ├── preload.ts        # Context bridge for renderer
+│   └── mcp-server.ts     # MCP server for browser control
+├── ui/                   # Renderer process (React)
+│   ├── index.tsx         # React entry point
+│   ├── App.tsx           # Main UI layout
+│   ├── App.css           # Global styles
+│   └── components/
+│       ├── AddressBar.tsx    # URL navigation bar
+│       ├── CodexSidebar.tsx  # AI assistant sidebar
+│       ├── Settings.tsx      # Settings panel
+│       └── About.tsx         # About dialog
+└── core/                 # Shared utilities
+    ├── auth.ts           # OpenAI authentication
+    ├── settings.ts       # App settings & pre-prompt
+    ├── schema.ts         # Type definitions
+    └── vault.ts          # Secure storage
+
+docs/                     # GitHub Pages (gnunae.com)
+├── index.html            # Landing page
+├── CNAME                 # Custom domain
+└── assets/               # Logo, videos
+
+.github/workflows/
+└── release.yml           # CI/CD for multi-platform builds
 ```
 
 ## Tech Stack
