@@ -1,6 +1,6 @@
 {
   "name": "gnunae",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "productName": "GnuNae",
   "main": "dist/electron/main.js",
   "author": {
@@ -36,8 +36,20 @@
       "category": "public.app-category.productivity",
       "icon": "assets/gnunae.png",
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ]
     },
     "win": {
@@ -48,7 +60,7 @@
       ]
     },
     "linux": {
-      "icon": "assets/gnunae.ico",
+      "icon": "assets/gnunae.png",
       "target": [
         "AppImage",
         "deb"
