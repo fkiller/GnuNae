@@ -56,6 +56,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     hideBrowser: () => ipcRenderer.invoke('ui:hide-browser'),
     showBrowser: () => ipcRenderer.invoke('ui:show-browser'),
 
+    // Settings
+    getSettings: () => ipcRenderer.invoke('settings:get'),
+    updateSettings: (settings: any) => ipcRenderer.invoke('settings:update', settings),
+
     // Browser navigation
     navigate: (url: string) => ipcRenderer.invoke('browser:navigate', url),
     goBack: () => ipcRenderer.invoke('browser:go-back'),
