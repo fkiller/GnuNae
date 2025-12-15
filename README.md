@@ -2,6 +2,58 @@
 
 An Electron-based browser with an AI-powered Codex sidebar for intelligent web automation.
 
+> ⚠️ **Alpha Warning**: This app is still in alpha stage. Do not use it in production or with sensitive data.
+
+## Architecture
+
+```mermaid
+graph TB
+    subgraph Electron["Electron App"]
+        Main["Main Process<br/>(main.ts)"]
+        Preload["Preload Script<br/>(preload.ts)"]
+        MCP["MCP Server<br/>(mcp-server.ts)"]
+    end
+    
+    subgraph UI["React UI"]
+        App["App.tsx"]
+        Sidebar["CodexSidebar"]
+        AddressBar["AddressBar"]
+        Settings["Settings"]
+    end
+    
+    subgraph Browser["BrowserView"]
+        WebPage["Web Content"]
+    end
+    
+    subgraph External["External Services"]
+        Codex["Codex CLI"]
+        OpenAI["OpenAI API"]
+        Playwright["Playwright MCP"]
+    end
+    
+    Main --> Preload
+    Main --> MCP
+    Main --> Browser
+    Preload <--> UI
+    UI --> Sidebar
+    Sidebar --> |IPC| Codex
+    Codex --> OpenAI
+    Codex --> Playwright
+    Playwright --> |DOM Control| Browser
+    MCP --> |Snapshot/Actions| Browser
+```
+
+### Component Overview
+
+| Component | Description |
+|-----------|-------------|
+| **Main Process** | Electron main, window management, IPC handlers |
+| **BrowserView** | Chromium-based web content rendering |
+| **React UI** | Sidebar, address bar, settings overlay |
+| **Codex CLI** | OpenAI's CLI for AI-powered automation |
+| **MCP Server** | Model Context Protocol for browser control |
+| **Playwright MCP** | DOM interaction and page automation |
+
 ## Features
 
 - 🌐 **Full Browser** - Chrome-based web browser with address bar and navigation
@@ -100,6 +152,17 @@ src/
 - **TypeScript** - Type safety
 - **Vite** - Build tool
 - **OpenAI Codex** - AI code assistant
+
+## Roadmap
+
+| Status | Feature |
+|--------|---------|
+| ✅ Current | Electron-based browser integrated with Codex-Playwright MCP |
+| 🔜 Planned | My Data Store - personal data storage and retrieval |
+| 🔜 Planned | More browser features (bookmarks, history, tabs) |
+| 🔜 Planned | Edge/Chrome extension mode with GnuNae sidebar/backend |
+| 🔜 Planned | Project management for multi-page workflows |
+| 🔜 Planned | More LLM options including local LLM support |
 
 ## License
 
