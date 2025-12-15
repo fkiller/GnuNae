@@ -2,6 +2,8 @@
 
 An Electron-based browser with an AI-powered Codex sidebar for intelligent web automation.
 
+🌐 **Website:** [www.gnunae.com](https://www.gnunae.com?utm_source=github)
+
 > ⚠️ **Alpha Warning**: This app is still in alpha stage. Do not use it in production or with sensitive data.
 
 ## Architecture
