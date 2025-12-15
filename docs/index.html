@@ -98,10 +98,80 @@
             color: var(--text-primary);
         }
 
-        /* Hero Section */
+        /* Hero Section with Video Background */
         .hero {
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
             text-align: center;
-            padding: 80px 0 60px;
+            padding: 120px 24px 80px;
+            overflow: hidden;
+        }
+
+        .hero-video-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .hero-video-bg video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            opacity: 0.4;
+            background: #000;
+            transform: scale(1.3);
+        }
+
+        .hero-video-bg::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(180deg,
+                    rgba(10, 10, 15, 0.7) 0%,
+                    rgba(10, 10, 15, 0.4) 50%,
+                    rgba(10, 10, 15, 0.9) 100%);
+            pointer-events: none;
+        }
+
+        .hero-logo {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 32px;
+            position: relative;
+            z-index: 1;
+            filter: drop-shadow(0 0 40px rgba(99, 102, 241, 0.5));
+            animation: float 6s ease-in-out infinite;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
         }
 
         .hero h1 {
@@ -381,11 +451,19 @@
 
         <main>
             <section class="hero">
-                <h1>Browse Smarter<br>with AI</h1>
-                <p class="tagline">
-                    GnuNae is an AI-powered browser with Codex sidebar for intelligent web automation,
-                    page analysis, and seamless browsing assistance.
-                </p>
+                <div class="hero-video-bg">
+                    <video autoplay muted playsinline id="heroVideo">
+                        <source src="assets/GnuNae.UseCase.1.mp4" type="video/mp4">
+                    </video>
+                </div>
+                <img src="assets/gnunae.png" alt="GnuNae" class="hero-logo">
+                <div class="hero-content">
+                    <h1>Browse Smarter<br>with AI</h1>
+                    <p class="tagline">
+                        GnuNae is an AI-powered browser with Codex sidebar for intelligent web automation,
+                        page analysis, and seamless browsing assistance.
+                    </p>
+                </div>
             </section>
 
             <section class="download-section">
@@ -550,6 +628,24 @@
 
             downloadBtn.href = downloadUrl;
             downloadText.textContent = `Download for ${osName}`;
+        })();
+
+        // Video cycling for hero background
+        (function () {
+            const videos = [
+                'assets/GnuNae.UseCase.1.mp4',
+                'assets/GnuNae.UseCase.2.mp4'
+            ];
+            let currentVideo = 0;
+            const heroVideo = document.getElementById('heroVideo');
+
+            if (heroVideo) {
+                heroVideo.addEventListener('ended', function () {
+                    currentVideo = (currentVideo + 1) % videos.length;
+                    heroVideo.src = videos[currentVideo];
+                    heroVideo.play();
+                });
+            }
         })();
     </script>
 </body>
