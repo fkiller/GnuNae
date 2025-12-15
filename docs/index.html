@@ -471,7 +471,7 @@
                     <svg id="osIcon" viewBox="0 0 24 24" fill="currentColor"></svg>
                     <span id="downloadText">Download for your platform</span>
                 </a>
-                <p class="download-info" id="downloadInfo">Version 0.0.1 • Free & Open Source</p>
+                <p class="download-info" id="downloadInfo">Loading version... • Free & Open Source</p>
 
                 <div class="other-platforms">
                     <a href="https://github.com/fkiller/GnuNae/releases/latest/download/GnuNae-mac-arm64.dmg"
@@ -628,6 +628,17 @@
 
             downloadBtn.href = downloadUrl;
             downloadText.textContent = `Download for ${osName}`;
+
+            // Fetch latest version from GitHub
+            fetch('https://api.github.com/repos/fkiller/GnuNae/releases/latest')
+                .then(r => r.json())
+                .then(data => {
+                    const version = data.tag_name || 'latest';
+                    document.getElementById('downloadInfo').textContent = `${version} • Free & Open Source`;
+                })
+                .catch(() => {
+                    document.getElementById('downloadInfo').textContent = 'Latest • Free & Open Source';
+                });
         })();
 
         // Video cycling for hero background
