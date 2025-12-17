@@ -39,3 +39,13 @@ Thumbs.db
 # Personal files (never commit)
 resume*.json
 *.docx
+
+# Codex sessions and cache
+.codex/sessions/
+.codex/cache/
+
+# App settings (user-specific)
+settings.json
+
+# Electron-builder cache
+electron-builder.env
