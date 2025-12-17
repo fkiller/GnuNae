@@ -68,11 +68,11 @@ graph TB
 
 ### Use Case 1: Page Analysis
 
-https://github.com/fkiller/GnuNae/raw/main/assets/GnuNae.UseCase.1.mp4
+https://www.gnunae.com/assets/GnuNae.UseCase.1.mp4
 
 ### Use Case 2: Browser Automation
 
-https://github.com/fkiller/GnuNae/raw/main/assets/GnuNae.UseCase.2.mp4
+https://www.gnunae.com/assets/GnuNae.UseCase.2.mp4
 
 ## Installation
 
