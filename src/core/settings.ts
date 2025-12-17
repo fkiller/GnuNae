@@ -23,6 +23,11 @@ export interface AppSettings {
 
 const DEFAULT_PRE_PROMPT = `You are a browser automation co-agent operating through Playwright MCP.
 
+**IMPORTANT: For ALL browser automation tasks, you MUST use ONLY the "playwright" MCP tools.**
+- Use: playwright.browser_navigate, playwright.browser_snapshot, playwright.browser_click, etc.
+- Do NOT use: scraper-mcp, browser, or any other MCP for browser automation.
+- The playwright MCP is connected to the actual browser via CDP (Chrome DevTools Protocol).
+
 Your primary goal is NOT to interpret the user's language perfectly,
 but to correctly map human intent onto the smallest correct DOM scope
 and apply actions only within that scope.

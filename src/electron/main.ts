@@ -1,8 +1,55 @@
 import { app, BrowserWindow, BrowserView, ipcMain, session, Menu } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
 import { spawn, ChildProcess } from 'child_process';
 import { AuthService } from '../core/auth';
-import { startMcpServer, updateBrowserView } from './mcp-server';
+
+// Enable Chrome DevTools Protocol for Playwright MCP integration
+// Bound to localhost only for security
+app.commandLine.appendSwitch('remote-debugging-port', '9222');
+app.commandLine.appendSwitch('remote-debugging-address', '127.0.0.1');
+
+/**
+ * Ensure Playwright MCP is configured in the global Codex config.
+ * Adds the playwright MCP server entry if not present.
+ * Does NOT remove other MCPs - we use the prompt to guide Codex to use Playwright.
+ */
+function ensurePlaywrightMcpConfig(): void {
+    const codexConfigDir = path.join(os.homedir(), '.codex');
+    const codexConfigPath = path.join(codexConfigDir, 'config.toml');
+
+    // Ensure .codex directory exists
+    if (!fs.existsSync(codexConfigDir)) {
+        fs.mkdirSync(codexConfigDir, { recursive: true });
+    }
+
+    // Read existing config or start with empty
+    let configContent = '';
+    if (fs.existsSync(codexConfigPath)) {
+        configContent = fs.readFileSync(codexConfigPath, 'utf-8');
+    }
+
+    // Check if playwright MCP is already configured
+    if (configContent.includes('[mcp_servers.playwright]')) {
+        console.log('[Config] Playwright MCP already configured');
+        return;
+    }
+
+    // Add Playwright MCP configuration with extended timeout
+    const playwrightConfig = `
+
+# GnuNae Playwright MCP - Auto-configured
+[mcp_servers.playwright]
+command = "npx"
+args = ["@playwright/mcp@latest", "--cdp-endpoint", "http://127.0.0.1:9222"]
+startup_timeout_sec = 30
+`;
+
+    const newConfig = configContent.trimEnd() + playwrightConfig;
+    fs.writeFileSync(codexConfigPath, newConfig, 'utf-8');
+    console.log('[Config] Added Playwright MCP to Codex config:', codexConfigPath);
+}
 
 // Read package.json for app info
 const packageJson = require('../../package.json');
@@ -144,8 +191,8 @@ function createWindow(): void {
     mainWindow.setBrowserView(browserView);
     updateLayout();
 
-    // Start MCP server for Codex to control this BrowserView
-    startMcpServer(browserView);
+    // Playwright MCP connects via CDP (remote-debugging-port=9222)
+
 
     // Load the UI
     if (process.env.VITE_DEV_SERVER_URL) {
@@ -428,17 +475,28 @@ function setupIpcHandlers(): void {
             // Combine: prePrompt + pageContext + user prompt
             const fullPrompt = (prePrompt ? prePrompt + '\n\n---\n\n' : '') + pageContext + prompt;
 
-            // Use local Codex CLI from node_modules with app's config
-            const codexBin = path.join(__dirname, '../../node_modules/.bin/codex');
-            const codexConfig = path.join(__dirname, '../../config/codex.toml');
+            // Use local Codex CLI from node_modules
+            // Config is read from ~/.codex/config.toml (update there for MCP settings)
+            const isWindows = process.platform === 'win32';
+            const codexBinName = isWindows ? 'codex.cmd' : 'codex';
+            const codexBin = path.join(__dirname, '../../node_modules/.bin', codexBinName);
 
             codexProcess = spawn(codexBin, ['exec'], {
-                shell: true,
+                shell: isWindows ? process.env.ComSpec || 'cmd.exe' : true,
                 cwd: path.join(__dirname, '../..'),
                 env: {
                     ...process.env,
-                    PATH: process.env.PATH + ':/opt/homebrew/bin:/usr/local/bin',
-                    CODEX_CONFIG: codexConfig,
+                    // UTF-8 encoding for proper Korean/Unicode support
+                    PYTHONIOENCODING: 'utf-8',
+                    PYTHONUTF8: '1',
+                    LANG: 'en_US.UTF-8',
+                    // Ensure Windows can find executables
+                    ...(isWindows && {
+                        ComSpec: process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe',
+                        SystemRoot: process.env.SystemRoot || 'C:\\Windows',
+                        // Windows UTF-8 code page
+                        CHCP: '65001',
+                    }),
                 },
             });
 
@@ -449,7 +507,7 @@ function setupIpcHandlers(): void {
             }
 
             codexProcess.stdout?.on('data', (data: Buffer) => {
-                const chunk = data.toString();
+                const chunk = data.toString('utf8');
                 output += chunk;
                 console.log('[Codex stdout]', chunk);
                 // Send streaming output to renderer
@@ -457,7 +515,7 @@ function setupIpcHandlers(): void {
             });
 
             codexProcess.stderr?.on('data', (data: Buffer) => {
-                const chunk = data.toString();
+                const chunk = data.toString('utf8');
                 errorOutput += chunk;
                 console.log('[Codex stderr]', chunk);
                 mainWindow?.webContents.send('codex:output', { type: 'stderr', data: chunk });
@@ -491,6 +549,9 @@ function setupIpcHandlers(): void {
 }
 
 app.whenReady().then(() => {
+    // Ensure Codex is configured with Playwright MCP
+    ensurePlaywrightMcpConfig();
+
     createMenu();
     createWindow();
     setupIpcHandlers();
