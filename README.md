@@ -64,9 +64,13 @@ graph TB
 - 🔧 **Page Analysis** - Codex can see and analyze your current page
 - 🎯 **MCP Integration** - Model Context Protocol for browser control
 
-## Screenshots
+## Demo Videos
 
-*Coming soon*
+### Use Case 1: Page Analysis
+https://github.com/user-attachments/assets/GnuNae.UseCase.1.mp4
+
+### Use Case 2: Browser Automation
+https://github.com/user-attachments/assets/GnuNae.UseCase.2.mp4
 
 ## Installation
 
