@@ -67,10 +67,12 @@ graph TB
 ## Demo Videos
 
 ### Use Case 1: Page Analysis
-<video src="assets/GnuNae.UseCase.1.mp4" controls width="100%"></video>
+
+https://github.com/fkiller/GnuNae/raw/main/assets/GnuNae.UseCase.1.mp4
 
 ### Use Case 2: Browser Automation
-<video src="assets/GnuNae.UseCase.2.mp4" controls width="100%"></video>
+
+https://github.com/fkiller/GnuNae/raw/main/assets/GnuNae.UseCase.2.mp4
 
 ## Installation
 
