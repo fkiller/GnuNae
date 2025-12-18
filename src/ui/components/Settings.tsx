@@ -7,6 +7,8 @@ interface Settings {
     ui: { sidebarWidth: number; theme: 'dark' | 'light' | 'system' };
 }
 
+type DataStoreData = Record<string, string | number | boolean>;
+
 interface SettingsProps {
     isOpen: boolean;
     onClose: () => void;
@@ -15,44 +17,68 @@ interface SettingsProps {
 const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     const [settings, setSettings] = useState<Settings | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [dataStore, setDataStore] = useState<DataStoreData>({});
+    const [newKey, setNewKey] = useState('');
+    const [newValue, setNewValue] = useState('');
+    const [editingKey, setEditingKey] = useState<string | null>(null);
+    const [editValue, setEditValue] = useState('');
 
     useEffect(() => {
         if (isOpen) {
-            // Hide BrowserView so settings overlay is visible
             (window as any).electronAPI?.hideBrowser?.();
-            // Load settings via IPC
             (window as any).electronAPI?.getSettings?.().then((s: Settings | null) => {
                 setSettings(s);
-                // Sync debug mode to localStorage
                 if (s?.debug?.enabled !== undefined) {
                     localStorage.setItem('gnunae-debug', s.debug.enabled ? 'true' : 'false');
                 }
             });
+            // Load datastore
+            (window as any).electronAPI?.getDataStore?.().then((data: DataStoreData) => {
+                setDataStore(data || {});
+            });
         } else {
-            // Show BrowserView when settings closes
             (window as any).electronAPI?.showBrowser?.();
         }
     }, [isOpen]);
 
     const updateSetting = (path: string, value: any) => {
         if (!settings) return;
-
         const keys = path.split('.');
         const newSettings = { ...settings };
         let obj: any = newSettings;
-
         for (let i = 0; i < keys.length - 1; i++) {
             obj = obj[keys[i]];
         }
         obj[keys[keys.length - 1]] = value;
-
-        // Sync debug mode to localStorage for sidebar filter
         if (path === 'debug.enabled') {
             localStorage.setItem('gnunae-debug', value ? 'true' : 'false');
         }
-
         setSettings(newSettings);
         (window as any).electronAPI?.updateSettings?.(newSettings);
+    };
+
+    const addDataStoreEntry = async () => {
+        if (!newKey.trim()) return;
+        await (window as any).electronAPI?.setDataStoreValue?.(newKey.trim(), newValue);
+        setDataStore(prev => ({ ...prev, [newKey.trim()]: newValue }));
+        setNewKey('');
+        setNewValue('');
+    };
+
+    const updateDataStoreEntry = async (key: string) => {
+        await (window as any).electronAPI?.setDataStoreValue?.(key, editValue);
+        setDataStore(prev => ({ ...prev, [key]: editValue }));
+        setEditingKey(null);
+        setEditValue('');
+    };
+
+    const removeDataStoreEntry = async (key: string) => {
+        await (window as any).electronAPI?.removeDataStoreValue?.(key);
+        setDataStore(prev => {
+            const newData = { ...prev };
+            delete newData[key];
+            return newData;
+        });
     };
 
     if (!isOpen) return null;
@@ -80,6 +106,56 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                 </div>
 
                 <div className="settings-content">
+                    {/* DataStore Section */}
+                    {filterBySearch('data store personal info') && (
+                        <div className="settings-section">
+                            <h3>📁 Data Store</h3>
+                            <span className="setting-hint">Personal data used by Codex for auto-filling forms</span>
+
+                            <div className="datastore-list">
+                                {Object.entries(dataStore).map(([key, value]) => (
+                                    <div key={key} className="datastore-item">
+                                        <span className="datastore-key">{key}</span>
+                                        {editingKey === key ? (
+                                            <div className="datastore-edit">
+                                                <input
+                                                    type="text"
+                                                    value={editValue}
+                                                    onChange={(e) => setEditValue(e.target.value)}
+                                                    autoFocus
+                                                />
+                                                <button onClick={() => updateDataStoreEntry(key)}>✓</button>
+                                                <button onClick={() => setEditingKey(null)}>✗</button>
+                                            </div>
+                                        ) : (
+                                            <div className="datastore-value-row">
+                                                <span className="datastore-value">{String(value)}</span>
+                                                <button onClick={() => { setEditingKey(key); setEditValue(String(value)); }}>✎</button>
+                                                <button onClick={() => removeDataStoreEntry(key)}>🗑</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="datastore-add">
+                                <input
+                                    type="text"
+                                    placeholder="Key (e.g. user.email)"
+                                    value={newKey}
+                                    onChange={(e) => setNewKey(e.target.value)}
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Value"
+                                    value={newValue}
+                                    onChange={(e) => setNewValue(e.target.value)}
+                                />
+                                <button onClick={addDataStoreEntry}>+ Add</button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Debug Section */}
                     {filterBySearch('debug') && (
                         <div className="settings-section">
@@ -197,3 +273,4 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
 };
 
 export default Settings;
+

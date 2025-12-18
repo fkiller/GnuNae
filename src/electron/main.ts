@@ -253,8 +253,8 @@ class TabManager {
 
     private notifyTabUpdate(tab: TabState): void {
         if (tab.id === this.activeTabId) {
-            mainWindow?.webContents.send('browser:url', tab.url);
-            mainWindow?.webContents.send('browser:title', tab.title);
+            mainWindow?.webContents.send('browser:url-updated', tab.url);
+            mainWindow?.webContents.send('browser:title-updated', tab.title);
         }
         this.notifyTabsChanged();
     }
@@ -464,6 +464,29 @@ function setupIpcHandlers(): void {
         return tabManager?.getActiveTabId() ?? null;
     });
 
+    // DataStore handlers
+    ipcMain.handle('datastore:getAll', () => {
+        const { dataStoreService } = require('../core/datastore');
+        return dataStoreService.getAll();
+    });
+
+    ipcMain.handle('datastore:get', (_, key: string) => {
+        const { dataStoreService } = require('../core/datastore');
+        return dataStoreService.get(key);
+    });
+
+    ipcMain.handle('datastore:set', (_, key: string, value: string | number | boolean) => {
+        const { dataStoreService } = require('../core/datastore');
+        dataStoreService.set(key, value);
+        return { success: true };
+    });
+
+    ipcMain.handle('datastore:remove', (_, key: string) => {
+        const { dataStoreService } = require('../core/datastore');
+        const success = dataStoreService.remove(key);
+        return { success };
+    });
+
     // Settings handlers
     ipcMain.handle('settings:get', () => {
         const { settingsService } = require('../core/settings');
@@ -524,6 +547,12 @@ function setupIpcHandlers(): void {
         if (!browserView) return { authenticated: false };
         console.log('[Main] Manual auth check requested');
         const success = await authService.extractTokenFromCookies(browserView.webContents.session);
+
+        // Notify UI of auth status change
+        if (success) {
+            mainWindow?.webContents.send('auth:status-changed', true);
+        }
+
         return { authenticated: success };
     });
 
@@ -646,18 +675,40 @@ function setupIpcHandlers(): void {
             const { settingsService } = require('../core/settings');
             const prePrompt = settingsService.get('codex')?.prePrompt || '';
 
-            // Combine: prePrompt + pageContext + user prompt
-            const fullPrompt = (prePrompt ? prePrompt + '\n\n---\n\n' : '') + pageContext + prompt;
+            // Get user data from datastore
+            const { dataStoreService } = require('../core/datastore');
+            const userDataFormatted = dataStoreService.getFormatted();
+            const userDataContext = `\n\n## User's Stored Data\nUse this data when the prompt requires personal information:\n${userDataFormatted}\n`;
 
-            // Use local Codex CLI from node_modules
-            // Config is read from ~/.codex/config.toml (update there for MCP settings)
+            // Combine: prePrompt + userDataContext + pageContext + user prompt
+            const fullPrompt = (prePrompt ? prePrompt + userDataContext + '\n\n---\n\n' : '') + pageContext + prompt;
+
+            // Determine Codex CLI path - different for packaged vs development
             const isWindows = process.platform === 'win32';
             const codexBinName = isWindows ? 'codex.cmd' : 'codex';
-            const codexBin = path.join(__dirname, '../../node_modules/.bin', codexBinName);
+
+            let codexBin: string;
+            if (app.isPackaged) {
+                // Packaged app - use unpacked node_modules
+                codexBin = path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.bin', codexBinName);
+            } else {
+                // Development - use local node_modules
+                codexBin = path.join(__dirname, '../../node_modules/.bin', codexBinName);
+            }
+
+            console.log('[Main] Using Codex from:', codexBin);
+
+            // Set working directory appropriately
+            const cwd = app.isPackaged
+                ? path.join(process.resourcesPath, 'app.asar.unpacked')
+                : path.join(__dirname, '../..');
 
             codexProcess = spawn(codexBin, ['exec'], {
-                shell: isWindows ? process.env.ComSpec || 'cmd.exe' : true,
-                cwd: path.join(__dirname, '../..'),
+                // Use shell on Windows for .cmd scripts
+                shell: isWindows ? true : false,
+                cwd,
+                // Enable windowsHide to prevent console window popup on Windows
+                windowsHide: true,
                 env: {
                     ...process.env,
                     // UTF-8 encoding for proper Korean/Unicode support
@@ -684,6 +735,31 @@ function setupIpcHandlers(): void {
                 const chunk = data.toString('utf8');
                 output += chunk;
                 console.log('[Codex stdout]', chunk);
+
+                // Check for PDS_REQUEST pattern: [PDS_REQUEST:key:message]
+                const pdsRequestMatch = chunk.match(/\[PDS_REQUEST:([^:]+):([^\]]+)\]/);
+                if (pdsRequestMatch) {
+                    const [, key, message] = pdsRequestMatch;
+                    console.log('[Main] PDS Request detected:', key, message);
+                    mainWindow?.webContents.send('codex:pds-request', { key, message });
+                }
+
+                // Check for PDS_STORE pattern: [PDS_STORE:key:value]
+                // Can have multiple stores in one chunk
+                const pdsStoreRegex = /\[PDS_STORE:([^:]+):([^\]]+)\]/g;
+                let storeMatch;
+                while ((storeMatch = pdsStoreRegex.exec(chunk)) !== null) {
+                    const [fullMatch, key, value] = storeMatch;
+                    console.log('[Main] PDS Store detected:', key, value);
+
+                    // Save to datastore
+                    const { dataStoreService } = require('../core/datastore');
+                    dataStoreService.set(key, value);
+
+                    // Notify renderer of the store operation
+                    mainWindow?.webContents.send('codex:pds-stored', { key, value });
+                }
+
                 // Send streaming output to renderer
                 mainWindow?.webContents.send('codex:output', { type: 'stdout', data: chunk });
             });
@@ -697,6 +773,51 @@ function setupIpcHandlers(): void {
 
             codexProcess.on('close', (code) => {
                 console.log('[Main] Codex process exited with code:', code);
+
+                // Combine output and error for pattern matching
+                const allOutput = (output + ' ' + errorOutput).toLowerCase();
+
+                // Check for common issues and provide helpful messages
+                if (code !== 0) {
+                    let helpMessage = '';
+
+                    // Free user / subscription required
+                    if (allOutput.includes('subscription') ||
+                        allOutput.includes('upgrade') ||
+                        allOutput.includes('pro') ||
+                        allOutput.includes('plus') ||
+                        allOutput.includes('billing') ||
+                        allOutput.includes('payment') ||
+                        allOutput.includes('insufficient_quota') ||
+                        allOutput.includes('rate_limit') ||
+                        allOutput.includes('exceeded')) {
+                        helpMessage = '⚠️ ChatGPT Pro/Plus subscription required.\n\nCodex CLI is only available to ChatGPT Pro or Plus subscribers. Please upgrade your OpenAI account at:\nhttps://chat.openai.com/settings/subscription';
+                    }
+                    // Model access denied
+                    else if (allOutput.includes('model') && (allOutput.includes('access') || allOutput.includes('permission') || allOutput.includes('denied'))) {
+                        helpMessage = '⚠️ Model access denied.\n\nYour OpenAI account does not have access to the required models. ChatGPT Pro/Plus subscription is required.';
+                    }
+                    // Authentication issues
+                    else if (allOutput.includes('openai_api_key') ||
+                        allOutput.includes('authentication') ||
+                        allOutput.includes('unauthorized') ||
+                        allOutput.includes('invalid_api_key') ||
+                        allOutput.includes('401')) {
+                        helpMessage = '⚠️ OpenAI authentication failed.\n\nRun "codex auth openai" in terminal to authenticate.';
+                    }
+                    // No output at all - likely not configured
+                    else if (!output && !errorOutput) {
+                        helpMessage = '⚠️ Codex failed to start.\n\n1. Make sure you have a ChatGPT Pro/Plus subscription\n2. Run "codex auth openai" in terminal to authenticate';
+                    }
+
+                    if (helpMessage) {
+                        mainWindow?.webContents.send('codex:output', {
+                            type: 'stderr',
+                            data: helpMessage
+                        });
+                    }
+                }
+
                 mainWindow?.webContents.send('codex:complete', { code, output, errorOutput });
                 codexProcess = null;
                 resolve({ success: code === 0, output, errorOutput, code });
@@ -704,21 +825,79 @@ function setupIpcHandlers(): void {
 
             codexProcess.on('error', (err) => {
                 console.error('[Main] Codex spawn error:', err);
-                mainWindow?.webContents.send('codex:error', { error: err.message });
+
+                // Provide helpful error message
+                let userMessage = err.message;
+                if (err.message.includes('ENOENT') || err.message.includes('not found')) {
+                    userMessage = '⚠️ Codex CLI not found. Please ensure @openai/codex is installed.';
+                }
+
+                mainWindow?.webContents.send('codex:error', { error: userMessage });
                 codexProcess = null;
-                resolve({ success: false, error: err.message });
+                resolve({ success: false, error: userMessage });
             });
         });
     });
 
     // Stop running Codex process
     ipcMain.handle('codex:stop', async () => {
+        console.log('[Main] Stop requested, codexProcess:', !!codexProcess);
         if (codexProcess) {
-            codexProcess.kill();
-            codexProcess = null;
-            return { success: true };
+            try {
+                const isWindows = process.platform === 'win32';
+                const pid = codexProcess.pid;
+
+                if (isWindows && pid) {
+                    // On Windows, use taskkill to kill the entire process tree
+                    // /T = tree kill, /F = force
+                    const { execSync } = require('child_process');
+                    try {
+                        execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
+                        console.log('[Main] Process tree killed via taskkill');
+                    } catch (e) {
+                        // taskkill might fail if process already exited
+                        console.log('[Main] taskkill error (process may have already exited):', e);
+                    }
+                } else {
+                    // Graceful termination on Unix
+                    codexProcess.kill('SIGTERM');
+                    // Force kill after timeout if still running
+                    const proc = codexProcess;
+                    setTimeout(() => {
+                        if (proc && !proc.killed) {
+                            proc.kill('SIGKILL');
+                        }
+                    }, 1000);
+                }
+
+                codexProcess = null;
+                console.log('[Main] Codex process killed');
+                return { success: true };
+            } catch (e) {
+                console.error('[Main] Error killing process:', e);
+                codexProcess = null;
+                return { success: true }; // Still consider it stopped
+            }
         }
         return { success: false, error: 'No running process' };
+    });
+
+    // Respond to PDS request - save to datastore and feed to Codex
+    ipcMain.handle('codex:pds-respond', async (_, key: string, value: string) => {
+        console.log('[Main] PDS Response:', key, value);
+
+        // Save to datastore
+        const { dataStoreService } = require('../core/datastore');
+        dataStoreService.set(key, value);
+
+        // Feed value back to Codex stdin if process is running
+        if (codexProcess && codexProcess.stdin) {
+            const response = `\n[PDS_VALUE:${key}=${value}]\n`;
+            codexProcess.stdin.write(response);
+            console.log('[Main] Fed PDS value to Codex:', response);
+        }
+
+        return { success: true };
     });
 }
 

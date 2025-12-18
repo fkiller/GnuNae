@@ -1,10 +1,16 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import DataRequestCard from './DataRequestCard';
 
 interface LogEntry {
     id: number;
     type: 'command' | 'response' | 'error' | 'info' | 'codex';
     message: string;
     timestamp: Date;
+}
+
+interface PdsRequest {
+    key: string;
+    message: string;
 }
 
 interface CodexSidebarProps {
@@ -45,13 +51,15 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
     const [mode, setMode] = useState<CodexMode>('agent');
-    const [model, setModel] = useState<CodexModel>('gpt-5.1-codex-max');
+    const [model, setModel] = useState<CodexModel>('gpt-5.1-codex-mini');
     const [activeMenu, setActiveMenu] = useState<'mode' | 'model' | null>(null);
+    const [pdsRequest, setPdsRequest] = useState<PdsRequest | null>(null);
     const logContainerRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const logIdRef = useRef(0);
+    const lastPromptRef = useRef<string>('');
 
-    // Subscribe to Codex output streams
+    // Subscribe to Codex output streams and PDS requests
     useEffect(() => {
         const unsubOutput = (window as any).electronAPI?.onCodexOutput?.((data: any) => {
             const message = data.data.trim();
@@ -66,7 +74,7 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
                 const skipPatterns = [
                     // DOM element dumps
                     /^(text|div|span|a|button|input|h[1-6]|li|p|ul|ol|table|tr|td|th|nav|header|footer|section|article|aside|form|label|select|option|img|svg|path|main|body|html):/i,
-                    /^<[a-z]/i, // HTML tags
+                    /<[a-z]/i, // HTML tags
                     /^\s*<\//i, // Closing tags
                     /^ref=\d+/i, // Element references
                     /^role=/i, // ARIA roles
@@ -83,6 +91,10 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
                     /^\[verbose\]/i,
                     /^DEBUG:/i,
                     /^INFO:/i,
+                    // PDS request markers (hide from output)
+                    /\[PDS_REQUEST:/i,
+                    // PDS store markers (hide from output - shown as 💾 Stored: instead)
+                    /\[PDS_STORE:/i,
                     // Very short messages (likely fragments)
                     /^.{1,3}$/,
                     // Whitespace-heavy lines
@@ -110,6 +122,7 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
 
         const unsubComplete = (window as any).electronAPI?.onCodexComplete?.((data: any) => {
             setIsProcessing(false);
+            // DON'T clear pdsRequest here - let the card stay visible if there's a pending request
             if (data.code === 0) {
                 addLog('info', '✓ Completed');
             } else {
@@ -119,13 +132,29 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
 
         const unsubError = (window as any).electronAPI?.onCodexError?.((data: any) => {
             setIsProcessing(false);
+            setPdsRequest(null);
             addLog('error', `Error: ${data.error}`);
+        });
+
+        // Subscribe to PDS requests from Codex
+        const unsubPds = (window as any).electronAPI?.onPdsRequest?.((data: PdsRequest) => {
+            console.log('[CodexSidebar] PDS Request received:', data);
+            setPdsRequest(data);
+            addLog('info', `📋 Information needed: ${data.key}`);
+        });
+
+        // Subscribe to PDS store confirmations
+        const unsubPdsStore = (window as any).electronAPI?.onPdsStored?.((data: { key: string; value: string }) => {
+            console.log('[CodexSidebar] PDS Stored:', data);
+            addLog('info', `💾 Stored: ${data.key} = ${data.value}`);
         });
 
         return () => {
             unsubOutput?.();
             unsubComplete?.();
             unsubError?.();
+            unsubPds?.();
+            unsubPdsStore?.();
         };
     }, []);
 
@@ -154,6 +183,28 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
         setLogs((prev) => [...prev.slice(-100), entry]);
     }, []);
 
+    const handlePdsSubmit = useCallback(async (value: string) => {
+        if (!pdsRequest) return;
+
+        addLog('info', `✓ Saved: ${pdsRequest.key} = ${value}`);
+        await (window as any).electronAPI?.respondPdsRequest?.(pdsRequest.key, value);
+        setPdsRequest(null);
+
+        // Re-run the last prompt now that we have the data
+        if (lastPromptRef.current) {
+            addLog('info', '🔄 Retrying with saved data...');
+            setIsProcessing(true);
+            await (window as any).electronAPI?.executeCodex?.(lastPromptRef.current);
+        }
+    }, [pdsRequest, addLog]);
+
+    const handlePdsCancel = useCallback(() => {
+        if (pdsRequest) {
+            addLog('info', `⏭ Skipped: ${pdsRequest.key}`);
+        }
+        setPdsRequest(null);
+    }, [pdsRequest, addLog]);
+
     const handleExecutePrompt = useCallback(async () => {
         if (!prompt.trim()) return;
 
@@ -164,6 +215,7 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
         }
 
         const userPrompt = prompt.trim();
+        lastPromptRef.current = userPrompt; // Store for potential retry
         addLog('command', `> ${userPrompt}`);
         setPrompt('');
         setIsProcessing(true);
@@ -173,10 +225,14 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
     }, [prompt, addLog, isAuthenticated, onRequestLogin, mode]);
 
     const handleStopCodex = useCallback(async () => {
-        await (window as any).electronAPI?.stopCodex?.();
+        console.log('[CodexSidebar] Stop button clicked, isProcessing:', isProcessing);
+        addLog('info', '⏹ Stopping...');
+        const result = await (window as any).electronAPI?.stopCodex?.();
+        console.log('[CodexSidebar] Stop result:', result);
         setIsProcessing(false);
+        setPdsRequest(null);
         addLog('info', 'Stopped.');
-    }, [addLog]);
+    }, [addLog, isProcessing]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -220,6 +276,16 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
                     {currentUrl ? `📍 ${new URL(currentUrl).hostname}` : '📍 No page loaded'}
                 </div>
             </div>
+
+            {/* PDS Request Card */}
+            {pdsRequest && (
+                <DataRequestCard
+                    dataKey={pdsRequest.key}
+                    message={pdsRequest.message}
+                    onSubmit={handlePdsSubmit}
+                    onCancel={handlePdsCancel}
+                />
+            )}
 
             {/* Output Log */}
             <div className="log-section">
@@ -318,3 +384,4 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
 };
 
 export default CodexSidebar;
+

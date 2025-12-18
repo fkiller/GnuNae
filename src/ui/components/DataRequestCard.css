@@ -1,0 +1,122 @@
+.data-request-card {
+    margin: 12px;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(99, 102, 241, 0.15) 100%);
+    border: 1px solid rgba(14, 165, 233, 0.3);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.data-request-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: rgba(14, 165, 233, 0.2);
+    border-bottom: 1px solid rgba(14, 165, 233, 0.2);
+}
+
+.data-request-icon {
+    font-size: 16px;
+}
+
+.data-request-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent-secondary);
+}
+
+.data-request-body {
+    padding: 12px;
+}
+
+.data-request-message {
+    font-size: 13px;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+.data-request-key {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    font-family: 'SF Mono', monospace;
+}
+
+.data-request-input {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg-glass);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 14px;
+    outline: none;
+    margin-bottom: 12px;
+    transition: border-color var(--transition-fast);
+}
+
+.data-request-input:focus {
+    border-color: var(--accent-secondary);
+}
+
+.data-request-input::placeholder {
+    color: var(--text-muted);
+}
+
+.data-request-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.data-request-cancel {
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.data-request-cancel:hover {
+    background: var(--bg-glass);
+    color: var(--text-primary);
+}
+
+.data-request-submit {
+    padding: 8px 16px;
+    background: var(--accent-secondary);
+    border: none;
+    border-radius: var(--radius-sm);
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.data-request-submit:hover:not(:disabled) {
+    filter: brightness(1.1);
+}
+
+.data-request-submit:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

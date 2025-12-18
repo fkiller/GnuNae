@@ -31,6 +31,12 @@ export interface ElectronAPI {
     getActiveTab: () => Promise<string | null>;
     onTabsUpdated: (callback: (tabs: TabInfo[]) => void) => () => void;
 
+    // DataStore
+    getDataStore: () => Promise<Record<string, string | number | boolean>>;
+    getDataStoreValue: (key: string) => Promise<string | number | boolean | undefined>;
+    setDataStoreValue: (key: string, value: string | number | boolean) => Promise<{ success: boolean }>;
+    removeDataStoreValue: (key: string) => Promise<{ success: boolean }>;
+
     // Browser navigation
     navigate: (url: string) => Promise<{ success: boolean; url?: string; error?: string }>;
     goBack: () => Promise<{ success: boolean; error?: string }>;
@@ -43,15 +49,19 @@ export interface ElectronAPI {
     // Codex CLI
     executeCodex: (prompt: string) => Promise<{ success: boolean; output?: string; errorOutput?: string; error?: string }>;
     stopCodex: () => Promise<{ success: boolean }>;
+    respondPdsRequest: (key: string, value: string) => Promise<{ success: boolean }>;
     onCodexOutput: (callback: (data: { type: string; data: string }) => void) => () => void;
     onCodexComplete: (callback: (data: { code: number; output: string; errorOutput: string }) => void) => () => void;
     onCodexError: (callback: (data: { error: string }) => void) => () => void;
+    onPdsRequest: (callback: (data: { key: string; message: string }) => void) => () => void;
+    onPdsStored: (callback: (data: { key: string; value: string }) => void) => () => void;
 
     // Event listeners
     onUrlUpdate: (callback: (url: string) => void) => () => void;
     onTitleUpdate: (callback: (title: string) => void) => () => void;
     onLoadingChange: (callback: (loading: boolean) => void) => () => void;
 }
+
 
 // Expose protected methods to the renderer process
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -84,6 +94,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return () => ipcRenderer.removeListener('tabs:updated', handler);
     },
 
+    // DataStore
+    getDataStore: () => ipcRenderer.invoke('datastore:getAll'),
+    getDataStoreValue: (key: string) => ipcRenderer.invoke('datastore:get', key),
+    setDataStoreValue: (key: string, value: string | number | boolean) => ipcRenderer.invoke('datastore:set', key, value),
+    removeDataStoreValue: (key: string) => ipcRenderer.invoke('datastore:remove', key),
+
     // Settings
     getSettings: () => ipcRenderer.invoke('settings:get'),
     updateSettings: (settings: any) => ipcRenderer.invoke('settings:update', settings),
@@ -100,6 +116,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Codex CLI
     executeCodex: (prompt: string) => ipcRenderer.invoke('codex:execute', prompt),
     stopCodex: () => ipcRenderer.invoke('codex:stop'),
+    respondPdsRequest: (key: string, value: string) => ipcRenderer.invoke('codex:pds-respond', key, value),
     onCodexOutput: (callback: (data: { type: string; data: string }) => void) => {
         const handler = (_: IpcRendererEvent, data: { type: string; data: string }) => callback(data);
         ipcRenderer.on('codex:output', handler);
@@ -114,6 +131,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const handler = (_: IpcRendererEvent, data: { error: string }) => callback(data);
         ipcRenderer.on('codex:error', handler);
         return () => ipcRenderer.removeListener('codex:error', handler);
+    },
+    onPdsRequest: (callback: (data: { key: string; message: string }) => void) => {
+        const handler = (_: IpcRendererEvent, data: { key: string; message: string }) => callback(data);
+        ipcRenderer.on('codex:pds-request', handler);
+        return () => ipcRenderer.removeListener('codex:pds-request', handler);
+    },
+    onPdsStored: (callback: (data: { key: string; value: string }) => void) => {
+        const handler = (_: IpcRendererEvent, data: { key: string; value: string }) => callback(data);
+        ipcRenderer.on('codex:pds-stored', handler);
+        return () => ipcRenderer.removeListener('codex:pds-stored', handler);
     },
 
     // Event listeners with cleanup

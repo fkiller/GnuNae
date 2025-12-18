@@ -1111,3 +1111,127 @@ body {
 .about-links span {
     color: var(--text-muted);
 }
+
+/* DataStore Styles */
+.datastore-list {
+    margin: 12px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.datastore-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: var(--bg-glass);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
+.datastore-key {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-secondary);
+    min-width: 120px;
+}
+
+.datastore-value-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    justify-content: flex-end;
+}
+
+.datastore-value {
+    font-size: 12px;
+    color: var(--text-secondary);
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.datastore-value-row button,
+.datastore-edit button {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-size: 12px;
+}
+
+.datastore-value-row button:hover,
+.datastore-edit button:hover {
+    background: var(--bg-glass);
+    color: var(--text-primary);
+    border-color: var(--accent-secondary);
+}
+
+.datastore-value-row button:last-child:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.datastore-edit {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    justify-content: flex-end;
+}
+
+.datastore-edit input {
+    flex: 1;
+    max-width: 150px;
+    padding: 6px 10px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--accent-secondary);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 12px;
+    outline: none;
+}
+
+.datastore-add {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.datastore-add input {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--bg-glass);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 12px;
+    outline: none;
+}
+
+.datastore-add input:focus {
+    border-color: var(--accent-secondary);
+}
+
+.datastore-add button {
+    padding: 8px 16px;
+    background: var(--accent-secondary);
+    border: none;
+    border-radius: var(--radius-sm);
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.datastore-add button:hover {
+    filter: brightness(1.1);
+}

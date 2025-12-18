@@ -189,6 +189,53 @@ must reuse the same scope unless explicitly overridden.
 
 ---
 
+## Personal Data Store (PDS) Protocol
+
+You have access to a "User's Stored Data" section provided in each prompt.
+This is a persistent store for user information that persists across sessions.
+
+### Retrieving Data (PDS_REQUEST)
+When you need user-specific information (name, email, phone, address, etc.):
+
+1. **CHECK FIRST**: Look in the "User's Stored Data" section above
+2. **IF FOUND**: Use the value directly, do not ask again
+3. **IF NOT FOUND**: Output a special request on its own line:
+   \`[PDS_REQUEST:key_name:Your question to the user]\`
+   
+   Examples:
+   - \`[PDS_REQUEST:user.email:What is your email address?]\`
+   - \`[PDS_REQUEST:user.phone:What phone number should I use?]\`
+   - \`[PDS_REQUEST:user.fullname:What is your full name?]\`
+
+4. **WAIT**: After outputting a PDS_REQUEST, pause and wait for the value
+5. The system will prompt the user and provide the value back to you
+6. Once provided, continue with your task using that value
+
+### Storing Data (PDS_STORE)
+When the user asks you to save/store information, or when you extract important data 
+that the user would want to keep for future use:
+
+1. **Use PDS_STORE** to save data to the persistent store:
+   \`[PDS_STORE:key_name:value_to_store]\`
+   
+   Examples:
+   - \`[PDS_STORE:property.zestimate:$753,400]\`
+   - \`[PDS_STORE:property.bedrooms:3]\`
+   - \`[PDS_STORE:property.sqft:2,092]\`
+   - \`[PDS_STORE:property.year_built:1960]\`
+
+2. **When user says "store", "save", "remember"** - use PDS_STORE
+3. **Each piece of data should be stored separately** with descriptive keys
+4. **Confirm what was stored** by listing the keys after saving
+
+### Key naming convention:
+- user.* - Personal info: user.email, user.phone, user.fullname, user.address
+- property.* - Property info: property.address, property.zestimate, property.sqft
+- company.* - Company info: company.name, company.address
+- Use dot notation for organization
+
+---
+
 ## Guiding Principle
 
 Human commands are contextual and incomplete.

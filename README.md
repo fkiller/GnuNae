@@ -63,6 +63,7 @@ graph TB
 - 🔐 **OpenAI Auth** - Sign in with your OpenAI account
 - 🔧 **Page Analysis** - Codex can see and analyze your current page
 - 🎯 **MCP Integration** - Model Context Protocol for browser control
+- 💾 **Personal Data Store (PDS)** - Persistent storage for user data that Codex can access and update
 
 ## Demo Videos
 
@@ -79,7 +80,9 @@ https://www.gnunae.com/assets/GnuNae.UseCase.2.mp4
 ### Prerequisites
 - Node.js 18+
 - npm or yarn
-- OpenAI account (for Codex features)
+- **ChatGPT Pro or Plus subscription** (required for Codex CLI)
+  - Free ChatGPT accounts cannot use Codex features
+  - Upgrade at: https://chat.openai.com/settings/subscription
 
 ### Setup
 
@@ -91,12 +94,17 @@ cd GnuNae
 # Install dependencies
 npm install
 
+# IMPORTANT: Authenticate with OpenAI (first-time only)
+npx codex auth openai
+
 # Build the application
 npm run build
 
 # Run in development
 npm run start
 ```
+
+> ⚠️ **First-time users**: You must run `npx codex auth openai` to authenticate with OpenAI before using the app. This is a one-time setup.
 
 ## Usage
 
@@ -110,6 +118,25 @@ npm run start
 - "Summarize this page"
 - "Find all job listings mentioning Python"
 - "What are the main topics covered here?"
+- "Google my address" (Codex will ask for your address and remember it)
+- "Store all property information" (Codex extracts and saves data from the page)
+
+### Personal Data Store (PDS)
+
+The PDS allows Codex to remember your personal information across sessions:
+
+1. **Automatic Prompting** - When Codex needs info (email, address, etc.), a smart card appears for you to enter it
+2. **Persistent Storage** - Data is saved to `~/.gnunae/datastore.json` and reused automatically
+3. **Web Extraction** - Ask Codex to "store" information from pages (e.g., property details from Zillow)
+4. **Manage in Settings** - View, edit, or delete stored data in the Settings panel
+
+Example workflow:
+```
+You: "Search my address on Zillow"
+Codex: [Shows smart card asking for address]
+You: [Enter "123 Main St, Boston MA"]
+Codex: [Searches Zillow, saves address for future use]
+```
 
 ## Building for Distribution
 
@@ -150,15 +177,17 @@ src/
 │   ├── App.tsx           # Main UI layout
 │   ├── App.css           # Global styles
 │   └── components/
-│       ├── AddressBar.tsx    # URL navigation bar
-│       ├── CodexSidebar.tsx  # AI assistant sidebar
-│       ├── Settings.tsx      # Settings panel
-│       └── About.tsx         # About dialog
-└── core/                 # Shared utilities
-    ├── auth.ts           # OpenAI authentication
-    ├── settings.ts       # App settings & pre-prompt
-    ├── schema.ts         # Type definitions
-    └── vault.ts          # Secure storage
+│       ├── AddressBar.tsx      # URL navigation bar
+│       ├── CodexSidebar.tsx    # AI assistant sidebar
+│       ├── DataRequestCard.tsx # Smart card for PDS data requests
+│       ├── Settings.tsx        # Settings panel (includes PDS editor)
+│       └── About.tsx           # About dialog
+└── core/                   # Shared utilities
+    ├── auth.ts             # OpenAI authentication
+    ├── datastore.ts        # Personal Data Store service
+    ├── settings.ts         # App settings & pre-prompt
+    ├── schema.ts           # Type definitions
+    └── vault.ts            # Secure storage
 
 docs/                     # GitHub Pages (gnunae.com)
 ├── index.html            # Landing page
@@ -181,8 +210,9 @@ docs/                     # GitHub Pages (gnunae.com)
 
 | Status | Feature |
 |--------|---------|
-| ✅ Current | Electron-based browser integrated with Codex-Playwright MCP |
-| 🔜 Planned | My Data Store - personal data storage and retrieval |
+| ✅ Done | Electron-based browser integrated with Codex-Playwright MCP |
+| ✅ Done | Personal Data Store (PDS) - persistent storage with smart card UI |
+| ✅ Done | Two-way PDS integration - Codex can request AND store data |
 | 🔜 Planned | More browser features (bookmarks, history, tabs) |
 | 🔜 Planned | Edge/Chrome extension mode with GnuNae sidebar/backend |
 | 🔜 Planned | Project management for multi-page workflows |
