@@ -44,6 +44,9 @@ declare global {
             onUrlUpdate: (callback: (url: string) => void) => () => void;
             onTitleUpdate: (callback: (title: string) => void) => () => void;
             onLoadingChange: (callback: (loading: boolean) => void) => () => void;
+
+            // Platform info
+            platform: 'darwin' | 'win32' | 'linux';
         };
     }
 }
@@ -177,8 +180,11 @@ const App: React.FC = () => {
         setUserEmail(null);
     }, []);
 
+    // Get platform for platform-specific styling
+    const platform = window.electronAPI?.platform || 'win32';
+
     return (
-        <div className="app-container">
+        <div className={`app-container platform-${platform}`}>
             <TabBar
                 tabs={tabs}
                 onTabClick={handleSwitchTab}

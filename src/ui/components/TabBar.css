@@ -5,8 +5,31 @@
     background: #1a1a2e;
     border-bottom: 1px solid #2d2d44;
     padding: 0 8px;
+    padding-left: 8px;
+    /* Default - no extra padding */
     gap: 4px;
     user-select: none;
+    -webkit-app-region: drag;
+}
+
+/* macOS needs space for traffic light buttons (close/minimize/zoom) */
+.platform-darwin .tab-bar {
+    padding-left: 8px;
+    /* Reset to normal on macOS - spacer handles the gap */
+}
+
+/* Draggable spacer for macOS - provides area for traffic lights and window dragging */
+.tab-bar-spacer {
+    display: none;
+    /* Hidden by default on Windows/Linux */
+}
+
+.platform-darwin .tab-bar-spacer {
+    display: block;
+    width: 72px;
+    /* Space for traffic light buttons */
+    height: 100%;
+    flex-shrink: 0;
     -webkit-app-region: drag;
 }
 
@@ -15,7 +38,7 @@
     flex: 1;
     overflow-x: auto;
     gap: 2px;
-    -webkit-app-region: no-drag;
+    /* Don't set no-drag here - empty space should be draggable */
 }
 
 .tab-list::-webkit-scrollbar {
@@ -34,6 +57,8 @@
     cursor: pointer;
     transition: background 0.15s ease;
     gap: 6px;
+    -webkit-app-region: no-drag;
+    /* Make tabs clickable, not draggable */
 }
 
 .tab-item:hover {

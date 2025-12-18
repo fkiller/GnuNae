@@ -185,14 +185,15 @@ class TabManager {
         (tab.browserView.webContents as any).destroy?.();
         this.tabs.delete(tabId);
 
-        // If closing active tab, switch to another
+        // If closing active tab, switch to another or create new
         if (this.activeTabId === tabId) {
             const remaining = Array.from(this.tabs.keys());
             if (remaining.length > 0) {
                 this.switchToTab(remaining[remaining.length - 1]);
             } else {
+                // Don't leave in broken state - create a new tab
                 this.activeTabId = null;
-                mainWindow?.setBrowserView(null as any);
+                this.createTab('https://www.google.com');
             }
         }
 

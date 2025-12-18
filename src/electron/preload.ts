@@ -60,6 +60,9 @@ export interface ElectronAPI {
     onUrlUpdate: (callback: (url: string) => void) => () => void;
     onTitleUpdate: (callback: (title: string) => void) => () => void;
     onLoadingChange: (callback: (loading: boolean) => void) => () => void;
+
+    // Platform info
+    platform: 'darwin' | 'win32' | 'linux';
 }
 
 
@@ -161,6 +164,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('browser:loading', handler);
         return () => ipcRenderer.removeListener('browser:loading', handler);
     },
+
+    // Platform info
+    platform: process.platform as 'darwin' | 'win32' | 'linux',
 } as ElectronAPI);
 
 // Declare the global type

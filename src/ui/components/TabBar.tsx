@@ -18,6 +18,8 @@ interface TabBarProps {
 const TabBar: React.FC<TabBarProps> = ({ tabs, onTabClick, onTabClose, onNewTab }) => {
     return (
         <div className="tab-bar">
+            {/* Draggable spacer for macOS traffic light buttons area */}
+            <div className="tab-bar-spacer" />
             <div className="tab-list">
                 {tabs.map((tab) => (
                     <div
