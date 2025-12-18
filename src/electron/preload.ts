@@ -1,5 +1,13 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
+// Tab info type
+export interface TabInfo {
+    id: string;
+    url: string;
+    title: string;
+    isActive: boolean;
+}
+
 // Type definitions for the exposed API
 export interface ElectronAPI {
     // Auth
@@ -14,6 +22,14 @@ export interface ElectronAPI {
     // UI
     hideBrowser: () => Promise<{ success: boolean }>;
     showBrowser: () => Promise<{ success: boolean }>;
+
+    // Tabs
+    createTab: (url?: string) => Promise<{ success: boolean; tabId?: string }>;
+    closeTab: (tabId: string) => Promise<{ success: boolean }>;
+    switchTab: (tabId: string) => Promise<{ success: boolean }>;
+    getTabs: () => Promise<TabInfo[]>;
+    getActiveTab: () => Promise<string | null>;
+    onTabsUpdated: (callback: (tabs: TabInfo[]) => void) => () => void;
 
     // Browser navigation
     navigate: (url: string) => Promise<{ success: boolean; url?: string; error?: string }>;
@@ -55,6 +71,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // UI
     hideBrowser: () => ipcRenderer.invoke('ui:hide-browser'),
     showBrowser: () => ipcRenderer.invoke('ui:show-browser'),
+
+    // Tabs
+    createTab: (url?: string) => ipcRenderer.invoke('tab:create', url),
+    closeTab: (tabId: string) => ipcRenderer.invoke('tab:close', tabId),
+    switchTab: (tabId: string) => ipcRenderer.invoke('tab:switch', tabId),
+    getTabs: () => ipcRenderer.invoke('tab:getAll'),
+    getActiveTab: () => ipcRenderer.invoke('tab:getActive'),
+    onTabsUpdated: (callback: (tabs: TabInfo[]) => void) => {
+        const handler = (_: IpcRendererEvent, tabs: TabInfo[]) => callback(tabs);
+        ipcRenderer.on('tabs:updated', handler);
+        return () => ipcRenderer.removeListener('tabs:updated', handler);
+    },
 
     // Settings
     getSettings: () => ipcRenderer.invoke('settings:get'),

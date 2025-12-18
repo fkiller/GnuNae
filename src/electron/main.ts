@@ -12,7 +12,8 @@ app.commandLine.appendSwitch('remote-debugging-address', '127.0.0.1');
 
 /**
  * Ensure Playwright MCP is configured in the global Codex config.
- * Adds the playwright MCP server entry if not present.
+ * - Adds the playwright MCP server entry if not present
+ * - Adds startup_timeout_sec if missing from existing playwright config
  * Does NOT remove other MCPs - we use the prompt to guide Codex to use Playwright.
  */
 function ensurePlaywrightMcpConfig(): void {
@@ -30,25 +31,46 @@ function ensurePlaywrightMcpConfig(): void {
         configContent = fs.readFileSync(codexConfigPath, 'utf-8');
     }
 
+    let modified = false;
+
     // Check if playwright MCP is already configured
     if (configContent.includes('[mcp_servers.playwright]')) {
-        console.log('[Config] Playwright MCP already configured');
-        return;
-    }
+        // Extract the playwright section to check if it has startup_timeout_sec
+        const playwrightSectionMatch = configContent.match(
+            /\[mcp_servers\.playwright\][\s\S]*?(?=\n\[|$)/
+        );
+        const playwrightSection = playwrightSectionMatch ? playwrightSectionMatch[0] : '';
 
-    // Add Playwright MCP configuration with extended timeout
-    const playwrightConfig = `
+        if (!playwrightSection.includes('startup_timeout_sec')) {
+            // Add timeout after the playwright section's args line
+            configContent = configContent.replace(
+                /(\[mcp_servers\.playwright\][\s\S]*?args\s*=\s*\[.*?\])/,
+                '$1\nstartup_timeout_sec = 60'
+            );
+            modified = true;
+            console.log('[Config] Added startup_timeout_sec to existing Playwright config');
+        } else {
+            console.log('[Config] Playwright MCP already configured with timeout');
+        }
+    } else {
+        // Add Playwright MCP configuration with extended timeout
+        const playwrightConfig = `
 
 # GnuNae Playwright MCP - Auto-configured
 [mcp_servers.playwright]
 command = "npx"
 args = ["@playwright/mcp@latest", "--cdp-endpoint", "http://127.0.0.1:9222"]
-startup_timeout_sec = 30
+startup_timeout_sec = 60
 `;
+        configContent = configContent.trimEnd() + playwrightConfig;
+        modified = true;
+        console.log('[Config] Added Playwright MCP to Codex config');
+    }
 
-    const newConfig = configContent.trimEnd() + playwrightConfig;
-    fs.writeFileSync(codexConfigPath, newConfig, 'utf-8');
-    console.log('[Config] Added Playwright MCP to Codex config:', codexConfigPath);
+    if (modified) {
+        fs.writeFileSync(codexConfigPath, configContent, 'utf-8');
+        console.log('[Config] Updated Codex config:', codexConfigPath);
+    }
 }
 
 // Read package.json for app info
@@ -59,18 +81,203 @@ const APP_VERSION = packageJson.version || '0.0.1';
 let codexProcess: ChildProcess | null = null;
 
 let mainWindow: BrowserWindow | null = null;
-let browserView: BrowserView | null = null;
 let authService: AuthService;
 
 const SIDEBAR_WIDTH = 380;
 const TOPBAR_HEIGHT = 50;
+const TAB_BAR_HEIGHT = 36;
 
 // OpenAI/ChatGPT OAuth URLs
 const OPENAI_AUTH_URL = 'https://chatgpt.com/auth/login';
 const CHATGPT_DOMAIN = 'chatgpt.com';
 
+// Tab state interface
+interface TabState {
+    id: string;
+    browserView: BrowserView;
+    url: string;
+    title: string;
+}
+
+// Tab Manager for multi-tab browsing
+class TabManager {
+    private tabs: Map<string, TabState> = new Map();
+    private activeTabId: string | null = null;
+    private nextTabId = 1;
+
+    createTab(url?: string): TabState {
+        const id = `tab-${this.nextTabId++}`;
+
+        const browserView = new BrowserView({
+            webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true,
+                sandbox: false,
+                webSecurity: true,
+                allowRunningInsecureContent: false,
+            },
+        });
+
+        const tabState: TabState = {
+            id,
+            browserView,
+            url: url || 'about:blank',
+            title: 'New Tab',
+        };
+
+        // Track URL changes
+        browserView.webContents.on('did-navigate', (_, navUrl) => {
+            tabState.url = navUrl;
+            this.notifyTabUpdate(tabState);
+        });
+
+        browserView.webContents.on('did-navigate-in-page', (_, navUrl) => {
+            tabState.url = navUrl;
+            this.notifyTabUpdate(tabState);
+        });
+
+        browserView.webContents.on('page-title-updated', (_, title) => {
+            tabState.title = title || 'New Tab';
+            this.notifyTabUpdate(tabState);
+        });
+
+        browserView.webContents.on('did-start-loading', () => {
+            if (this.activeTabId === id) {
+                mainWindow?.webContents.send('browser:loading', true);
+            }
+        });
+
+        browserView.webContents.on('did-stop-loading', () => {
+            if (this.activeTabId === id) {
+                mainWindow?.webContents.send('browser:loading', false);
+            }
+        });
+
+        // Intercept window.open() and target="_blank" to open as new tabs
+        browserView.webContents.setWindowOpenHandler(({ url: newUrl }) => {
+            // Create new tab with the URL instead of opening new window
+            this.createTab(newUrl);
+            return { action: 'deny' }; // Prevent default new window
+        });
+
+        this.tabs.set(id, tabState);
+
+        // Load URL if provided
+        if (url) {
+            browserView.webContents.loadURL(url);
+        }
+
+        // If no active tab, make this one active
+        if (!this.activeTabId) {
+            this.switchToTab(id);
+        }
+
+        this.notifyTabsChanged();
+        return tabState;
+    }
+
+
+    closeTab(tabId: string): boolean {
+        const tab = this.tabs.get(tabId);
+        if (!tab) return false;
+
+        // Destroy the BrowserView
+        (tab.browserView.webContents as any).destroy?.();
+        this.tabs.delete(tabId);
+
+        // If closing active tab, switch to another
+        if (this.activeTabId === tabId) {
+            const remaining = Array.from(this.tabs.keys());
+            if (remaining.length > 0) {
+                this.switchToTab(remaining[remaining.length - 1]);
+            } else {
+                this.activeTabId = null;
+                mainWindow?.setBrowserView(null as any);
+            }
+        }
+
+        this.notifyTabsChanged();
+        return true;
+    }
+
+    switchToTab(tabId: string): boolean {
+        const tab = this.tabs.get(tabId);
+        if (!tab || !mainWindow) return false;
+
+        this.activeTabId = tabId;
+        mainWindow.setBrowserView(tab.browserView);
+        this.updateLayout();
+
+        // Notify UI of active tab change
+        mainWindow.webContents.send('browser:url', tab.url);
+        mainWindow.webContents.send('browser:title', tab.title);
+        this.notifyTabsChanged();
+
+        return true;
+    }
+
+    getActiveTab(): TabState | null {
+        if (!this.activeTabId) return null;
+        return this.tabs.get(this.activeTabId) || null;
+    }
+
+    getActiveTabId(): string | null {
+        return this.activeTabId;
+    }
+
+    getAllTabs(): Array<{ id: string; url: string; title: string; isActive: boolean }> {
+        return Array.from(this.tabs.values()).map(tab => ({
+            id: tab.id,
+            url: tab.url,
+            title: tab.title,
+            isActive: tab.id === this.activeTabId,
+        }));
+    }
+
+    getTab(tabId: string): TabState | undefined {
+        return this.tabs.get(tabId);
+    }
+
+    updateLayout(): void {
+        const tab = this.getActiveTab();
+        if (!mainWindow || !tab) return;
+
+        const contentBounds = mainWindow.getContentBounds();
+        tab.browserView.setBounds({
+            x: 0,
+            y: TOPBAR_HEIGHT + TAB_BAR_HEIGHT,
+            width: contentBounds.width - SIDEBAR_WIDTH,
+            height: contentBounds.height - TOPBAR_HEIGHT - TAB_BAR_HEIGHT,
+        });
+    }
+
+    private notifyTabUpdate(tab: TabState): void {
+        if (tab.id === this.activeTabId) {
+            mainWindow?.webContents.send('browser:url', tab.url);
+            mainWindow?.webContents.send('browser:title', tab.title);
+        }
+        this.notifyTabsChanged();
+    }
+
+    private notifyTabsChanged(): void {
+        mainWindow?.webContents.send('tabs:updated', this.getAllTabs());
+    }
+
+    destroy(): void {
+        for (const tab of this.tabs.values()) {
+            (tab.browserView.webContents as any).destroy?.();
+        }
+        this.tabs.clear();
+        this.activeTabId = null;
+    }
+}
+
+// Global tab manager instance
+let tabManager: TabManager | null = null;
+
 // Set app name for macOS menu bar
 app.setName(APP_NAME);
+
 
 // Create custom menu for macOS
 function createMenu(): void {
@@ -177,117 +384,47 @@ function createWindow(): void {
         trafficLightPosition: { x: 15, y: 15 },
     });
 
-    // Create the BrowserView for web content
-    browserView = new BrowserView({
-        webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: true,
-            sandbox: false, // Disable sandbox to allow WebAuthn/passkeys
-            webSecurity: true,
-            allowRunningInsecureContent: false,
-        },
-    });
+    // Initialize tab manager and create first tab
+    tabManager = new TabManager();
 
-    mainWindow.setBrowserView(browserView);
-    updateLayout();
-
-    // Playwright MCP connects via CDP (remote-debugging-port=9222)
-
-
-    // Load the UI
+    // Load the UI first
     if (process.env.VITE_DEV_SERVER_URL) {
         mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
     } else {
         mainWindow.loadFile(path.join(__dirname, '../ui/index.html'));
     }
 
-    // Uncomment to debug: mainWindow.webContents.openDevTools({ mode: 'detach' });
-
-    // Check auth and load appropriate page
-    if (authService.isAuthenticated()) {
-        // User is authenticated, load default page
-        browserView.webContents.loadURL('https://www.google.com');
-    } else {
-        // User not authenticated, load login page
-        browserView.webContents.loadFile(path.join(__dirname, '../ui/login.html'));
-    }
+    // Create initial tab with appropriate page
+    const startUrl = authService.isAuthenticated()
+        ? 'https://www.google.com'
+        : `file://${path.join(__dirname, '../ui/login.html')}`;
+    tabManager.createTab(startUrl);
 
     // Handle resize
-    mainWindow.on('resize', updateLayout);
-
-    // Track URL changes and detect successful login
-    browserView.webContents.on('did-navigate', async (_, url) => {
-        console.log('[Main] Navigated to:', url);
-        mainWindow?.webContents.send('browser:url-updated', url);
-
-        // Check if user landed on ChatGPT main page (not auth pages)
-        if (url.includes(CHATGPT_DOMAIN) && !url.includes('/auth')) {
-            console.log('[Main] On ChatGPT, checking auth...');
-            const success = await authService.extractTokenFromCookies(browserView!.webContents.session);
-            if (success) {
-                console.log('[Main] Auth successful, notifying UI');
-                mainWindow?.webContents.send('auth:status-changed', true);
-            }
-        }
-    });
-
-    // Also check on page finish loading (catches SPA navigations)
-    browserView.webContents.on('did-finish-load', async () => {
-        const url = browserView?.webContents.getURL() || '';
-        if (url.includes(CHATGPT_DOMAIN) && !url.includes('/auth')) {
-            console.log('[Main] Page finished loading on ChatGPT, checking auth...');
-            const success = await authService.extractTokenFromCookies(browserView!.webContents.session);
-            if (success && !authService.isAuthenticated()) {
-                // Re-load to get fresh state
-            }
-            if (success) {
-                mainWindow?.webContents.send('auth:status-changed', true);
-            }
-        }
-    });
-
-    browserView.webContents.on('did-navigate-in-page', (_, url) => {
-        mainWindow?.webContents.send('browser:url-updated', url);
-    });
-
-    // Track page title changes
-    browserView.webContents.on('page-title-updated', (_, title) => {
-        mainWindow?.webContents.send('browser:title-updated', title);
-    });
-
-    // Track loading state
-    browserView.webContents.on('did-start-loading', () => {
-        mainWindow?.webContents.send('browser:loading', true);
-    });
-
-    browserView.webContents.on('did-stop-loading', () => {
-        mainWindow?.webContents.send('browser:loading', false);
+    mainWindow.on('resize', () => {
+        tabManager?.updateLayout();
     });
 
     mainWindow.on('closed', () => {
+        tabManager?.destroy();
+        tabManager = null;
         mainWindow = null;
-        browserView = null;
     });
 }
 
 function updateLayout(): void {
-    if (!mainWindow || !browserView) return;
-
-    const bounds = mainWindow.getBounds();
-    const contentBounds = mainWindow.getContentBounds();
-
-    browserView.setBounds({
-        x: 0,
-        y: TOPBAR_HEIGHT,
-        width: contentBounds.width - SIDEBAR_WIDTH,
-        height: contentBounds.height - TOPBAR_HEIGHT,
-    });
+    tabManager?.updateLayout();
 }
+
 
 // IPC Handlers
 function setupIpcHandlers(): void {
+    // Get active browser view helper
+    const getActiveView = () => tabManager?.getActiveTab()?.browserView;
+
     // UI handlers - toggle BrowserView for overlays
     ipcMain.handle('ui:hide-browser', () => {
+        const browserView = getActiveView();
         if (browserView && mainWindow) {
             mainWindow.removeBrowserView(browserView);
         }
@@ -295,11 +432,36 @@ function setupIpcHandlers(): void {
     });
 
     ipcMain.handle('ui:show-browser', () => {
+        const browserView = getActiveView();
         if (browserView && mainWindow) {
             mainWindow.setBrowserView(browserView);
             updateLayout();
         }
         return { success: true };
+    });
+
+    // Tab handlers
+    ipcMain.handle('tab:create', (_, url?: string) => {
+        const tab = tabManager?.createTab(url);
+        return { success: !!tab, tabId: tab?.id };
+    });
+
+    ipcMain.handle('tab:close', (_, tabId: string) => {
+        const success = tabManager?.closeTab(tabId) ?? false;
+        return { success };
+    });
+
+    ipcMain.handle('tab:switch', (_, tabId: string) => {
+        const success = tabManager?.switchToTab(tabId) ?? false;
+        return { success };
+    });
+
+    ipcMain.handle('tab:getAll', () => {
+        return tabManager?.getAllTabs() ?? [];
+    });
+
+    ipcMain.handle('tab:getActive', () => {
+        return tabManager?.getActiveTabId() ?? null;
     });
 
     // Settings handlers
@@ -324,6 +486,7 @@ function setupIpcHandlers(): void {
     });
 
     ipcMain.handle('auth:start-google-login', async () => {
+        const browserView = getActiveView();
         if (!browserView) return { success: false };
 
         // Navigate to OpenAI login page which offers Google sign-in
@@ -335,6 +498,7 @@ function setupIpcHandlers(): void {
         authService.clearToken();
 
         // Clear cookies
+        const browserView = getActiveView();
         if (browserView) {
             await browserView.webContents.session.clearStorageData({
                 storages: ['cookies'],
@@ -349,12 +513,14 @@ function setupIpcHandlers(): void {
     });
 
     ipcMain.handle('auth:show-login', async () => {
+        const browserView = getActiveView();
         browserView?.webContents.loadFile(path.join(__dirname, '../ui/login.html'));
         return { success: true };
     });
 
     // Manual auth check - called by UI when it suspects user might be logged in
     ipcMain.handle('auth:check-now', async () => {
+        const browserView = getActiveView();
         if (!browserView) return { authenticated: false };
         console.log('[Main] Manual auth check requested');
         const success = await authService.extractTokenFromCookies(browserView.webContents.session);
@@ -363,6 +529,7 @@ function setupIpcHandlers(): void {
 
     // Navigate to URL
     ipcMain.handle('browser:navigate', async (_, url: string) => {
+        const browserView = getActiveView();
         if (!browserView) return { success: false, error: 'No browser view' };
 
         try {
@@ -379,6 +546,7 @@ function setupIpcHandlers(): void {
 
     // Go back
     ipcMain.handle('browser:go-back', async () => {
+        const browserView = getActiveView();
         if (browserView?.webContents.canGoBack()) {
             browserView.webContents.goBack();
             return { success: true };
@@ -388,6 +556,7 @@ function setupIpcHandlers(): void {
 
     // Go forward
     ipcMain.handle('browser:go-forward', async () => {
+        const browserView = getActiveView();
         if (browserView?.webContents.canGoForward()) {
             browserView.webContents.goForward();
             return { success: true };
@@ -397,17 +566,20 @@ function setupIpcHandlers(): void {
 
     // Reload
     ipcMain.handle('browser:reload', async () => {
+        const browserView = getActiveView();
         browserView?.webContents.reload();
         return { success: true };
     });
 
     // Get current URL
     ipcMain.handle('browser:get-url', async () => {
+        const browserView = getActiveView();
         return browserView?.webContents.getURL() || '';
     });
 
     // Get page content
     ipcMain.handle('browser:get-content', async () => {
+        const browserView = getActiveView();
         if (!browserView) return '';
         try {
             return await browserView.webContents.executeJavaScript('document.body.innerHTML');
@@ -418,6 +590,7 @@ function setupIpcHandlers(): void {
 
     // Execute JavaScript in the page
     ipcMain.handle('browser:execute-js', async (_, script: string) => {
+        const browserView = getActiveView();
         if (!browserView) return { success: false, error: 'No browser view' };
         try {
             const result = await browserView.webContents.executeJavaScript(script);
@@ -439,6 +612,7 @@ function setupIpcHandlers(): void {
 
         // Get page snapshot to include in prompt
         let pageContext = '';
+        const browserView = getActiveView();
         if (browserView) {
             try {
                 const url = browserView.webContents.getURL();

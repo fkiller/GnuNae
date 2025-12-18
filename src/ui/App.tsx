@@ -2,6 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import AddressBar from './components/AddressBar';
 import CodexSidebar from './components/CodexSidebar';
 import Settings from './components/Settings';
+import TabBar from './components/TabBar';
+
+// Tab info type
+interface TabInfo {
+    id: string;
+    url: string;
+    title: string;
+    isActive: boolean;
+}
 
 // Type for electronAPI (defined in preload.ts)
 declare global {
@@ -15,6 +24,14 @@ declare global {
             showLogin: () => Promise<{ success: boolean }>;
             checkNow: () => Promise<{ authenticated: boolean }>;
             onAuthStatusChanged: (callback: (authenticated: boolean) => void) => () => void;
+
+            // Tabs
+            createTab: (url?: string) => Promise<{ success: boolean; tabId?: string }>;
+            closeTab: (tabId: string) => Promise<{ success: boolean }>;
+            switchTab: (tabId: string) => Promise<{ success: boolean }>;
+            getTabs: () => Promise<TabInfo[]>;
+            getActiveTab: () => Promise<string | null>;
+            onTabsUpdated: (callback: (tabs: TabInfo[]) => void) => () => void;
 
             // Browser
             navigate: (url: string) => Promise<{ success: boolean; url?: string; error?: string }>;
@@ -38,6 +55,7 @@ const App: React.FC = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const [showSettings, setShowSettings] = useState(false);
+    const [tabs, setTabs] = useState<TabInfo[]>([]);
 
     const checkAuthStatus = useCallback(async () => {
         console.log('[App] Checking auth status...');
@@ -53,6 +71,16 @@ const App: React.FC = () => {
     useEffect(() => {
         // Check initial auth status
         checkAuthStatus();
+
+        // Get initial tabs
+        window.electronAPI?.getTabs?.().then((initialTabs) => {
+            if (initialTabs) setTabs(initialTabs);
+        });
+
+        // Subscribe to tab updates
+        const unsubTabs = window.electronAPI?.onTabsUpdated?.((updatedTabs) => {
+            setTabs(updatedTabs);
+        });
 
         // Subscribe to auth status changes
         const unsubAuth = window.electronAPI?.onAuthStatusChanged?.((authenticated) => {
@@ -97,6 +125,7 @@ const App: React.FC = () => {
         });
 
         return () => {
+            unsubTabs?.();
             unsubAuth?.();
             unsubUrl?.();
             unsubTitle?.();
@@ -104,6 +133,20 @@ const App: React.FC = () => {
         };
     }, [checkAuthStatus]);
 
+    // Tab handlers
+    const handleCreateTab = useCallback(async () => {
+        await window.electronAPI?.createTab?.('https://www.google.com');
+    }, []);
+
+    const handleCloseTab = useCallback(async (tabId: string) => {
+        await window.electronAPI?.closeTab?.(tabId);
+    }, []);
+
+    const handleSwitchTab = useCallback(async (tabId: string) => {
+        await window.electronAPI?.switchTab?.(tabId);
+    }, []);
+
+    // Navigation handlers
     const handleNavigate = useCallback(async (url: string) => {
         const result = await window.electronAPI?.navigate?.(url);
         if (result?.success && result.url) {
@@ -125,7 +168,6 @@ const App: React.FC = () => {
 
     const handleRequestLogin = useCallback(async () => {
         console.log('[App] Login requested');
-        // Navigate directly to OpenAI login
         await window.electronAPI?.startGoogleLogin?.();
     }, []);
 
@@ -137,6 +179,12 @@ const App: React.FC = () => {
 
     return (
         <div className="app-container">
+            <TabBar
+                tabs={tabs}
+                onTabClick={handleSwitchTab}
+                onTabClose={handleCloseTab}
+                onNewTab={handleCreateTab}
+            />
             <AddressBar
                 url={currentUrl}
                 isLoading={isLoading}
