@@ -1,0 +1,41 @@
+// Shared constants for Codex models and modes
+// Both Settings.tsx and CodexSidebar.tsx should import from here
+
+export type CodexModel =
+    | 'o4-mini'
+    | 'o3-mini'
+    | 'gpt-5.2-codex'
+    | 'gpt-5.1-codex-max'
+    | 'gpt-5.1-codex'
+    | 'gpt-5.1-codex-mini'
+    | 'gpt-5.2'
+    | 'gpt-5.1';
+
+export type CodexMode = 'ask' | 'agent' | 'full-access';
+
+export const DEFAULT_MODEL: CodexModel = 'gpt-5.1-codex-mini';
+export const DEFAULT_MODE: CodexMode = 'agent';
+
+export const CODEX_MODELS: { value: CodexModel; label: string }[] = [
+    { value: 'o4-mini', label: 'o4-mini' },
+    { value: 'o3-mini', label: 'o3-mini' },
+    { value: 'gpt-5.2-codex', label: 'GPT-5.2-Codex' },
+    { value: 'gpt-5.1-codex-max', label: 'GPT-5.1-Codex-Max' },
+    { value: 'gpt-5.1-codex', label: 'GPT-5.1-Codex' },
+    { value: 'gpt-5.1-codex-mini', label: 'GPT-5.1-Codex-Mini' },
+    { value: 'gpt-5.2', label: 'GPT-5.2' },
+    { value: 'gpt-5.1', label: 'GPT-5.1' },
+];
+
+export const CODEX_MODES: { value: CodexMode; label: string; icon: string; hint: string }[] = [
+    { value: 'ask', label: 'Ask', icon: '💬', hint: 'Read-only' },
+    { value: 'agent', label: 'Agent', icon: '🤖', hint: 'Confirms critical actions' },
+    { value: 'full-access', label: 'Full Access', icon: '⚡', hint: 'Fully autonomous' },
+];
+
+// Helper to get model label with (default) suffix
+export function getModelLabel(model: CodexModel): string {
+    const m = CODEX_MODELS.find(x => x.value === model);
+    const label = m?.label || model;
+    return model === DEFAULT_MODEL ? `${label} (default)` : label;
+}

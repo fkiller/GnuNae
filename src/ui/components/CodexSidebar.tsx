@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import DataRequestCard from './DataRequestCard';
+import { CODEX_MODELS, CODEX_MODES, DEFAULT_MODEL, DEFAULT_MODE, CodexModel, CodexMode, getModelLabel } from '../constants/codex';
 
 interface LogEntry {
     id: number;
@@ -22,23 +23,6 @@ interface CodexSidebarProps {
     onLogout: () => void;
 }
 
-type CodexMode = 'chat' | 'agent' | 'full-access';
-type CodexModel = 'gpt-5.1-codex-max' | 'gpt-5.1-codex' | 'gpt-5.2' | 'gpt-5.1' | 'gpt-5.1-codex-mini';
-
-const MODELS: { value: CodexModel; label: string }[] = [
-    { value: 'gpt-5.1-codex-max', label: 'GPT-5.1-Codex-Max' },
-    { value: 'gpt-5.1-codex', label: 'GPT-5.1-Codex' },
-    { value: 'gpt-5.2', label: 'GPT-5.2' },
-    { value: 'gpt-5.1', label: 'GPT-5.1' },
-    { value: 'gpt-5.1-codex-mini', label: 'GPT-5.1-Codex-Mini' },
-];
-
-const MODES: { value: CodexMode; label: string; icon: string }[] = [
-    { value: 'chat', label: 'Chat', icon: '💬' },
-    { value: 'agent', label: 'Agent', icon: '🤖' },
-    { value: 'full-access', label: 'Full Access', icon: '⚡' },
-];
-
 const CodexSidebar: React.FC<CodexSidebarProps> = ({
     currentUrl,
     pageTitle,
@@ -50,14 +34,23 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
     const [prompt, setPrompt] = useState('');
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [mode, setMode] = useState<CodexMode>('agent');
-    const [model, setModel] = useState<CodexModel>('gpt-5.1-codex-mini');
+    const [mode, setMode] = useState<CodexMode>(DEFAULT_MODE);
+    const [model, setModel] = useState<CodexModel>(DEFAULT_MODEL);
     const [activeMenu, setActiveMenu] = useState<'mode' | 'model' | null>(null);
     const [pdsRequest, setPdsRequest] = useState<PdsRequest | null>(null);
     const logContainerRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const logIdRef = useRef(0);
     const lastPromptRef = useRef<string>('');
+
+    // Load model/mode from settings on mount
+    useEffect(() => {
+        (window as any).electronAPI?.getSettings?.().then((s: any) => {
+            if (s?.codex?.model) setModel(s.codex.model as CodexModel);
+            if (s?.codex?.mode) setMode(s.codex.mode as CodexMode);
+        });
+    }, []);
+
 
     // Subscribe to Codex output streams and PDS requests
     useEffect(() => {
@@ -220,8 +213,8 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
         setPrompt('');
         setIsProcessing(true);
 
-        addLog('info', `[${MODES.find(m => m.value === mode)?.label}] Sending...`);
-        await (window as any).electronAPI?.executeCodex?.(userPrompt);
+        addLog('info', `[${CODEX_MODES.find(m => m.value === mode)?.label}] Sending...`);
+        await (window as any).electronAPI?.executeCodex?.(userPrompt, mode);
     }, [prompt, addLog, isAuthenticated, onRequestLogin, mode]);
 
     const handleStopCodex = useCallback(async () => {
@@ -339,19 +332,22 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
             {/* Bottom Bar - Mode and Model only */}
             <div className="bottom-bar">
                 <div className="bar-item mode-selector" onClick={(e) => toggleMenu('mode', e)}>
-                    <span>{MODES.find(m => m.value === mode)?.icon}</span>
-                    <span>{MODES.find(m => m.value === mode)?.label}</span>
+                    <span>{CODEX_MODES.find(m => m.value === mode)?.icon}</span>
+                    <span>{CODEX_MODES.find(m => m.value === mode)?.label}</span>
                     {activeMenu === 'mode' && (
                         <div className="dropdown-menu">
                             <div className="dropdown-title">Mode</div>
-                            {MODES.map(m => (
+                            {CODEX_MODES.map(m => (
                                 <div
                                     key={m.value}
                                     className={`dropdown-item ${mode === m.value ? 'active' : ''}`}
                                     onClick={() => { setMode(m.value); setActiveMenu(null); }}
                                 >
                                     <span className="item-icon">{m.icon}</span>
-                                    <span className="item-label">{m.label}</span>
+                                    <div className="item-text">
+                                        <span className="item-label">{m.label}</span>
+                                        <span className="item-hint">{m.hint}</span>
+                                    </div>
                                     {mode === m.value && <span className="check">✓</span>}
                                 </div>
                             ))}
@@ -361,17 +357,17 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
 
                 <div className="bar-item model-selector" onClick={(e) => toggleMenu('model', e)}>
                     <span>⬡</span>
-                    <span>{MODELS.find(m => m.value === model)?.label}</span>
+                    <span>{getModelLabel(model)}</span>
                     {activeMenu === 'model' && (
                         <div className="dropdown-menu">
                             <div className="dropdown-title">Model</div>
-                            {MODELS.map(m => (
+                            {CODEX_MODELS.map(m => (
                                 <div
                                     key={m.value}
                                     className={`dropdown-item ${model === m.value ? 'active' : ''}`}
                                     onClick={() => { setModel(m.value); setActiveMenu(null); }}
                                 >
-                                    <span className="item-label">{m.label}</span>
+                                    <span className="item-label">{getModelLabel(m.value)}</span>
                                     {model === m.value && <span className="check">✓</span>}
                                 </div>
                             ))}

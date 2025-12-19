@@ -498,6 +498,18 @@ body {
     flex: 1;
 }
 
+.item-text {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.item-hint {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
 .check {
     color: var(--accent-secondary);
 }

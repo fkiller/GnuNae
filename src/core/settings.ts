@@ -14,6 +14,7 @@ export interface AppSettings {
         model: string;
         mode: 'ask' | 'agent' | 'full-access';
         prePrompt: string;
+        prePromptCustomized: boolean; // If true, use stored prePrompt; if false, use DEFAULT_PRE_PROMPT
     };
     ui: {
         sidebarWidth: number;
@@ -194,22 +195,41 @@ must reuse the same scope unless explicitly overridden.
 You have access to a "User's Stored Data" section provided in each prompt.
 This is a persistent store for user information that persists across sessions.
 
+### CRITICAL: Recognizing Personal Data References
+
+**ALWAYS check for personal pronouns before taking action:**
+- "my address", "my email", "my phone", "my name"
+- "our company", "our address"  
+- Possessive pronouns followed by personal data types
+
+When the user says something like:
+- "Google my address" → They want to search for THEIR actual address, not the words "my address"
+- "Fill in my email" → They want you to use THEIR email
+- "Navigate to my company website" → They want THEIR company's website
+
+**This is a HARD RULE: Never interpret personal pronoun + data type literally.**
+
 ### Retrieving Data (PDS_REQUEST)
 When you need user-specific information (name, email, phone, address, etc.):
 
-1. **CHECK FIRST**: Look in the "User's Stored Data" section above
-2. **IF FOUND**: Use the value directly, do not ask again
-3. **IF NOT FOUND**: Output a special request on its own line:
+1. **DETECT**: Identify personal data references (my/our + data type)
+2. **CHECK**: Look in the "User's Stored Data" section above
+3. **IF FOUND**: Use the value directly, do not ask again
+4. **IF NOT FOUND**: Output a special request on its own line:
    \`[PDS_REQUEST:key_name:Your question to the user]\`
    
    Examples:
+   - \`[PDS_REQUEST:user.address:What is your address? I need this to complete your request.]\`
    - \`[PDS_REQUEST:user.email:What is your email address?]\`
    - \`[PDS_REQUEST:user.phone:What phone number should I use?]\`
    - \`[PDS_REQUEST:user.fullname:What is your full name?]\`
 
-4. **WAIT**: After outputting a PDS_REQUEST, pause and wait for the value
-5. The system will prompt the user and provide the value back to you
-6. Once provided, continue with your task using that value
+5. **WAIT**: After outputting a PDS_REQUEST, pause and wait for the value
+6. The system will prompt the user and provide the value back to you
+7. Once provided, continue with your task using that value
+
+**IMPORTANT**: If "No stored user data" is shown and the user references personal data,
+you MUST use PDS_REQUEST. Do NOT proceed with a literal interpretation.
 
 ### Storing Data (PDS_STORE)
 When the user asks you to save/store information, or when you extract important data 
@@ -254,9 +274,10 @@ const DEFAULT_SETTINGS: AppSettings = {
         userAgent: '',
     },
     codex: {
-        model: 'gpt-5.1-codex-max',
-        mode: 'ask',
+        model: 'gpt-5.1-codex-mini',
+        mode: 'agent',
         prePrompt: DEFAULT_PRE_PROMPT,
+        prePromptCustomized: false,
     },
     ui: {
         sidebarWidth: 380,
@@ -280,7 +301,15 @@ class SettingsService {
                 const data = fs.readFileSync(this.filePath, 'utf8');
                 const loaded = JSON.parse(data);
                 // Merge with defaults to handle new settings
-                return this.mergeDeep(DEFAULT_SETTINGS, loaded);
+                const merged = this.mergeDeep(DEFAULT_SETTINGS, loaded);
+
+                // Smart prePrompt handling:
+                // - If prePromptCustomized is false (or missing), use code-defined DEFAULT_PRE_PROMPT
+                // - If prePromptCustomized is true, user explicitly customized it, so keep their version
+                if (!merged.codex.prePromptCustomized) {
+                    merged.codex.prePrompt = DEFAULT_PRE_PROMPT;
+                }
+                return merged;
             }
         } catch (error) {
             console.log('[Settings] Failed to load settings:', error);

@@ -631,8 +631,8 @@ function setupIpcHandlers(): void {
     });
 
     // Execute Codex CLI with prompt
-    ipcMain.handle('codex:execute', async (_, prompt: string) => {
-        console.log('[Main] Executing Codex with prompt:', prompt.substring(0, 50) + '...');
+    ipcMain.handle('codex:execute', async (_, prompt: string, mode: string = 'agent') => {
+        console.log('[Main] Executing Codex in mode:', mode, 'prompt:', prompt.substring(0, 50) + '...');
 
         // Kill any existing Codex process
         if (codexProcess) {
@@ -681,8 +681,58 @@ function setupIpcHandlers(): void {
             const userDataFormatted = dataStoreService.getFormatted();
             const userDataContext = `\n\n## User's Stored Data\nUse this data when the prompt requires personal information:\n${userDataFormatted}\n`;
 
-            // Combine: prePrompt + userDataContext + pageContext + user prompt
-            const fullPrompt = (prePrompt ? prePrompt + userDataContext + '\n\n---\n\n' : '') + pageContext + prompt;
+            // Build mode-specific instructions
+            let modeInstructions = '';
+            if (mode === 'ask') {
+                modeInstructions = `
+## MODE: READ-ONLY (Ask)
+**You are in READ-ONLY mode. This is a HARD RULE.**
+
+You MUST NOT perform ANY of these actions:
+- Click any buttons, links, or interactive elements
+- Submit any forms
+- Navigate to new pages
+- Type into any input fields
+- Modify any DOM content
+- Use playwright.browser_click, playwright.browser_type, playwright.browser_fill_form, or any action that modifies the page
+
+You CAN ONLY:
+- Read and describe page content (use playwright.browser_snapshot)
+- Answer questions about what you see
+- Explain elements on the page
+- Summarize information
+
+If the user asks you to perform an action, politely explain that you are in Read-Only mode and cannot modify the page.
+
+`;
+            } else if (mode === 'agent') {
+                modeInstructions = `
+## MODE: AGENT (Supervised)
+Before performing these CRITICAL ACTIONS, you MUST ask for user confirmation first:
+- Any payment, checkout, or purchase action
+- Final form submissions (submit, confirm, proceed, complete)
+- Account changes (delete account, deactivate, change password/email)
+- Any action involving money or financial transactions
+- Sending messages or emails
+- Booking or reservation confirmations
+
+For critical actions, output: "⚠️ This action requires confirmation: [describe action]. Please confirm to proceed."
+Then WAIT for user response before continuing.
+
+For non-critical actions (navigation, reading, filling forms without submitting), proceed normally.
+
+`;
+            } else if (mode === 'full-access') {
+                modeInstructions = `
+## MODE: FULL ACCESS (Autonomous)
+You have full autonomy to perform any browser action without confirmation.
+Execute tasks efficiently and completely without asking for permission.
+
+`;
+            }
+
+            // Combine: modeInstructions + prePrompt + userDataContext + pageContext + user prompt
+            const fullPrompt = modeInstructions + (prePrompt ? prePrompt + userDataContext + '\n\n---\n\n' : '') + pageContext + prompt;
 
             // Determine Codex CLI path - different for packaged vs development
             const isWindows = process.platform === 'win32';

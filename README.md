@@ -138,6 +138,26 @@ You: [Enter "123 Main St, Boston MA"]
 Codex: [Searches Zillow, saves address for future use]
 ```
 
+### Prompt Architecture
+
+When you send a prompt, GnuNae constructs the full prompt in this order:
+
+| Order | Component | Description |
+|-------|-----------|-------------|
+| 1 | **Mode Instructions** | Behavior constraints based on mode (Ask/Agent/Full Access) |
+| 2 | **Pre-Prompt** | System instructions from Settings |
+| 3 | **User Data Context** | Personal data from the Data Store |
+| 4 | **Page Context** | Current URL, title, and page content |
+| 5 | **User Prompt** | Your actual request |
+
+**Mode behaviors:**
+
+| Mode | Behavior |
+|------|----------|
+| 💬 **Ask** | Read-only - can only describe page, refuses to click/submit/navigate |
+| 🤖 **Agent** | Confirms critical actions (payments, final submissions, account changes) |
+| ⚡ **Full Access** | 100% autonomous - no confirmations needed |
+
 ## Building for Distribution
 
 ```bash

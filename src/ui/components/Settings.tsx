@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { CODEX_MODELS, CODEX_MODES, DEFAULT_MODEL, DEFAULT_MODE, getModelLabel } from '../constants/codex';
 
 interface Settings {
     debug: { enabled: boolean };
     browser: { startPage: string; userAgent: string };
-    codex: { model: string; mode: 'ask' | 'agent' | 'full-access'; prePrompt: string };
+    codex: { model: string; mode: 'ask' | 'agent' | 'full-access'; prePrompt: string; prePromptCustomized: boolean };
     ui: { sidebarWidth: number; theme: 'dark' | 'light' | 'system' };
 }
 
@@ -204,36 +205,47 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                         <div className="settings-section">
                             <h3>Codex</h3>
                             <div className="settings-item">
-                                <label>Model</label>
+                                <label>Default Model</label>
                                 <select
-                                    value={settings?.codex?.model ?? 'gpt-5.1-codex-max'}
+                                    value={settings?.codex?.model ?? DEFAULT_MODEL}
                                     onChange={(e) => updateSetting('codex.model', e.target.value)}
                                 >
-                                    <option value="o3-mini">o3-mini</option>
-                                    <option value="gpt-5.1-codex-max">gpt-5.1-codex-max</option>
-                                    <option value="gpt-4.5">gpt-4.5</option>
+                                    {CODEX_MODELS.map(m => (
+                                        <option key={m.value} value={m.value}>{getModelLabel(m.value)}</option>
+                                    ))}
                                 </select>
                             </div>
                             <div className="settings-item">
                                 <label>Default Mode</label>
                                 <select
-                                    value={settings?.codex?.mode ?? 'ask'}
+                                    value={settings?.codex?.mode ?? DEFAULT_MODE}
                                     onChange={(e) => updateSetting('codex.mode', e.target.value)}
                                 >
-                                    <option value="ask">Ask</option>
-                                    <option value="agent">Agent</option>
-                                    <option value="full-access">Full Access</option>
+                                    {CODEX_MODES.map(m => (
+                                        <option key={m.value} value={m.value}>{m.label}</option>
+                                    ))}
                                 </select>
                             </div>
                             <div className="settings-item pre-prompt-item">
                                 <label>Pre-Prompt (System Instructions)</label>
-                                <span className="setting-hint">Instructions sent before every user message</span>
+                                <span className="setting-hint">Instructions sent before every user message. Clear to reset to default.</span>
                                 <textarea
                                     className="pre-prompt-textarea"
                                     value={settings?.codex?.prePrompt ?? ''}
-                                    onChange={(e) => updateSetting('codex.prePrompt', e.target.value)}
+                                    onChange={(e) => {
+                                        const newValue = e.target.value;
+                                        updateSetting('codex.prePrompt', newValue);
+
+                                        if (newValue.trim() === '') {
+                                            // Empty = reset to default
+                                            updateSetting('codex.prePromptCustomized', false);
+                                        } else if (!settings?.codex?.prePromptCustomized) {
+                                            // Non-empty edit = mark as customized
+                                            updateSetting('codex.prePromptCustomized', true);
+                                        }
+                                    }}
                                     rows={10}
-                                    placeholder="Enter system instructions..."
+                                    placeholder="Enter system instructions... (leave empty for default)"
                                 />
                             </div>
                         </div>
