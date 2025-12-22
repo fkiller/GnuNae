@@ -10,6 +10,24 @@ interface Settings {
 
 type DataStoreData = Record<string, string | number | boolean>;
 
+interface Task {
+    id: string;
+    name: string;
+    originalPrompt: string;
+    optimizedPrompt: string;
+    startUrl?: string;
+    trigger: { type: string; domain?: string; frequency?: string; timing?: string };
+    dataType: string;
+    logicType: string;
+    mode?: 'ask' | 'agent' | 'full-access';
+    createdAt: string;
+    lastRunAt?: string;
+    lastRunStatus?: string;
+    state: Record<string, any>;
+    enabled: boolean;
+    favorited?: boolean;
+}
+
 interface SettingsProps {
     isOpen: boolean;
     onClose: () => void;
@@ -23,6 +41,8 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     const [newValue, setNewValue] = useState('');
     const [editingKey, setEditingKey] = useState<string | null>(null);
     const [editValue, setEditValue] = useState('');
+    const [tasks, setTasks] = useState<Task[]>([]);
+    const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
     useEffect(() => {
         if (isOpen) {
@@ -36,6 +56,10 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
             // Load datastore
             (window as any).electronAPI?.getDataStore?.().then((data: DataStoreData) => {
                 setDataStore(data || {});
+            });
+            // Load tasks
+            (window as any).electronAPI?.getTasks?.().then((t: Task[]) => {
+                setTasks(t || []);
             });
         } else {
             (window as any).electronAPI?.showBrowser?.();
@@ -154,6 +178,257 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                                 />
                                 <button onClick={addDataStoreEntry}>+ Add</button>
                             </div>
+                        </div>
+                    )}
+
+                    {/* Tasks Section */}
+                    {filterBySearch('tasks automation scheduled concurrency') && (
+                        <div className="settings-section">
+                            <h3>Task Settings</h3>
+
+                            <div className="settings-row">
+                                <label>Max Concurrent Tasks</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="5"
+                                    value={settings?.tasks?.maxConcurrency || 1}
+                                    onChange={(e) => {
+                                        const max = Math.max(1, Math.min(5, parseInt(e.target.value) || 1));
+                                        updateSetting('tasks.maxConcurrency', max);
+                                        (window as any).electronAPI?.setMaxConcurrency?.(max);
+                                    }}
+                                />
+                            </div>
+                            <span className="setting-hint">How many tasks can run at the same time (1-5).</span>
+
+                            <h4 style={{ marginTop: '20px' }}>Saved Tasks</h4>
+                            <span className="setting-hint">Click a task to view/edit all properties.</span>
+
+                            {tasks.length === 0 ? (
+                                <div className="empty-state">No saved tasks. Use the Task toggle when prompting to create one.</div>
+                            ) : (
+                                <div className="tasks-list">
+                                    {tasks.map(task => (
+                                        <div key={task.id} className={`task-card ${expandedTaskId === task.id ? 'expanded' : ''}`}>
+                                            <div
+                                                className="task-header"
+                                                onClick={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
+                                            >
+                                                <div className="task-info">
+                                                    <button
+                                                        className={`task-favorite-btn ${task.favorited ? 'active' : ''}`}
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            const updated = { ...task, favorited: !task.favorited };
+                                                            setTasks(tasks.map(t => t.id === task.id ? updated : t));
+                                                            await (window as any).electronAPI?.toggleFavorite?.(task.id);
+                                                        }}
+                                                        title={task.favorited ? 'Remove from favorites' : 'Add to favorites'}
+                                                    >
+                                                        {task.favorited ? '★' : '☆'}
+                                                    </button>
+                                                    <span className="task-name">{task.name}</span>
+                                                    <span className="task-trigger">
+                                                        {task.trigger.type === 'one-time' && '⏱ One-time'}
+                                                        {task.trigger.type === 'on-going' && `📡 ${task.trigger.domain}`}
+                                                        {task.trigger.type === 'scheduled' && `📅 ${task.trigger.frequency}`}
+                                                    </span>
+                                                </div>
+                                                <span className="task-expand-icon">{expandedTaskId === task.id ? '▲' : '▼'}</span>
+                                            </div>
+
+                                            {expandedTaskId === task.id && (
+                                                <div className="task-details">
+                                                    <div className="task-field">
+                                                        <label>Name</label>
+                                                        <input
+                                                            type="text"
+                                                            value={task.name}
+                                                            onChange={async (e) => {
+                                                                const updated = { ...task, name: e.target.value };
+                                                                setTasks(tasks.map(t => t.id === task.id ? updated : t));
+                                                                await (window as any).electronAPI?.updateTask?.(task.id, { name: e.target.value });
+                                                            }}
+                                                        />
+                                                    </div>
+
+                                                    <div className="task-field">
+                                                        <label>Original Prompt</label>
+                                                        <textarea
+                                                            value={task.originalPrompt}
+                                                            onChange={async (e) => {
+                                                                const updated = { ...task, originalPrompt: e.target.value };
+                                                                setTasks(tasks.map(t => t.id === task.id ? updated : t));
+                                                                await (window as any).electronAPI?.updateTask?.(task.id, { originalPrompt: e.target.value });
+                                                            }}
+                                                            rows={2}
+                                                        />
+                                                    </div>
+
+                                                    <div className="task-field">
+                                                        <label>Optimized Prompt</label>
+                                                        <textarea
+                                                            value={task.optimizedPrompt}
+                                                            onChange={async (e) => {
+                                                                const updated = { ...task, optimizedPrompt: e.target.value };
+                                                                setTasks(tasks.map(t => t.id === task.id ? updated : t));
+                                                                await (window as any).electronAPI?.updateTask?.(task.id, { optimizedPrompt: e.target.value });
+                                                            }}
+                                                            rows={2}
+                                                        />
+                                                    </div>
+
+                                                    <div className="task-field">
+                                                        <label>Start URL</label>
+                                                        <input
+                                                            type="text"
+                                                            value={task.startUrl || ''}
+                                                            onChange={async (e) => {
+                                                                const updated = { ...task, startUrl: e.target.value };
+                                                                setTasks(tasks.map(t => t.id === task.id ? updated : t));
+                                                                await (window as any).electronAPI?.updateTask?.(task.id, { startUrl: e.target.value || null });
+                                                            }}
+                                                            placeholder="https://example.com (optional)"
+                                                        />
+                                                    </div>
+
+                                                    <div className="task-field-row">
+                                                        <div className="task-field">
+                                                            <label>Trigger Type</label>
+                                                            <select
+                                                                value={task.trigger.type}
+                                                                onChange={async (e) => {
+                                                                    const newTrigger = { type: e.target.value, domain: task.trigger.domain, frequency: task.trigger.frequency };
+                                                                    const updated = { ...task, trigger: newTrigger };
+                                                                    setTasks(tasks.map(t => t.id === task.id ? updated : t));
+                                                                    await (window as any).electronAPI?.updateTask?.(task.id, { trigger: newTrigger });
+                                                                }}
+                                                            >
+                                                                <option value="one-time">One-time</option>
+                                                                <option value="on-going">On-going (domain)</option>
+                                                                <option value="scheduled">Scheduled</option>
+                                                            </select>
+                                                        </div>
+
+                                                        <div className="task-field">
+                                                            <label>Mode</label>
+                                                            <select
+                                                                value={task.mode || 'agent'}
+                                                                onChange={async (e) => {
+                                                                    const updated = { ...task, mode: e.target.value as any };
+                                                                    setTasks(tasks.map(t => t.id === task.id ? updated : t));
+                                                                    await (window as any).electronAPI?.updateTask?.(task.id, { mode: e.target.value });
+                                                                }}
+                                                            >
+                                                                <option value="ask">Ask (read-only)</option>
+                                                                <option value="agent">Agent (confirms)</option>
+                                                                <option value="full-access">Full Access</option>
+                                                            </select>
+                                                        </div>
+                                                    </div>
+
+                                                    {task.trigger.type === 'on-going' && (
+                                                        <div className="task-field">
+                                                            <label>Domain</label>
+                                                            <input
+                                                                type="text"
+                                                                value={task.trigger.domain || ''}
+                                                                onChange={async (e) => {
+                                                                    const newTrigger = { ...task.trigger, domain: e.target.value };
+                                                                    const updated = { ...task, trigger: newTrigger };
+                                                                    setTasks(tasks.map(t => t.id === task.id ? updated : t));
+                                                                    await (window as any).electronAPI?.updateTask?.(task.id, { trigger: newTrigger });
+                                                                }}
+                                                                placeholder="e.g., zillow.com"
+                                                            />
+                                                        </div>
+                                                    )}
+
+                                                    {task.trigger.type === 'scheduled' && (
+                                                        <div className="task-field-row">
+                                                            <div className="task-field">
+                                                                <label>Frequency</label>
+                                                                <select
+                                                                    value={task.trigger.frequency || 'daily'}
+                                                                    onChange={async (e) => {
+                                                                        const newTrigger = { ...task.trigger, frequency: e.target.value };
+                                                                        const updated = { ...task, trigger: newTrigger };
+                                                                        setTasks(tasks.map(t => t.id === task.id ? updated : t));
+                                                                        await (window as any).electronAPI?.updateTask?.(task.id, { trigger: newTrigger });
+                                                                    }}
+                                                                >
+                                                                    <option value="hourly">Hourly</option>
+                                                                    <option value="daily">Daily</option>
+                                                                    <option value="weekly">Weekly</option>
+                                                                </select>
+                                                            </div>
+                                                            <div className="task-field">
+                                                                <label>Timing</label>
+                                                                <input
+                                                                    type="time"
+                                                                    value={task.trigger.timing || '09:00'}
+                                                                    onChange={async (e) => {
+                                                                        const newTrigger = { ...task.trigger, timing: e.target.value };
+                                                                        const updated = { ...task, trigger: newTrigger };
+                                                                        setTasks(tasks.map(t => t.id === task.id ? updated : t));
+                                                                        await (window as any).electronAPI?.updateTask?.(task.id, { trigger: newTrigger });
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="task-field">
+                                                        <label>Last Run</label>
+                                                        <span className="task-readonly">
+                                                            {task.lastRunAt ? new Date(task.lastRunAt).toLocaleString() : 'Never'}
+                                                            {task.lastRunStatus && ` (✓ ${task.lastRunStatus})`}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="task-field">
+                                                        <label>Task State</label>
+                                                        <pre className="task-state-view">
+                                                            {Object.keys(task.state || {}).length > 0
+                                                                ? JSON.stringify(task.state, null, 2)
+                                                                : '(no state stored)'}
+                                                        </pre>
+                                                    </div>
+
+                                                    <div className="task-detail-actions">
+                                                        <button
+                                                            className="task-run-btn"
+                                                            onClick={async () => {
+                                                                const result = await (window as any).electronAPI?.runTask?.(task.id);
+                                                                if (result?.success) {
+                                                                    onClose(); // Close settings to see execution
+                                                                } else {
+                                                                    alert(result?.error || 'Failed to run task');
+                                                                }
+                                                            }}
+                                                        >
+                                                            ▶ Run Task
+                                                        </button>
+                                                        <button
+                                                            className="task-delete-btn"
+                                                            onClick={async () => {
+                                                                if (confirm(`Delete task "${task.name}"?`)) {
+                                                                    await (window as any).electronAPI?.deleteTask?.(task.id);
+                                                                    setTasks(tasks.filter(t => t.id !== task.id));
+                                                                    setExpandedTaskId(null);
+                                                                }
+                                                            }}
+                                                        >
+                                                            🗑 Delete Task
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
 

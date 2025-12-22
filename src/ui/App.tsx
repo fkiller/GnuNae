@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import AddressBar from './components/AddressBar';
-import CodexSidebar from './components/CodexSidebar';
+import RightPanel from './components/RightPanel';
 import Settings from './components/Settings';
 import TabBar from './components/TabBar';
 
@@ -59,6 +59,7 @@ const App: React.FC = () => {
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const [showSettings, setShowSettings] = useState(false);
     const [tabs, setTabs] = useState<TabInfo[]>([]);
+    const [activePanel, setActivePanel] = useState<'chat' | 'tasks' | null>('chat');
 
     const checkAuthStatus = useCallback(async () => {
         console.log('[App] Checking auth status...');
@@ -127,12 +128,25 @@ const App: React.FC = () => {
             if (url) setCurrentUrl(url);
         });
 
+        // Menu event: toggle settings
+        const unsubMenuSettings = (window as any).electronAPI?.onMenuToggleSettings?.(() => {
+            setShowSettings(prev => !prev);
+        });
+
+        // Menu event: show panel
+        const unsubMenuPanel = (window as any).electronAPI?.onMenuShowPanel?.((panel: 'chat' | 'tasks' | null) => {
+            setActivePanel(panel);
+            (window as any).electronAPI?.setSidebarVisible?.(panel !== null);
+        });
+
         return () => {
             unsubTabs?.();
             unsubAuth?.();
             unsubUrl?.();
             unsubTitle?.();
             unsubLoading?.();
+            unsubMenuSettings?.();
+            unsubMenuPanel?.();
         };
     }, [checkAuthStatus]);
 
@@ -180,6 +194,12 @@ const App: React.FC = () => {
         setUserEmail(null);
     }, []);
 
+    // Panel change handler - updates sidebar visibility for browser layout
+    const handlePanelChange = useCallback((panel: 'chat' | 'tasks' | null) => {
+        setActivePanel(panel);
+        (window as any).electronAPI?.setSidebarVisible?.(panel !== null);
+    }, []);
+
     // Get platform for platform-specific styling
     const platform = window.electronAPI?.platform || 'win32';
 
@@ -199,12 +219,16 @@ const App: React.FC = () => {
                 onGoForward={handleGoForward}
                 onReload={handleReload}
                 onOpenSettings={() => setShowSettings(true)}
+                activePanel={activePanel}
+                onPanelChange={handlePanelChange}
             />
             <div className="main-content">
                 <div className="browser-placeholder">
                     {/* BrowserView is rendered by Electron behind this area */}
                 </div>
-                <CodexSidebar
+                <RightPanel
+                    activePanel={activePanel}
+                    onPanelChange={handlePanelChange}
                     currentUrl={currentUrl}
                     pageTitle={pageTitle}
                     isAuthenticated={isAuthenticated}

@@ -78,14 +78,16 @@ const packageJson = require('../../package.json');
 const APP_NAME = packageJson.productName || 'GnuNae';
 const APP_VERSION = packageJson.version || '0.0.1';
 
-let codexProcess: ChildProcess | null = null;
+// Map of Codex processes: 'chat' for user chat, taskId for task execution
+const codexProcesses: Map<string, ChildProcess> = new Map();
 
 let mainWindow: BrowserWindow | null = null;
 let authService: AuthService;
 
-const SIDEBAR_WIDTH = 380;
+const SIDEBAR_WIDTH = 340;
 const TOPBAR_HEIGHT = 50;
 const TAB_BAR_HEIGHT = 36;
+let sidebarVisible = true;  // Track if sidebar panel is visible
 
 // OpenAI/ChatGPT OAuth URLs
 const OPENAI_AUTH_URL = 'https://chatgpt.com/auth/login';
@@ -244,10 +246,11 @@ class TabManager {
         if (!mainWindow || !tab) return;
 
         const contentBounds = mainWindow.getContentBounds();
+        const sidebarWidth = sidebarVisible ? SIDEBAR_WIDTH : 0;
         tab.browserView.setBounds({
             x: 0,
             y: TOPBAR_HEIGHT + TAB_BAR_HEIGHT,
-            width: contentBounds.width - SIDEBAR_WIDTH,
+            width: contentBounds.width - sidebarWidth,
             height: contentBounds.height - TOPBAR_HEIGHT - TAB_BAR_HEIGHT,
         });
     }
@@ -297,8 +300,16 @@ function createMenu(): void {
                             type: 'info',
                             title: `About ${APP_NAME}`,
                             message: APP_NAME,
-                            detail: `Version ${APP_VERSION}\n\nAI-powered browser with Codex sidebar for intelligent web automation.\n\n© 2024 Won Dong`,
+                            detail: `Version ${APP_VERSION}\n\nAI-powered browser with Codex sidebar for intelligent web automation.\n\n© 2024 Won Dong\n\n─── Open Source Libraries ───\n• Electron - MIT License\n• React - MIT License\n• Playwright - Apache 2.0 License\n• OpenAI Codex CLI - OpenAI License\n• MCP SDK - Anthropic License\n• Zod - MIT License\n• UUID - MIT License`,
                         });
+                    }
+                },
+                { type: 'separator' as const },
+                {
+                    label: 'Settings...',
+                    accelerator: 'Cmd+,',
+                    click: () => {
+                        mainWindow?.webContents.send('menu:toggle-settings');
                     }
                 },
                 { type: 'separator' as const },
@@ -335,6 +346,28 @@ function createMenu(): void {
         {
             label: 'View',
             submenu: [
+                {
+                    label: 'Show Chat Panel',
+                    accelerator: 'Cmd+1',
+                    click: () => {
+                        mainWindow?.webContents.send('menu:show-panel', 'chat');
+                    }
+                },
+                {
+                    label: 'Show Task Manager',
+                    accelerator: 'Cmd+2',
+                    click: () => {
+                        mainWindow?.webContents.send('menu:show-panel', 'tasks');
+                    }
+                },
+                {
+                    label: 'Hide Panel',
+                    accelerator: 'Cmd+0',
+                    click: () => {
+                        mainWindow?.webContents.send('menu:show-panel', null);
+                    }
+                },
+                { type: 'separator' as const },
                 { role: 'reload' as const },
                 { role: 'forceReload' as const },
                 { role: 'toggleDevTools' as const },
@@ -441,6 +474,13 @@ function setupIpcHandlers(): void {
         return { success: true };
     });
 
+    // Set sidebar visibility and update browser layout
+    ipcMain.handle('ui:set-sidebar-visible', (_, visible: boolean) => {
+        sidebarVisible = visible;
+        updateLayout();
+        return { success: true };
+    });
+
     // Tab handlers
     ipcMain.handle('tab:create', (_, url?: string) => {
         const tab = tabManager?.createTab(url);
@@ -498,6 +538,167 @@ function setupIpcHandlers(): void {
         const { settingsService } = require('../core/settings');
         settingsService.update(settings);
         return { success: true };
+    });
+
+    // Task handlers
+    ipcMain.handle('task:list', () => {
+        const { taskService } = require('../core/tasks');
+        return taskService.getAllTasks();
+    });
+
+    ipcMain.handle('task:get', (_, id: string) => {
+        const { taskService } = require('../core/tasks');
+        return taskService.getTask(id);
+    });
+
+    ipcMain.handle('task:create', (_, taskData: any) => {
+        const { taskService } = require('../core/tasks');
+        return taskService.createTask(taskData);
+    });
+
+    ipcMain.handle('task:update', (_, id: string, updates: any) => {
+        const { taskService } = require('../core/tasks');
+        return taskService.updateTask(id, updates);
+    });
+
+    ipcMain.handle('task:delete', (_, id: string) => {
+        const { taskService } = require('../core/tasks');
+        return { success: taskService.deleteTask(id) };
+    });
+
+    ipcMain.handle('task:update-state', (_, id: string, stateUpdates: any) => {
+        const { taskService } = require('../core/tasks');
+        return taskService.updateTaskState(id, stateUpdates);
+    });
+
+    ipcMain.handle('task:get-for-domain', (_, url: string) => {
+        const { taskService } = require('../core/tasks');
+        return taskService.getTasksForDomain(url);
+    });
+
+    ipcMain.handle('task:is-running', () => {
+        const { taskService } = require('../core/tasks');
+        return { running: taskService.isTaskRunning(), taskId: taskService.getCurrentRunningTaskId() };
+    });
+
+    // Task Manager APIs
+    ipcMain.handle('task:get-favorited', () => {
+        const { taskService } = require('../core/tasks');
+        return taskService.getFavoritedTasks();
+    });
+
+    ipcMain.handle('task:get-running', () => {
+        const { taskService } = require('../core/tasks');
+        return taskService.getRunningTasks();
+    });
+
+    ipcMain.handle('task:get-upcoming', () => {
+        const { taskService } = require('../core/tasks');
+        // Debug: Show all tasks
+        const allTasks = taskService.getAllTasks();
+        console.log(`[Tasks] All tasks (${allTasks.length}):`, allTasks.map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            enabled: t.enabled,
+            trigger: t.trigger
+        })));
+        const scheduled = taskService.getUpcomingScheduledTasks();
+        console.log(`[Tasks] getUpcomingScheduledTasks returned ${scheduled.length} tasks`);
+        return scheduled;
+    });
+
+    ipcMain.handle('task:toggle-favorite', (_, id: string) => {
+        const { taskService } = require('../core/tasks');
+        return taskService.toggleFavorite(id);
+    });
+
+    // Max concurrency handlers
+    ipcMain.handle('task:get-max-concurrency', () => {
+        const { taskService } = require('../core/tasks');
+        return taskService.maxConcurrency;
+    });
+
+    ipcMain.handle('task:set-max-concurrency', (_, max: number) => {
+        const { taskService } = require('../core/tasks');
+        taskService.setMaxConcurrency(max);
+        console.log(`[Tasks] Max concurrency set to: ${max}`);
+        return { success: true };
+    });
+
+    ipcMain.handle('task:can-run-more', () => {
+        const { taskService } = require('../core/tasks');
+        return taskService.canRunMoreTasks();
+    });
+
+    ipcMain.handle('task:stop', (_, taskId: string) => {
+        const { taskService } = require('../core/tasks');
+        // Stop the running task
+        taskService.clearTaskRunning(taskId);
+        // TODO: Actually stop the Codex process for this task
+        return { success: true };
+    });
+
+    // Clear running task state (called when task completes)
+    ipcMain.handle('task:clear-running', (_, taskId: string) => {
+        const { taskService } = require('../core/tasks');
+        taskService.clearTaskRunning(taskId);
+        taskService.recordRunResult(taskId, { success: true, blocked: false });
+        console.log(`[Tasks] Task completed and cleared: ${taskId}`);
+        return { success: true };
+    });
+
+    ipcMain.handle('task:run', async (_, taskId: string) => {
+        const { taskService } = require('../core/tasks');
+
+        // Check if another task is already running
+        if (taskService.isTaskRunning()) {
+            return { success: false, error: 'Another task is already running' };
+        }
+
+        const task = taskService.getTask(taskId);
+        if (!task) {
+            return { success: false, error: 'Task not found' };
+        }
+
+        // Mark task as running
+        taskService.setTaskRunning(taskId);
+
+        // Use optimized prompt if available, otherwise original
+        const promptToUse = task.optimizedPrompt || task.originalPrompt;
+        const modeToUse = task.mode || 'agent';
+        const startUrl = task.startUrl;
+        const triggerType = task.trigger.type; // 'one-time' | 'on-going' | 'scheduled'
+
+        console.log(`[Tasks] Running task: ${task.name} (${triggerType}) with mode: ${modeToUse}${startUrl ? `, startUrl: ${startUrl}` : ''}`);
+
+        // Emit to UI that task is starting
+        mainWindow?.webContents.send('task:started', { taskId, name: task.name });
+
+        // Execute via codex - this will use the existing codex:execute infrastructure
+        // We trigger it via the existing IPC mechanism by sending an event
+        try {
+            // Determine tab behavior based on trigger type:
+            // - one-time/scheduled: use new tab, close when done
+            // - on-going: use current tab
+            const useNewTab = triggerType === 'one-time' || triggerType === 'scheduled';
+
+            console.log(`[Tasks] Sending task:execute-prompt to UI, useNewTab: ${useNewTab}`);
+            mainWindow?.webContents.send('task:execute-prompt', {
+                taskId,
+                prompt: promptToUse,
+                mode: modeToUse,
+                name: task.name,
+                startUrl,
+                triggerType,
+                useNewTab
+            });
+
+            return { success: true, taskId };
+        } catch (error: any) {
+            taskService.setTaskRunning(null);
+            taskService.recordRunResult(taskId, { success: false, blocked: false });
+            return { success: false, error: error.message };
+        }
     });
 
     // Auth handlers
@@ -630,14 +831,15 @@ function setupIpcHandlers(): void {
         }
     });
 
-    // Execute Codex CLI with prompt
+    // Execute Codex CLI with prompt (for user chat)
     ipcMain.handle('codex:execute', async (_, prompt: string, mode: string = 'agent') => {
-        console.log('[Main] Executing Codex in mode:', mode, 'prompt:', prompt.substring(0, 50) + '...');
+        console.log('[Main] Executing Codex (chat) in mode:', mode, 'prompt:', prompt.substring(0, 50) + '...');
 
-        // Kill any existing Codex process
-        if (codexProcess) {
-            codexProcess.kill();
-            codexProcess = null;
+        // Kill any existing chat process (but not task processes)
+        const existingChatProcess = codexProcesses.get('chat');
+        if (existingChatProcess) {
+            existingChatProcess.kill();
+            codexProcesses.delete('chat');
         }
 
         // Get page snapshot to include in prompt
@@ -754,7 +956,7 @@ Execute tasks efficiently and completely without asking for permission.
                 ? path.join(process.resourcesPath, 'app.asar.unpacked')
                 : path.join(__dirname, '../..');
 
-            codexProcess = spawn(codexBin, ['exec'], {
+            const chatProcess = spawn(codexBin, ['exec'], {
                 // Use shell on Windows for .cmd scripts
                 shell: isWindows ? true : false,
                 cwd,
@@ -776,13 +978,16 @@ Execute tasks efficiently and completely without asking for permission.
                 },
             });
 
+            // Store in processes map
+            codexProcesses.set('chat', chatProcess);
+
             // Write prompt to stdin
-            if (codexProcess.stdin) {
-                codexProcess.stdin.write(fullPrompt);
-                codexProcess.stdin.end();
+            if (chatProcess.stdin) {
+                chatProcess.stdin.write(fullPrompt);
+                chatProcess.stdin.end();
             }
 
-            codexProcess.stdout?.on('data', (data: Buffer) => {
+            chatProcess.stdout?.on('data', (data: Buffer) => {
                 const chunk = data.toString('utf8');
                 output += chunk;
                 console.log('[Codex stdout]', chunk);
@@ -811,18 +1016,53 @@ Execute tasks efficiently and completely without asking for permission.
                     mainWindow?.webContents.send('codex:pds-stored', { key, value });
                 }
 
+                // Check for CAPTCHA/2FA/login block patterns
+                const lowerChunk = chunk.toLowerCase();
+                const blockPatterns = [
+                    { pattern: 'captcha', type: 'captcha' },
+                    { pattern: 'recaptcha', type: 'captcha' },
+                    { pattern: 'hcaptcha', type: 'captcha' },
+                    { pattern: 'verify you are human', type: 'captcha' },
+                    { pattern: 'robot', type: 'captcha' },
+                    { pattern: 'two-factor', type: '2fa' },
+                    { pattern: '2fa', type: '2fa' },
+                    { pattern: 'verification code', type: '2fa' },
+                    { pattern: 'authenticator', type: '2fa' },
+                    { pattern: 'security code', type: '2fa' },
+                    { pattern: 'one-time password', type: '2fa' },
+                    { pattern: 'otp', type: '2fa' },
+                    { pattern: 'login required', type: 'login' },
+                    { pattern: 'sign in required', type: 'login' },
+                    { pattern: 'please log in', type: 'login' },
+                    { pattern: 'session expired', type: 'login' },
+                    { pattern: 'access denied', type: 'blocked' },
+                    { pattern: 'blocked', type: 'blocked' },
+                ];
+
+                for (const { pattern, type } of blockPatterns) {
+                    if (lowerChunk.includes(pattern)) {
+                        console.log(`[Main] Block detected: ${type} (pattern: ${pattern})`);
+                        mainWindow?.webContents.send('task:blocked', {
+                            type,
+                            message: `Task blocked: ${type.toUpperCase()} detected`,
+                            detail: chunk.substring(0, 200)
+                        });
+                        break;
+                    }
+                }
+
                 // Send streaming output to renderer
                 mainWindow?.webContents.send('codex:output', { type: 'stdout', data: chunk });
             });
 
-            codexProcess.stderr?.on('data', (data: Buffer) => {
+            chatProcess.stderr?.on('data', (data: Buffer) => {
                 const chunk = data.toString('utf8');
                 errorOutput += chunk;
                 console.log('[Codex stderr]', chunk);
                 mainWindow?.webContents.send('codex:output', { type: 'stderr', data: chunk });
             });
 
-            codexProcess.on('close', (code) => {
+            chatProcess.on('close', (code) => {
                 console.log('[Main] Codex process exited with code:', code);
 
                 // Combine output and error for pattern matching
@@ -870,11 +1110,11 @@ Execute tasks efficiently and completely without asking for permission.
                 }
 
                 mainWindow?.webContents.send('codex:complete', { code, output, errorOutput });
-                codexProcess = null;
+                codexProcesses.delete('chat');
                 resolve({ success: code === 0, output, errorOutput, code });
             });
 
-            codexProcess.on('error', (err) => {
+            chatProcess.on('error', (err) => {
                 console.error('[Main] Codex spawn error:', err);
 
                 // Provide helpful error message
@@ -884,19 +1124,20 @@ Execute tasks efficiently and completely without asking for permission.
                 }
 
                 mainWindow?.webContents.send('codex:error', { error: userMessage });
-                codexProcess = null;
+                codexProcesses.delete('chat');
                 resolve({ success: false, error: userMessage });
             });
         });
     });
 
-    // Stop running Codex process
+    // Stop running Codex process (chat)
     ipcMain.handle('codex:stop', async () => {
-        console.log('[Main] Stop requested, codexProcess:', !!codexProcess);
-        if (codexProcess) {
+        const chatProcess = codexProcesses.get('chat');
+        console.log('[Main] Stop requested, chatProcess:', !!chatProcess);
+        if (chatProcess) {
             try {
                 const isWindows = process.platform === 'win32';
-                const pid = codexProcess.pid;
+                const pid = chatProcess.pid;
 
                 if (isWindows && pid) {
                     // On Windows, use taskkill to kill the entire process tree
@@ -911,9 +1152,9 @@ Execute tasks efficiently and completely without asking for permission.
                     }
                 } else {
                     // Graceful termination on Unix
-                    codexProcess.kill('SIGTERM');
+                    chatProcess.kill('SIGTERM');
                     // Force kill after timeout if still running
-                    const proc = codexProcess;
+                    const proc = chatProcess;
                     setTimeout(() => {
                         if (proc && !proc.killed) {
                             proc.kill('SIGKILL');
@@ -921,12 +1162,12 @@ Execute tasks efficiently and completely without asking for permission.
                     }, 1000);
                 }
 
-                codexProcess = null;
-                console.log('[Main] Codex process killed');
+                codexProcesses.delete('chat');
+                console.log('[Main] Chat process killed');
                 return { success: true };
             } catch (e) {
                 console.error('[Main] Error killing process:', e);
-                codexProcess = null;
+                codexProcesses.delete('chat');
                 return { success: true }; // Still consider it stopped
             }
         }
@@ -941,10 +1182,11 @@ Execute tasks efficiently and completely without asking for permission.
         const { dataStoreService } = require('../core/datastore');
         dataStoreService.set(key, value);
 
-        // Feed value back to Codex stdin if process is running
-        if (codexProcess && codexProcess.stdin) {
+        // Feed value back to Codex stdin if chat process is running
+        const chatProcess = codexProcesses.get('chat');
+        if (chatProcess && chatProcess.stdin) {
             const response = `\n[PDS_VALUE:${key}=${value}]\n`;
-            codexProcess.stdin.write(response);
+            chatProcess.stdin.write(response);
             console.log('[Main] Fed PDS value to Codex:', response);
         }
 
@@ -959,6 +1201,7 @@ app.whenReady().then(() => {
     createMenu();
     createWindow();
     setupIpcHandlers();
+    startTaskScheduler();
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -966,6 +1209,56 @@ app.whenReady().then(() => {
         }
     });
 });
+
+// Task Scheduler: checks for due scheduled tasks every minute
+function startTaskScheduler(): void {
+    const CHECK_INTERVAL_MS = 60 * 1000; // 1 minute
+
+    console.log('[Scheduler] Starting task scheduler...');
+
+    setInterval(async () => {
+        try {
+            const { taskService } = require('../core/tasks');
+
+            // Skip if a task is already running
+            if (taskService.isTaskRunning()) {
+                return;
+            }
+
+            // Get due scheduled tasks
+            const dueTasks = taskService.getScheduledTasksDue();
+            if (dueTasks.length === 0) {
+                return;
+            }
+
+            // Run the first due task
+            const task = dueTasks[0];
+            console.log(`[Scheduler] Running scheduled task: ${task.name}`);
+
+            // Mark as running
+            taskService.setTaskRunning(task.id);
+            taskService.markScheduledTaskRun(task.id);
+
+            const promptToUse = task.optimizedPrompt || task.originalPrompt;
+            const modeToUse = task.mode || 'agent';
+            const startUrl = task.startUrl;
+
+            // Emit to UI to execute
+            mainWindow?.webContents.send('task:started', { taskId: task.id, name: task.name });
+            mainWindow?.webContents.send('task:execute-prompt', {
+                taskId: task.id,
+                prompt: promptToUse,
+                mode: modeToUse,
+                name: task.name,
+                startUrl,
+                triggerType: 'scheduled',
+                useNewTab: true
+            });
+        } catch (error) {
+            console.error('[Scheduler] Error checking scheduled tasks:', error);
+        }
+    }, CHECK_INTERVAL_MS);
+}
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {

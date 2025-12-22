@@ -60,10 +60,13 @@ graph TB
 
 - 🌐 **Full Browser** - Chrome-based web browser with address bar and navigation
 - 🤖 **Codex Sidebar** - AI assistant powered by OpenAI's Codex CLI
+- 📋 **Task Manager** - Save, schedule, and run automated tasks
 - 🔐 **OpenAI Auth** - Sign in with your OpenAI account
 - 🔧 **Page Analysis** - Codex can see and analyze your current page
 - 🎯 **MCP Integration** - Model Context Protocol for browser control
 - 💾 **Personal Data Store (PDS)** - Persistent storage for user data that Codex can access and update
+- ⏰ **Scheduled Tasks** - Run tasks hourly, daily, or weekly at specific times
+- ⚠️ **Failure Detection** - Automatic detection of CAPTCHA, 2FA, and login blocks
 
 ## Demo Videos
 
@@ -200,11 +203,16 @@ src/
 │       ├── AddressBar.tsx      # URL navigation bar
 │       ├── CodexSidebar.tsx    # AI assistant sidebar
 │       ├── DataRequestCard.tsx # Smart card for PDS data requests
+│       ├── TaskManager.tsx     # Task Manager panel
+│       ├── RightPanel.tsx      # Chat/Task Manager wrapper
+│       ├── SaveTaskCard.tsx    # Save task prompt card
+│       ├── TabBar.tsx          # Multi-tab bar
 │       ├── Settings.tsx        # Settings panel (includes PDS editor)
 │       └── About.tsx           # About dialog
 └── core/                   # Shared utilities
     ├── auth.ts             # OpenAI authentication
     ├── datastore.ts        # Personal Data Store service
+    ├── tasks.ts            # Task service and scheduler
     ├── settings.ts         # App settings & pre-prompt
     ├── schema.ts           # Type definitions
     └── vault.ts            # Secure storage
@@ -233,10 +241,40 @@ docs/                     # GitHub Pages (gnunae.com)
 | ✅ Done | Electron-based browser integrated with Codex-Playwright MCP |
 | ✅ Done | Personal Data Store (PDS) - persistent storage with smart card UI |
 | ✅ Done | Two-way PDS integration - Codex can request AND store data |
-| 🔜 Planned | More browser features (bookmarks, history, tabs) |
+| ✅ Done | Task Manager - save, schedule, and automate tasks |
+| ✅ Done | Multi-tab support with tab bar |
 | 🔜 Planned | Edge/Chrome extension mode with GnuNae sidebar/backend |
 | 🔜 Planned | Project management for multi-page workflows |
 | 🔜 Planned | More LLM options including local LLM support |
+
+## Version History
+
+### v0.4.0 (2025-12-21)
+- **Task Execution System**
+  - Save prompts as reusable tasks with one-time, on-going, or scheduled triggers
+  - Task Manager panel with favorites, running tasks, and scheduled countdowns
+  - Background scheduler for automated task execution
+  - Max concurrency setting (1-5 simultaneous tasks)
+- **Failure Handling**
+  - CAPTCHA/2FA/login detection with warning cards
+- **Menu Enhancements**
+  - Settings accessible from App menu (⌘,)
+  - View menu: Show Chat (⌘1), Task Manager (⌘2), Hide Panel (⌘0)
+  - About dialog with open source library attributions
+- **UI Improvements**
+  - Chat/Task Manager toggle buttons in address bar
+  - Collapsible right panel with dynamic browser resizing
+  - Fixed panel toggle buttons to not shrink on window resize
+
+### v0.2.0 (2024-12-17)
+- Personal Data Store (PDS)
+- Smart card UI for data requests
+- Multi-tab browser support
+
+### v0.1.0 (2024-12-01)
+- Initial release
+- Codex sidebar with OpenAI integration
+- MCP-based browser automation
 
 ## License
 

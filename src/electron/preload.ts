@@ -55,6 +55,7 @@ export interface ElectronAPI {
     onCodexError: (callback: (data: { error: string }) => void) => () => void;
     onPdsRequest: (callback: (data: { key: string; message: string }) => void) => () => void;
     onPdsStored: (callback: (data: { key: string; value: string }) => void) => () => void;
+    onTaskBlocked: (callback: (data: { type: string; message: string; detail: string }) => void) => () => void;
 
     // Event listeners
     onUrlUpdate: (callback: (url: string) => void) => () => void;
@@ -84,6 +85,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // UI
     hideBrowser: () => ipcRenderer.invoke('ui:hide-browser'),
     showBrowser: () => ipcRenderer.invoke('ui:show-browser'),
+    setSidebarVisible: (visible: boolean) => ipcRenderer.invoke('ui:set-sidebar-visible', visible),
 
     // Tabs
     createTab: (url?: string) => ipcRenderer.invoke('tab:create', url),
@@ -106,6 +108,33 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Settings
     getSettings: () => ipcRenderer.invoke('settings:get'),
     updateSettings: (settings: any) => ipcRenderer.invoke('settings:update', settings),
+
+    // Tasks
+    getTasks: () => ipcRenderer.invoke('task:list'),
+    getTask: (id: string) => ipcRenderer.invoke('task:get', id),
+    createTask: (taskData: any) => ipcRenderer.invoke('task:create', taskData),
+    updateTask: (id: string, updates: any) => ipcRenderer.invoke('task:update', id, updates),
+    deleteTask: (id: string) => ipcRenderer.invoke('task:delete', id),
+    updateTaskState: (id: string, stateUpdates: any) => ipcRenderer.invoke('task:update-state', id, stateUpdates),
+    getTasksForDomain: (url: string) => ipcRenderer.invoke('task:get-for-domain', url),
+    isTaskRunning: () => ipcRenderer.invoke('task:is-running'),
+    runTask: (id: string) => ipcRenderer.invoke('task:run', id),
+    onTaskExecute: (callback: (data: { taskId: string; prompt: string; mode: string; name: string }) => void) => {
+        const handler = (_: IpcRendererEvent, data: any) => callback(data);
+        ipcRenderer.on('task:execute-prompt', handler);
+        return () => ipcRenderer.removeListener('task:execute-prompt', handler);
+    },
+    // Task Manager APIs
+    getFavoritedTasks: () => ipcRenderer.invoke('task:get-favorited'),
+    getRunningTasks: () => ipcRenderer.invoke('task:get-running'),
+    getUpcomingScheduledTasks: () => ipcRenderer.invoke('task:get-upcoming'),
+    toggleFavorite: (id: string) => ipcRenderer.invoke('task:toggle-favorite', id),
+    stopTask: (id: string) => ipcRenderer.invoke('task:stop', id),
+    clearRunningTask: (id: string) => ipcRenderer.invoke('task:clear-running', id),
+    // Max concurrency
+    getMaxConcurrency: () => ipcRenderer.invoke('task:get-max-concurrency'),
+    setMaxConcurrency: (max: number) => ipcRenderer.invoke('task:set-max-concurrency', max),
+    canRunMoreTasks: () => ipcRenderer.invoke('task:can-run-more'),
 
     // Browser navigation
     navigate: (url: string) => ipcRenderer.invoke('browser:navigate', url),
@@ -145,6 +174,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('codex:pds-stored', handler);
         return () => ipcRenderer.removeListener('codex:pds-stored', handler);
     },
+    onTaskBlocked: (callback: (data: { type: string; message: string; detail: string }) => void) => {
+        const handler = (_: IpcRendererEvent, data: { type: string; message: string; detail: string }) => callback(data);
+        ipcRenderer.on('task:blocked', handler);
+        return () => ipcRenderer.removeListener('task:blocked', handler);
+    },
 
     // Event listeners with cleanup
     onUrlUpdate: (callback: (url: string) => void) => {
@@ -163,6 +197,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const handler = (_: IpcRendererEvent, loading: boolean) => callback(loading);
         ipcRenderer.on('browser:loading', handler);
         return () => ipcRenderer.removeListener('browser:loading', handler);
+    },
+
+    // Menu events
+    onMenuToggleSettings: (callback: () => void) => {
+        const handler = () => callback();
+        ipcRenderer.on('menu:toggle-settings', handler);
+        return () => ipcRenderer.removeListener('menu:toggle-settings', handler);
+    },
+    onMenuShowPanel: (callback: (panel: 'chat' | 'tasks' | null) => void) => {
+        const handler = (_: IpcRendererEvent, panel: 'chat' | 'tasks' | null) => callback(panel);
+        ipcRenderer.on('menu:show-panel', handler);
+        return () => ipcRenderer.removeListener('menu:show-panel', handler);
     },
 
     // Platform info
