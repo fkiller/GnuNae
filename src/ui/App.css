@@ -105,7 +105,8 @@ body {
     display: flex;
     gap: 8px;
     -webkit-app-region: no-drag;
-    max-width: calc(100% - var(--sidebar-width) - 150px);
+    min-width: 0;
+    overflow: visible;
 }
 
 .url-input {
@@ -155,6 +156,7 @@ body {
 
 .settings-btn-nav {
     width: 34px;
+    min-width: 34px;
     height: 34px;
     background: transparent;
     border: 1px solid var(--border-color);
@@ -165,6 +167,7 @@ body {
     align-items: center;
     justify-content: center;
     transition: all var(--transition-fast);
+    flex-shrink: 0;
 }
 
 .settings-btn-nav:hover {
@@ -178,6 +181,7 @@ body {
     height: 20px;
     background: var(--border-color);
     margin: 0 6px;
+    flex-shrink: 0;
 }
 
 /* Main Content */
