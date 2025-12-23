@@ -129,18 +129,18 @@
             overflow: hidden;
         }
 
-        .hero-video-bg video {
+        .hero-video-bg iframe {
             position: absolute;
             top: 50%;
             left: 50%;
             min-width: 100%;
             min-height: 100%;
-            width: auto;
-            height: auto;
+            width: 177.78vh;
+            /* 16:9 aspect ratio */
+            height: 100vh;
             transform: translate(-50%, -50%) scale(1.1);
-            object-fit: cover;
             opacity: 0.4;
-            background: #000;
+            pointer-events: none;
         }
 
         .hero-video-bg::after {
@@ -463,9 +463,13 @@
         <main>
             <section class="hero">
                 <div class="hero-video-bg">
-                    <video autoplay muted playsinline id="heroVideo">
-                        <source src="assets/GnuNae.UseCase.1.mp4" type="video/mp4">
-                    </video>
+                    <iframe id="heroVideo"
+                        src="https://www.youtube.com/embed/VwOk1_vD3vw?autoplay=1&mute=1&loop=1&playlist=VwOk1_vD3vw&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1"
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen
+                        style="position: absolute; top: 50%; left: 50%; min-width: 100%; min-height: 100%; width: auto; height: auto; transform: translate(-50%, -50%) scale(1.2); pointer-events: none;">
+                    </iframe>
                 </div>
                 <img src="assets/gnunae.png" alt="GnuNae" class="hero-logo">
                 <div class="hero-content">
