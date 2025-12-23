@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import AddressBar from './components/AddressBar';
 import RightPanel from './components/RightPanel';
 import Settings from './components/Settings';
+import About from './components/About';
 import TabBar from './components/TabBar';
 
 // Tab info type
@@ -58,6 +59,7 @@ const App: React.FC = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [userEmail, setUserEmail] = useState<string | null>(null);
     const [showSettings, setShowSettings] = useState(false);
+    const [showAbout, setShowAbout] = useState(false);
     const [tabs, setTabs] = useState<TabInfo[]>([]);
     const [activePanel, setActivePanel] = useState<'chat' | 'tasks' | null>('chat');
 
@@ -133,6 +135,16 @@ const App: React.FC = () => {
             setShowSettings(prev => !prev);
         });
 
+        // Menu event: show settings (from Edit menu on Windows)
+        const unsubMenuShowSettings = (window as any).electronAPI?.onMenuShowSettings?.(() => {
+            setShowSettings(true);
+        });
+
+        // Menu event: show about (from Help menu on Windows)
+        const unsubMenuShowAbout = (window as any).electronAPI?.onMenuShowAbout?.(() => {
+            setShowAbout(true);
+        });
+
         // Menu event: show panel
         const unsubMenuPanel = (window as any).electronAPI?.onMenuShowPanel?.((panel: 'chat' | 'tasks' | null) => {
             setActivePanel(panel);
@@ -146,6 +158,8 @@ const App: React.FC = () => {
             unsubTitle?.();
             unsubLoading?.();
             unsubMenuSettings?.();
+            unsubMenuShowSettings?.();
+            unsubMenuShowAbout?.();
             unsubMenuPanel?.();
         };
     }, [checkAuthStatus]);
@@ -237,6 +251,7 @@ const App: React.FC = () => {
                     onLogout={handleLogout}
                 />
                 <Settings isOpen={showSettings} onClose={() => setShowSettings(false)} />
+                <About isOpen={showAbout} onClose={() => setShowAbout(false)} />
             </div>
         </div>
     );

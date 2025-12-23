@@ -339,7 +339,17 @@ function createMenu(): void {
                 { role: 'cut' as const },
                 { role: 'copy' as const },
                 { role: 'paste' as const },
-                { role: 'selectAll' as const }
+                { role: 'selectAll' as const },
+                ...(!isMac ? [
+                    { type: 'separator' as const },
+                    {
+                        label: 'Settings',
+                        accelerator: 'Ctrl+,',
+                        click: () => {
+                            mainWindow?.webContents.send('menu:show-settings');
+                        }
+                    }
+                ] : [])
             ]
         },
         // View menu
@@ -384,13 +394,31 @@ function createMenu(): void {
             label: 'Window',
             submenu: [
                 { role: 'minimize' as const },
-                { role: 'zoom' as const },
                 ...(isMac ? [
+                    { role: 'zoom' as const },
                     { type: 'separator' as const },
                     { role: 'front' as const }
-                ] : [
-                    { role: 'close' as const }
-                ])
+                ] : [])
+            ]
+        },
+        // Help menu (rightmost)
+        {
+            label: 'Help',
+            submenu: [
+                {
+                    label: 'GnuNae Help',
+                    click: async () => {
+                        const { shell } = require('electron');
+                        await shell.openExternal('https://www.gnunae.com');
+                    }
+                },
+                { type: 'separator' as const },
+                {
+                    label: 'About GnuNae',
+                    click: () => {
+                        mainWindow?.webContents.send('menu:show-about');
+                    }
+                }
             ]
         }
     ];

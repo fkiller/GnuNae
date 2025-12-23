@@ -205,6 +205,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('menu:toggle-settings', handler);
         return () => ipcRenderer.removeListener('menu:toggle-settings', handler);
     },
+    onMenuShowSettings: (callback: () => void) => {
+        const handler = () => callback();
+        ipcRenderer.on('menu:show-settings', handler);
+        return () => ipcRenderer.removeListener('menu:show-settings', handler);
+    },
+    onMenuShowAbout: (callback: () => void) => {
+        const handler = () => callback();
+        ipcRenderer.on('menu:show-about', handler);
+        return () => ipcRenderer.removeListener('menu:show-about', handler);
+    },
     onMenuShowPanel: (callback: (panel: 'chat' | 'tasks' | null) => void) => {
         const handler = (_: IpcRendererEvent, panel: 'chat' | 'tasks' | null) => callback(panel);
         ipcRenderer.on('menu:show-panel', handler);
