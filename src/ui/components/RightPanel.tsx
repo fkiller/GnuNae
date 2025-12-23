@@ -48,7 +48,7 @@ const RightPanel: React.FC<RightPanelProps> = ({
             {/* Panel Content */}
             <div className="right-panel-content">
                 {/* CodexSidebar is always mounted (hidden when not active) so its listeners stay active */}
-                <div style={{ display: activePanel === 'chat' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}>
+                <div style={{ display: activePanel === 'chat' ? 'flex' : 'none', flex: '1 1 0', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
                     <CodexSidebar
                         currentUrl={currentUrl}
                         pageTitle={pageTitle}

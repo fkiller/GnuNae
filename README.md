@@ -2,7 +2,7 @@
 
 An Electron-based browser with an AI-powered Codex sidebar for intelligent web automation.
 
-🌐 **Website:** [www.gnunae.com](https://www.gnunae.com?utm_source=github)
+🌐 **Website:** [www.gnunae.com](https://www.gnunae.com?utm_source=github) | 📺 **YouTube:** [@GnuNae](https://www.youtube.com/@GnuNae)
 
 > ⚠️ **Alpha Warning**: This app is still in alpha stage. Do not use it in production or with sensitive data.
 
@@ -70,13 +70,17 @@ graph TB
 
 ## Demo Videos
 
-### Use Case 1: Page Analysis
+### Use Case 1: AI Web Automation
 
-https://www.gnunae.com/assets/GnuNae.UseCase.1.mp4
+[![GnuNae Use Case 1](https://img.youtube.com/vi/VwOk1_vD3vw/maxresdefault.jpg)](https://youtu.be/VwOk1_vD3vw)
 
-### Use Case 2: Browser Automation
+### Use Case 2: Smart Page Analysis
 
-https://www.gnunae.com/assets/GnuNae.UseCase.2.mp4
+[![GnuNae Use Case 2](https://img.youtube.com/vi/QGOXpMclgbo/maxresdefault.jpg)](https://youtu.be/QGOXpMclgbo)
+
+### Use Case 3: Task Scheduling
+
+[![GnuNae Use Case 3](https://img.youtube.com/vi/cvK_fsA4cpk/maxresdefault.jpg)](https://youtu.be/cvK_fsA4cpk)
 
 ## Installation
 

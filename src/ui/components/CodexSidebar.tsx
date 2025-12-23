@@ -162,10 +162,16 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
             // DON'T clear pdsRequest here - let the card stay visible if there's a pending request
             if (data.code === 0) {
                 addLog('info', '✓ Completed');
-                // If task mode was on, prompt to save as task
-                if (taskModeRef.current) {
-                    setShowSaveTask(true);
-                }
+                // If task mode was on and no PDS request is pending, prompt to save as task
+                // Use a small delay to let state settle, then check for pending PDS
+                setTimeout(() => {
+                    // Get current PDS request state by checking the DOM for the card
+                    // This is a workaround since we can't access React state in a callback
+                    const hasPdsCard = document.querySelector('.data-request-card') !== null;
+                    if (taskModeRef.current && !hasPdsCard) {
+                        setShowSaveTask(true);
+                    }
+                }, 100);
             } else {
                 addLog('error', `✗ Exited with code ${data.code}`);
             }
@@ -405,108 +411,88 @@ You are creating a reproducible web activity (Task).
                 </div>
             </div>
 
-            {/* PDS Request Card */}
-            {pdsRequest && (
-                <DataRequestCard
-                    dataKey={pdsRequest.key}
-                    message={pdsRequest.message}
-                    onSubmit={handlePdsSubmit}
-                    onCancel={handlePdsCancel}
-                />
-            )}
-
-            {/* Save Task Card */}
-            {showSaveTask && (
-                <SaveTaskCard
-                    originalPrompt={lastExecutedPrompt}
-                    currentUrl={currentUrl}
-                    onSave={async (taskData) => {
-                        const task = await (window as any).electronAPI?.createTask?.(taskData);
-                        if (task) {
-                            addLog('info', `✅ Task saved: ${task.name}`);
-                        }
-                        setShowSaveTask(false);
-                        setTaskMode(false);
-                    }}
-                    onCancel={() => {
-                        setShowSaveTask(false);
-                        addLog('info', 'Task save cancelled.');
-                    }}
-                />
-            )}
-
-            {/* Blocked Task Warning (CAPTCHA/2FA/login detected) */}
-            {blockedTask && (
-                <div className="blocked-task-card">
-                    <div className="blocked-task-header">
-                        <span className="blocked-task-icon">⚠️</span>
-                        <span className="blocked-task-title">{blockedTask.message}</span>
-                    </div>
-                    <div className="blocked-task-detail">
-                        {blockedTask.type === 'captcha' && 'Please solve the CAPTCHA in the browser tab.'}
-                        {blockedTask.type === '2fa' && 'Please complete 2FA verification in the browser tab.'}
-                        {blockedTask.type === 'login' && 'Please log in to the website in the browser tab.'}
-                        {blockedTask.type === 'blocked' && 'Access was blocked. Please check the browser tab.'}
-                    </div>
-                    <div className="blocked-task-actions">
-                        <button
-                            className="blocked-task-dismiss-btn"
-                            onClick={() => setBlockedTask(null)}
-                        >
-                            Dismiss
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Domain Tasks Prompt (for on-going tasks) */}
-            {domainTasks.length > 0 && !isProcessing && (
-                <div className="domain-tasks-card">
-                    <div className="domain-tasks-header">
-                        <span className="domain-tasks-icon">📡</span>
-                        <span className="domain-tasks-title">
-                            {domainTasks.length === 1 ? 'Task available for this site' : `${domainTasks.length} tasks available`}
-                        </span>
-                    </div>
-                    <div className="domain-tasks-list">
-                        {domainTasks.map((task: any) => (
-                            <div key={task.id} className="domain-task-item">
-                                <span className="domain-task-name">{task.name}</span>
-                                <button
-                                    className="domain-task-run-btn"
-                                    onClick={async () => {
-                                        const result = await (window as any).electronAPI?.runTask?.(task.id);
-                                        if (result?.success) {
-                                            setDomainTasks([]);
-                                        } else {
-                                            addLog('error', result?.error || 'Failed to run task');
-                                        }
-                                    }}
-                                >
-                                    ▶ Run
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                    <button
-                        className="domain-tasks-dismiss"
-                        onClick={() => {
-                            // Remember to not show for this domain again this session
-                            try {
-                                const domain = new URL(currentUrl).hostname;
-                                dismissedDomainsRef.current.add(domain);
-                            } catch { }
-                            setDomainTasks([]);
-                        }}
-                    >
-                        Dismiss
-                    </button>
-                </div>
-            )}
-
             {/* Output Log */}
             <div className="log-section">
                 <div className="log-container" ref={logContainerRef}>
+                    {/* PDS Request Card - inside scroll area */}
+                    {pdsRequest && (
+                        <DataRequestCard
+                            dataKey={pdsRequest.key}
+                            message={pdsRequest.message}
+                            onSubmit={handlePdsSubmit}
+                            onCancel={handlePdsCancel}
+                        />
+                    )}
+
+                    {/* Blocked Task Warning - inside scroll area */}
+                    {blockedTask && (
+                        <div className="blocked-task-card">
+                            <div className="blocked-task-header">
+                                <span className="blocked-task-icon">⚠️</span>
+                                <span className="blocked-task-title">{blockedTask.message}</span>
+                            </div>
+                            <div className="blocked-task-detail">
+                                {blockedTask.type === 'captcha' && 'Please solve the CAPTCHA in the browser tab.'}
+                                {blockedTask.type === '2fa' && 'Please complete 2FA verification in the browser tab.'}
+                                {blockedTask.type === 'login' && 'Please log in to the website in the browser tab.'}
+                                {blockedTask.type === 'blocked' && 'Access was blocked. Please check the browser tab.'}
+                            </div>
+                            <div className="blocked-task-actions">
+                                <button
+                                    className="blocked-task-dismiss-btn"
+                                    onClick={() => setBlockedTask(null)}
+                                >
+                                    Dismiss
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Domain Tasks Prompt - inside scroll area */}
+                    {domainTasks.length > 0 && !isProcessing && (
+                        <div className="domain-tasks-card">
+                            <div className="domain-tasks-header">
+                                <span className="domain-tasks-icon">📡</span>
+                                <span className="domain-tasks-title">
+                                    {domainTasks.length === 1 ? 'Task available for this site' : `${domainTasks.length} tasks available`}
+                                </span>
+                            </div>
+                            <div className="domain-tasks-list">
+                                {domainTasks.map((task: any) => (
+                                    <div key={task.id} className="domain-task-item">
+                                        <span className="domain-task-name">{task.name}</span>
+                                        <button
+                                            className="domain-task-run-btn"
+                                            onClick={async () => {
+                                                const result = await (window as any).electronAPI?.runTask?.(task.id);
+                                                if (result?.success) {
+                                                    setDomainTasks([]);
+                                                } else {
+                                                    addLog('error', result?.error || 'Failed to run task');
+                                                }
+                                            }}
+                                        >
+                                            ▶ Run
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                            <button
+                                className="domain-tasks-dismiss"
+                                onClick={() => {
+                                    try {
+                                        const domain = new URL(currentUrl).hostname;
+                                        dismissedDomainsRef.current.add(domain);
+                                    } catch { }
+                                    setDomainTasks([]);
+                                }}
+                            >
+                                Dismiss
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Chat History / Welcome Screen */}
                     {logs.length === 0 ? (
                         <div className="log-welcome">
                             <div className="welcome-icon">🚀</div>
@@ -526,6 +512,26 @@ You are creating a reproducible web activity (Task).
                                 <pre className="log-message">{entry.message}</pre>
                             </div>
                         ))
+                    )}
+
+                    {/* Save Task Card - at the end of chat history */}
+                    {showSaveTask && (
+                        <SaveTaskCard
+                            originalPrompt={lastExecutedPrompt}
+                            currentUrl={currentUrl}
+                            onSave={async (taskData) => {
+                                const task = await (window as any).electronAPI?.createTask?.(taskData);
+                                if (task) {
+                                    addLog('info', `✅ Task saved: ${task.name}`);
+                                }
+                                setShowSaveTask(false);
+                                setTaskMode(false);
+                            }}
+                            onCancel={() => {
+                                setShowSaveTask(false);
+                                addLog('info', 'Task save cancelled.');
+                            }}
+                        />
                     )}
                 </div>
             </div>
