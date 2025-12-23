@@ -88,8 +88,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.1",
-    "@openai/codex": "^0.73.0",
-    "@playwright/mcp": "^0.0.52",
+    "@openai/codex": "^0.77.0",
+    "@playwright/mcp": "^0.0.53",
     "playwright": "^1.57.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
