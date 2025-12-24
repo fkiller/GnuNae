@@ -37,6 +37,7 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
     const [isProcessing, setIsProcessing] = useState(false);
     const [mode, setMode] = useState<CodexMode>(DEFAULT_MODE);
     const [model, setModel] = useState<CodexModel>(DEFAULT_MODEL);
+    const [savedDefaultModel, setSavedDefaultModel] = useState<CodexModel>(DEFAULT_MODEL); // Track saved default
     const [activeMenu, setActiveMenu] = useState<'mode' | 'model' | null>(null);
     const [pdsRequest, setPdsRequest] = useState<PdsRequest | null>(null);
     const [taskMode, setTaskMode] = useState(false);  // Task toggle
@@ -60,9 +61,24 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
     // Load model/mode from settings on mount
     useEffect(() => {
         (window as any).electronAPI?.getSettings?.().then((s: any) => {
-            if (s?.codex?.model) setModel(s.codex.model as CodexModel);
+            if (s?.codex?.model) {
+                const savedModel = s.codex.model as CodexModel;
+                setModel(savedModel);
+                setSavedDefaultModel(savedModel);
+            }
             if (s?.codex?.mode) setMode(s.codex.mode as CodexMode);
         });
+
+        // Subscribe to settings changes for live updates
+        const unsubSettings = (window as any).electronAPI?.onSettingsChanged?.((s: any) => {
+            if (s?.codex?.model) {
+                setSavedDefaultModel(s.codex.model as CodexModel);
+            }
+        });
+
+        return () => {
+            unsubSettings?.();
+        };
     }, []);
 
     // Check for on-going tasks when URL changes
@@ -596,7 +612,7 @@ You are creating a reproducible web activity (Task).
 
                 <div className="bar-item model-selector" onClick={(e) => toggleMenu('model', e)}>
                     <span>⬡</span>
-                    <span>{getModelLabel(model)}</span>
+                    <span>{getModelLabel(model, savedDefaultModel)}</span>
                     {activeMenu === 'model' && (
                         <div className="dropdown-menu">
                             <div className="dropdown-title">Model</div>
@@ -606,7 +622,7 @@ You are creating a reproducible web activity (Task).
                                     className={`dropdown-item ${model === m.value ? 'active' : ''}`}
                                     onClick={() => { setModel(m.value); setActiveMenu(null); }}
                                 >
-                                    <span className="item-label">{getModelLabel(m.value)}</span>
+                                    <span className="item-label">{getModelLabel(m.value, savedDefaultModel)}</span>
                                     {model === m.value && <span className="check">✓</span>}
                                 </div>
                             ))}

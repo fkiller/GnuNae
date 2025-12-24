@@ -486,7 +486,9 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                                     onChange={(e) => updateSetting('codex.model', e.target.value)}
                                 >
                                     {CODEX_MODELS.map(m => (
-                                        <option key={m.value} value={m.value}>{getModelLabel(m.value)}</option>
+                                        <option key={m.value} value={m.value}>
+                                            {getModelLabel(m.value, (settings?.codex?.model ?? DEFAULT_MODEL) as any)}
+                                        </option>
                                     ))}
                                 </select>
                             </div>

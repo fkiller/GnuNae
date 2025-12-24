@@ -1263,6 +1263,11 @@ body {
     border-color: var(--accent-secondary);
 }
 
+.settings-item select option {
+    background: #1a1a2e;
+    color: #f1f5f9;
+}
+
 .settings-item input[type="checkbox"] {
     width: 16px;
     height: 16px;

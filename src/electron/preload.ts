@@ -108,6 +108,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Settings
     getSettings: () => ipcRenderer.invoke('settings:get'),
     updateSettings: (settings: any) => ipcRenderer.invoke('settings:update', settings),
+    onSettingsChanged: (callback: (settings: any) => void) => {
+        const handler = (_: IpcRendererEvent, settings: any) => callback(settings);
+        ipcRenderer.on('settings:changed', handler);
+        return () => ipcRenderer.removeListener('settings:changed', handler);
+    },
 
     // Tasks
     getTasks: () => ipcRenderer.invoke('task:list'),

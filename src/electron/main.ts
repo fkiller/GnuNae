@@ -565,6 +565,11 @@ function setupIpcHandlers(): void {
     ipcMain.handle('settings:update', (_, settings) => {
         const { settingsService } = require('../core/settings');
         settingsService.update(settings);
+
+        // Broadcast settings change to all renderers
+        const updatedSettings = settingsService.getAll();
+        mainWindow?.webContents.send('settings:changed', updatedSettings);
+
         return { success: true };
     });
 

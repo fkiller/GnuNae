@@ -33,9 +33,11 @@ export const CODEX_MODES: { value: CodexMode; label: string; icon: string; hint:
     { value: 'full-access', label: 'Full Access', icon: '⚡', hint: 'Fully autonomous' },
 ];
 
-// Helper to get model label with (default) suffix
-export function getModelLabel(model: CodexModel): string {
+// Helper to get model label with optional (default) suffix
+// If savedDefault is provided, use it; otherwise fall back to hardcoded DEFAULT_MODEL
+export function getModelLabel(model: CodexModel, savedDefault?: CodexModel): string {
     const m = CODEX_MODELS.find(x => x.value === model);
     const label = m?.label || model;
-    return model === DEFAULT_MODEL ? `${label} (default)` : label;
+    const effectiveDefault = savedDefault ?? DEFAULT_MODEL;
+    return model === effectiveDefault ? `${label} (default)` : label;
 }
