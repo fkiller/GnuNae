@@ -113,6 +113,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('settings:changed', handler);
         return () => ipcRenderer.removeListener('settings:changed', handler);
     },
+    getLLMWorkDir: () => ipcRenderer.invoke('settings:get-llm-workdir'),
+    browseDirectory: (defaultPath?: string) => ipcRenderer.invoke('dialog:browse-directory', defaultPath),
 
     // Tasks
     getTasks: () => ipcRenderer.invoke('task:list'),

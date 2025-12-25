@@ -430,16 +430,6 @@ You are creating a reproducible web activity (Task).
             {/* Output Log */}
             <div className="log-section">
                 <div className="log-container" ref={logContainerRef}>
-                    {/* PDS Request Card - inside scroll area */}
-                    {pdsRequest && (
-                        <DataRequestCard
-                            dataKey={pdsRequest.key}
-                            message={pdsRequest.message}
-                            onSubmit={handlePdsSubmit}
-                            onCancel={handlePdsCancel}
-                        />
-                    )}
-
                     {/* Blocked Task Warning - inside scroll area */}
                     {blockedTask && (
                         <div className="blocked-task-card">
@@ -528,6 +518,16 @@ You are creating a reproducible web activity (Task).
                                 <pre className="log-message">{entry.message}</pre>
                             </div>
                         ))
+                    )}
+
+                    {/* PDS Request Card - after logs, where the "Information needed" message appears */}
+                    {pdsRequest && (
+                        <DataRequestCard
+                            dataKey={pdsRequest.key}
+                            message={pdsRequest.message}
+                            onSubmit={handlePdsSubmit}
+                            onCancel={handlePdsCancel}
+                        />
                     )}
 
                     {/* Save Task Card - at the end of chat history */}

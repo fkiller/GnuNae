@@ -43,6 +43,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     const [editValue, setEditValue] = useState('');
     const [tasks, setTasks] = useState<Task[]>([]);
     const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+    const [currentWorkDir, setCurrentWorkDir] = useState<string>('');
 
     useEffect(() => {
         if (isOpen) {
@@ -60,6 +61,10 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
             // Load tasks
             (window as any).electronAPI?.getTasks?.().then((t: Task[]) => {
                 setTasks(t || []);
+            });
+            // Load current LLM working directory
+            (window as any).electronAPI?.getLLMWorkDir?.().then((dir: string) => {
+                setCurrentWorkDir(dir || '');
             });
         } else {
             (window as any).electronAPI?.showBrowser?.();
@@ -524,6 +529,38 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                                     rows={10}
                                     placeholder="Enter system instructions... (leave empty for default)"
                                 />
+                            </div>
+                            <div className="settings-item">
+                                <label>Working Directory</label>
+                                <span className="setting-hint">
+                                    Custom directory for LLM execution. Leave empty to use system temp (recommended).
+                                </span>
+                                <div className="settings-input-group">
+                                    <input
+                                        type="text"
+                                        value={(settings?.codex as any)?.workingDir || currentWorkDir}
+                                        onChange={(e) => {
+                                            updateSetting('codex.workingDir', e.target.value);
+                                            // Refresh current workdir display
+                                            (window as any).electronAPI?.getLLMWorkDir?.().then((dir: string) => {
+                                                setCurrentWorkDir(dir || '');
+                                            });
+                                        }}
+                                        placeholder="Using system temp directory"
+                                    />
+                                    <button
+                                        className="browse-btn"
+                                        onClick={async () => {
+                                            const dir = await (window as any).electronAPI?.browseDirectory?.();
+                                            if (dir) {
+                                                updateSetting('codex.workingDir', dir);
+                                                setCurrentWorkDir(dir);
+                                            }
+                                        }}
+                                    >
+                                        Browse...
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}

@@ -1279,6 +1279,43 @@ body {
     color: var(--text-muted);
 }
 
+.settings-input-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.settings-input-group input {
+    flex: 1;
+}
+
+.browse-btn {
+    padding: 8px 16px;
+    background: var(--accent-secondary);
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--bg-primary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all var(--transition-fast);
+}
+
+.browse-btn:hover {
+    background: #22d3ee;
+    opacity: 0.9;
+}
+
+.setting-current-value {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: monospace;
+    word-break: break-all;
+    display: block;
+    margin-top: 4px;
+}
+
 /* About Panel */
 .about-content {
     padding: 30px;

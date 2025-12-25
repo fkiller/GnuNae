@@ -15,6 +15,7 @@ export interface AppSettings {
         mode: 'ask' | 'agent' | 'full-access';
         prePrompt: string;
         prePromptCustomized: boolean; // If true, use stored prePrompt; if false, use DEFAULT_PRE_PROMPT
+        workingDir: string; // Custom working directory for LLM, empty = use temp
     };
     ui: {
         sidebarWidth: number;
@@ -278,6 +279,7 @@ const DEFAULT_SETTINGS: AppSettings = {
         mode: 'agent',
         prePrompt: DEFAULT_PRE_PROMPT,
         prePromptCustomized: false,
+        workingDir: '', // Empty = use system temp
     },
     ui: {
         sidebarWidth: 380,

@@ -78,6 +78,9 @@ const packageJson = require('../../package.json');
 const APP_NAME = packageJson.productName || 'GnuNae';
 const APP_VERSION = packageJson.version || '0.0.1';
 
+// Session ID for unique temp directories (prevents multiple agent interference)
+const SESSION_ID = `gnunae-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
 // Map of Codex processes: 'chat' for user chat, taskId for task execution
 const codexProcesses: Map<string, ChildProcess> = new Map();
 
@@ -88,6 +91,30 @@ const SIDEBAR_WIDTH = 340;
 const TOPBAR_HEIGHT = 50;
 const TAB_BAR_HEIGHT = 36;
 let sidebarVisible = true;  // Track if sidebar panel is visible
+
+/**
+ * Get the working directory for LLM execution.
+ * Returns custom path if set in settings, otherwise creates a session-specific temp dir.
+ */
+function getLLMWorkingDir(): string {
+    const { settingsService } = require('../core/settings');
+    const customDir = settingsService.get('codex.workingDir') || '';
+
+    if (customDir && fs.existsSync(customDir)) {
+        return customDir;
+    }
+
+    // Use system temp with session-specific subdirectory
+    const tempBase = os.tmpdir();
+    const sessionDir = path.join(tempBase, SESSION_ID);
+
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(sessionDir)) {
+        fs.mkdirSync(sessionDir, { recursive: true });
+    }
+
+    return sessionDir;
+}
 
 // OpenAI/ChatGPT OAuth URLs
 const OPENAI_AUTH_URL = 'https://chatgpt.com/auth/login';
@@ -573,6 +600,27 @@ function setupIpcHandlers(): void {
         return { success: true };
     });
 
+    // Get current LLM working directory
+    ipcMain.handle('settings:get-llm-workdir', () => {
+        return getLLMWorkingDir();
+    });
+
+    // Open directory picker dialog
+    ipcMain.handle('dialog:browse-directory', async (_, defaultPath?: string) => {
+        const { dialog } = require('electron');
+        const result = await dialog.showOpenDialog(mainWindow!, {
+            properties: ['openDirectory', 'createDirectory'],
+            defaultPath: defaultPath || os.homedir(),
+            title: 'Select Working Directory'
+        });
+
+        if (result.canceled || result.filePaths.length === 0) {
+            return null;
+        }
+
+        return result.filePaths[0];
+    });
+
     // Task handlers
     ipcMain.handle('task:list', () => {
         const { taskService } = require('../core/tasks');
@@ -984,10 +1032,9 @@ Execute tasks efficiently and completely without asking for permission.
 
             console.log('[Main] Using Codex from:', codexBin);
 
-            // Set working directory appropriately
-            const cwd = app.isPackaged
-                ? path.join(process.resourcesPath, 'app.asar.unpacked')
-                : path.join(__dirname, '../..');
+            // Set working directory to session-specific temp dir
+            const cwd = getLLMWorkingDir();
+            console.log('[Main] Using working directory:', cwd);
 
             const chatProcess = spawn(codexBin, ['exec'], {
                 // Use shell on Windows for .cmd scripts
@@ -1031,6 +1078,39 @@ Execute tasks efficiently and completely without asking for permission.
                     const [, key, message] = pdsRequestMatch;
                     console.log('[Main] PDS Request detected:', key, message);
                     mainWindow?.webContents.send('codex:pds-request', { key, message });
+                }
+
+                // Also detect [BLOCKER] patterns asking for user data
+                // e.g., "[BLOCKER] Waiting for user phone number. What phone number should I use?"
+                const blockerMatch = chunk.match(/\[BLOCKER\]\s*(?:Waiting for user\s+)?(.+?)(?:\.|$)/i);
+                if (blockerMatch && !pdsRequestMatch) {
+                    const blockerText = blockerMatch[1].toLowerCase();
+                    // Infer key from blocker message
+                    let inferredKey = 'user.info';
+                    let message = blockerMatch[0].replace(/\[BLOCKER\]\s*/i, '').trim();
+
+                    if (blockerText.includes('phone')) {
+                        inferredKey = 'user.phone';
+                    } else if (blockerText.includes('email')) {
+                        inferredKey = 'user.email';
+                    } else if (blockerText.includes('name')) {
+                        inferredKey = 'user.fullname';
+                    } else if (blockerText.includes('address')) {
+                        inferredKey = 'user.address';
+                    } else if (blockerText.includes('resume')) {
+                        inferredKey = 'user.resume';
+                    } else if (blockerText.includes('salary') || blockerText.includes('compensation')) {
+                        inferredKey = 'user.salary';
+                    }
+
+                    // Extract the question part if present
+                    const questionMatch = chunk.match(/(?:What|Please provide|Enter|I need)\s+.+\?/i);
+                    if (questionMatch) {
+                        message = questionMatch[0];
+                    }
+
+                    console.log('[Main] BLOCKER as PDS Request detected:', inferredKey, message);
+                    mainWindow?.webContents.send('codex:pds-request', { key: inferredKey, message });
                 }
 
                 // Check for PDS_STORE pattern: [PDS_STORE:key:value]
@@ -1296,5 +1376,18 @@ function startTaskScheduler(): void {
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit();
+    }
+});
+
+// Cleanup session temp directory on quit
+app.on('will-quit', () => {
+    const sessionDir = path.join(os.tmpdir(), SESSION_ID);
+    if (fs.existsSync(sessionDir)) {
+        try {
+            fs.rmSync(sessionDir, { recursive: true, force: true });
+            console.log('[Main] Cleaned up session temp directory:', sessionDir);
+        } catch (err) {
+            console.error('[Main] Failed to cleanup session temp:', err);
+        }
     }
 });
