@@ -20,7 +20,8 @@
     "pack:mac": "npm run build && electron-builder --mac",
     "pack:win": "npm run build && electron-builder --win",
     "pack:linux": "npm run build && electron-builder --linux",
-    "pack:all": "npm run build && electron-builder --mac --win --linux"
+    "pack:all": "npm run build && electron-builder --mac --win --linux",
+    "postversion": "git push && git push --tags"
   },
   "build": {
     "appId": "com.gnunae.browser",
