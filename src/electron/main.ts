@@ -1036,7 +1036,7 @@ Execute tasks efficiently and completely without asking for permission.
             const cwd = getLLMWorkingDir();
             console.log('[Main] Using working directory:', cwd);
 
-            const chatProcess = spawn(codexBin, ['exec'], {
+            const chatProcess = spawn(codexBin, ['exec', '--skip-git-repo-check'], {
                 // Use shell on Windows for .cmd scripts
                 shell: isWindows ? true : false,
                 cwd,
