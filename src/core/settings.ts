@@ -331,6 +331,46 @@ If a value reverts or doesn't persist:
 
 ---
 
+## OS Specifics
+
+### Windows
+- PowerShell only, do NOT nest pwsh inside pwsh
+- Execute commands directly: \`Get-Content file.txt\` not \`pwsh -Command "Get-Content file.txt"\`
+- Always use -NoProfile -NonInteractive flags when spawning new process
+- Do NOT use << heredoc, cat, bash syntax, or Linux commands
+- For multi-line content, use here-string: @' ... '@
+- If shell commands timeout repeatedly, use Playwright browser_run_code instead for page data
+
+### Linux
+
+### macOS
+
+---
+
+## Document Conversion
+
+For MD→DOCX conversion, use pypandoc (includes pandoc binaries):
+
+1. Check if pypandoc is available:
+   \`\`\`python
+   import pypandoc
+   \`\`\`
+
+2. If ImportError, install it once:
+   \`\`\`bash
+   pip install pypandoc_binary
+   \`\`\`
+   This includes pandoc binaries - no separate pandoc installation needed.
+
+3. Then convert:
+   \`\`\`python
+   import pypandoc
+   pypandoc.convert_file('resume.md', 'docx', outputfile='resume.docx')
+   \`\`\`
+
+Do NOT use subprocess/shell pandoc commands. Always use pypandoc.
+---
+
 ## Guiding Principle
 
 Human commands are contextual and incomplete.
