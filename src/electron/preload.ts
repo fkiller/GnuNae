@@ -57,6 +57,10 @@ export interface ElectronAPI {
     onPdsStored: (callback: (data: { key: string; value: string }) => void) => () => void;
     onTaskBlocked: (callback: (data: { type: string; message: string; detail: string }) => void) => () => void;
 
+    // File attachment
+    attachFiles: () => Promise<{ success: boolean; files: { name: string; originalPath: string; workDirPath: string }[] }>;
+    removeAttachedFile: (fileName: string) => Promise<{ success: boolean; error?: string }>;
+
     // Event listeners
     onUrlUpdate: (callback: (url: string) => void) => () => void;
     onTitleUpdate: (callback: (title: string) => void) => () => void;
@@ -115,6 +119,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
     getLLMWorkDir: () => ipcRenderer.invoke('settings:get-llm-workdir'),
     browseDirectory: (defaultPath?: string) => ipcRenderer.invoke('dialog:browse-directory', defaultPath),
+
+    // File attachment
+    attachFiles: () => ipcRenderer.invoke('files:attach'),
+    removeAttachedFile: (fileName: string) => ipcRenderer.invoke('files:remove', fileName),
 
     // Tasks
     getTasks: () => ipcRenderer.invoke('task:list'),

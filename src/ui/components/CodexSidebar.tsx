@@ -15,6 +15,12 @@ interface PdsRequest {
     message: string;
 }
 
+interface AttachedFile {
+    name: string;
+    originalPath: string;
+    workDirPath: string;
+}
+
 interface CodexSidebarProps {
     currentUrl: string;
     pageTitle: string;
@@ -54,6 +60,7 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
     const [domainTasks, setDomainTasks] = useState<any[]>([]);  // On-going tasks matching current domain
     const [blockedTask, setBlockedTask] = useState<{ type: string; message: string; detail: string } | null>(null);
     const runningTaskIdRef = useRef<string | null>(null);  // Track which task is currently running
+    const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);  // Attached files for prompt
 
     // Keep taskModeRef in sync
     useEffect(() => { taskModeRef.current = taskMode; }, [taskMode]);
@@ -366,13 +373,34 @@ You are creating a reproducible web activity (Task).
             addLog('info', '📋 Task Mode: Creating reproducible task...');
         }
 
+        // Add attached files context if any
+        if (attachedFiles.length > 0) {
+            const fileList = attachedFiles.map(f => `./${f.name}`).join(', ');
+            const fileContext = `
+
+## Attached Files
+The following files have been copied to your working directory and are available for use:
+${attachedFiles.map(f => `- ./${f.name} (from ${f.originalPath})`).join('\n')}
+
+You can read, process, or reference these files as needed.
+
+`;
+            userPrompt = fileContext + userPrompt;
+        }
+
         addLog('command', `> ${prompt.trim()}`);
+        if (attachedFiles.length > 0) {
+            addLog('info', `📎 With ${attachedFiles.length} attached file(s)`);
+        }
         setPrompt('');
         setIsProcessing(true);
 
+        // Clear attached files after sending (they're already in working dir)
+        setAttachedFiles([]);
+
         addLog('info', `[${CODEX_MODES.find(m => m.value === mode)?.label}] Sending...`);
         await (window as any).electronAPI?.executeCodex?.(userPrompt, mode);
-    }, [prompt, addLog, isAuthenticated, onRequestLogin, mode, taskMode]);
+    }, [prompt, addLog, isAuthenticated, onRequestLogin, mode, taskMode, attachedFiles]);
 
     const handleStopCodex = useCallback(async () => {
         console.log('[CodexSidebar] Stop button clicked, isProcessing:', isProcessing);
@@ -402,6 +430,19 @@ You are creating a reproducible web activity (Task).
         e.stopPropagation();
         setActiveMenu(activeMenu === menu ? null : menu);
     };
+
+    const handleAttachFiles = useCallback(async () => {
+        const result = await (window as any).electronAPI?.attachFiles?.();
+        if (result?.success && result.files?.length > 0) {
+            setAttachedFiles(prev => [...prev, ...result.files]);
+            addLog('info', `📎 Attached ${result.files.length} file(s): ${result.files.map((f: AttachedFile) => f.name).join(', ')}`);
+        }
+    }, [addLog]);
+
+    const handleRemoveFile = useCallback(async (fileName: string) => {
+        await (window as any).electronAPI?.removeAttachedFile?.(fileName);
+        setAttachedFiles(prev => prev.filter(f => f.name !== fileName));
+    }, []);
 
     return (
         <div className="codex-sidebar">
@@ -556,6 +597,14 @@ You are creating a reproducible web activity (Task).
             <div className="input-area">
                 <div className="input-toolbar">
                     <button
+                        className="toolbar-btn attach-btn"
+                        onClick={handleAttachFiles}
+                        disabled={isProcessing || !isAuthenticated}
+                        title="Attach files"
+                    >
+                        +
+                    </button>
+                    <button
                         className={`toolbar-btn task-toggle ${taskMode ? 'active' : ''}`}
                         onClick={() => setTaskMode(!taskMode)}
                         title={taskMode ? "Task Mode ON - will prompt to save as task" : "Task Mode OFF"}
@@ -563,6 +612,26 @@ You are creating a reproducible web activity (Task).
                         📋 {taskMode ? 'Task ON' : 'Task'}
                     </button>
                 </div>
+
+                {/* Attached Files Pills */}
+                {attachedFiles.length > 0 && (
+                    <div className="attached-files">
+                        {attachedFiles.map((file) => (
+                            <div key={file.name} className="file-pill" title={file.originalPath}>
+                                <span className="file-icon">📄</span>
+                                <span className="file-name">{file.name}</span>
+                                <button
+                                    className="file-remove"
+                                    onClick={() => handleRemoveFile(file.name)}
+                                    title="Remove file"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 <div className="input-container">
                     <textarea
                         ref={textareaRef}

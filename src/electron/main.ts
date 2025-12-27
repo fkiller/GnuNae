@@ -1,4 +1,4 @@
-import { app, BrowserWindow, BrowserView, ipcMain, session, Menu } from 'electron';
+import { app, BrowserWindow, BrowserView, ipcMain, session, Menu, dialog } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -795,6 +795,72 @@ function setupIpcHandlers(): void {
         }
 
         return result.filePaths[0];
+    });
+
+    // Attach files for Codex prompt - copies to working directory
+    ipcMain.handle('files:attach', async (event) => {
+        const senderWindow = BrowserWindow.fromWebContents(event.sender);
+
+        const result = await dialog.showOpenDialog(senderWindow || mainWindow!, {
+            properties: ['openFile', 'multiSelections'],
+            title: 'Attach Files',
+            filters: [
+                { name: 'All Files', extensions: ['*'] },
+                { name: 'Text Files', extensions: ['txt', 'md', 'json', 'csv', 'xml', 'yaml', 'yml'] },
+                { name: 'Code Files', extensions: ['js', 'ts', 'py', 'html', 'css', 'tsx', 'jsx'] },
+                { name: 'Documents', extensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx'] }
+            ]
+        });
+
+        if (result.canceled || result.filePaths.length === 0) {
+            return { success: false, files: [] };
+        }
+
+        // Get session working directory
+        const senderSession = senderWindow ? windowSessions.get(senderWindow.id) : getActiveSession();
+        const workDir = senderSession?.workDir || getLLMWorkingDir();
+
+        // Copy files to working directory and track them
+        const attachedFiles: { name: string; originalPath: string; workDirPath: string }[] = [];
+
+        for (const filePath of result.filePaths) {
+            const fileName = path.basename(filePath);
+            const destPath = path.join(workDir, fileName);
+
+            try {
+                // Copy file to working directory
+                fs.copyFileSync(filePath, destPath);
+                attachedFiles.push({
+                    name: fileName,
+                    originalPath: filePath,
+                    workDirPath: destPath
+                });
+                console.log(`[Main] Attached file: ${fileName} -> ${destPath}`);
+            } catch (err) {
+                console.error(`[Main] Failed to copy file ${filePath}:`, err);
+            }
+        }
+
+        return { success: true, files: attachedFiles };
+    });
+
+    // Remove attached file from working directory
+    ipcMain.handle('files:remove', async (event, fileName: string) => {
+        const senderWindow = BrowserWindow.fromWebContents(event.sender);
+        const senderSession = senderWindow ? windowSessions.get(senderWindow.id) : getActiveSession();
+        const workDir = senderSession?.workDir || getLLMWorkingDir();
+
+        const filePath = path.join(workDir, fileName);
+        try {
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+                console.log(`[Main] Removed attached file: ${fileName}`);
+            }
+            return { success: true };
+        } catch (err) {
+            console.error(`[Main] Failed to remove file ${fileName}:`, err);
+            return { success: false, error: String(err) };
+        }
     });
 
     // Task handlers
