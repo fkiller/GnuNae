@@ -59,6 +59,8 @@ graph TB
 ## Features
 
 - 🌐 **Full Browser** - Chrome-based web browser with address bar and navigation
+- 🪟 **Multi-Window** - Open multiple independent windows (Cmd/Ctrl+N)
+- 📑 **Multi-Tab** - Multiple tabs per window with tab bar
 - 🤖 **Codex Sidebar** - AI assistant powered by OpenAI's Codex CLI
 - 📋 **Task Manager** - Save, schedule, and run automated tasks
 - 🔐 **OpenAI Auth** - Sign in with your OpenAI account
@@ -243,15 +245,27 @@ docs/                     # GitHub Pages (gnunae.com)
 | Status | Feature |
 |--------|---------|
 | ✅ Done | Electron-based browser integrated with Codex-Playwright MCP |
+| ✅ Done | Multi-window support with isolated Codex sessions |
+| ✅ Done | Multi-tab support with tab bar |
 | ✅ Done | Personal Data Store (PDS) - persistent storage with smart card UI |
 | ✅ Done | Two-way PDS integration - Codex can request AND store data |
 | ✅ Done | Task Manager - save, schedule, and automate tasks |
-| ✅ Done | Multi-tab support with tab bar |
 | 🔜 Planned | Edge/Chrome extension mode with GnuNae sidebar/backend |
 | 🔜 Planned | Project management for multi-page workflows |
 | 🔜 Planned | More LLM options including local LLM support |
 
 ## Version History
+
+### v0.5.0 (2025-12-27)
+- **Multi-Window Support**
+  - Open multiple independent GnuNae windows (Cmd/Ctrl+N)
+  - Each window has isolated Codex sessions and working directory
+  - Window-specific tab management and automation
+  - Playwright MCP correctly targets each window's webview
+- **Stability Improvements**
+  - Fixed iframe navigation polluting address bar URL
+  - Protected application UI from accidental Playwright navigation
+  - Improved tab selection guidance in pre-prompt
 
 ### v0.4.0 (2025-12-21)
 - **Task Execution System**
@@ -268,11 +282,9 @@ docs/                     # GitHub Pages (gnunae.com)
 - **UI Improvements**
   - Chat/Task Manager toggle buttons in address bar
   - Collapsible right panel with dynamic browser resizing
-  - Fixed panel toggle buttons to not shrink on window resize
 
 ### v0.2.0 (2024-12-17)
-- Personal Data Store (PDS)
-- Smart card UI for data requests
+- Personal Data Store (PDS) with smart card UI
 - Multi-tab browser support
 
 ### v0.1.0 (2024-12-01)
