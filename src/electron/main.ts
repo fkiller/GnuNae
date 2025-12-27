@@ -78,25 +78,81 @@ const packageJson = require('../../package.json');
 const APP_NAME = packageJson.productName || 'GnuNae';
 const APP_VERSION = packageJson.version || '0.0.1';
 
-// Session ID for unique temp directories (prevents multiple agent interference)
-const SESSION_ID = `gnunae-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+// Window session interface for multi-window isolation
+interface WindowSession {
+    window: BrowserWindow;
+    sessionId: string;
+    workDir: string;
+    codexProcesses: Map<string, ChildProcess>;
+    tabManager: TabManager | null;
+    sidebarVisible: boolean;
+}
 
-// Map of Codex processes: 'chat' for user chat, taskId for task execution
-const codexProcesses: Map<string, ChildProcess> = new Map();
+// Registry of all window sessions
+const windowSessions: Map<number, WindowSession> = new Map();
 
-let mainWindow: BrowserWindow | null = null;
+// Generate unique session ID for a window
+function generateSessionId(windowId: number): string {
+    return `gnunae-${windowId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// Legacy compatibility - get session for main window or first window
+function getActiveSession(): WindowSession | undefined {
+    // Try to find focused window's session
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    if (focusedWindow && windowSessions.has(focusedWindow.id)) {
+        return windowSessions.get(focusedWindow.id);
+    }
+    // Fall back to first window
+    return windowSessions.values().next().value;
+}
+
 let authService: AuthService;
+
+// Compatibility getter for mainWindow - returns focused window or first window
+function getMainWindow(): BrowserWindow | null {
+    const session = getActiveSession();
+    return session?.window || null;
+}
+
+// Get session by event sender (for IPC handlers)
+function getSessionBySender(sender: Electron.WebContents): WindowSession | undefined {
+    const window = BrowserWindow.fromWebContents(sender);
+    if (window && windowSessions.has(window.id)) {
+        return windowSessions.get(window.id);
+    }
+    return getActiveSession();
+}
+
+// Compatibility: global mainWindow reference (points to first window)
+let mainWindow: BrowserWindow | null = null;
+let tabManager: TabManager | null = null;
+let sidebarVisible = true;
+
+// Global codexProcesses for backward compatibility (uses active session's processes)
+function getCodexProcesses(): Map<string, ChildProcess> {
+    const session = getActiveSession();
+    return session?.codexProcesses || new Map();
+}
+
+// Alias for compatibility
+const codexProcesses = {
+    get: (key: string) => getCodexProcesses().get(key),
+    set: (key: string, value: ChildProcess) => getCodexProcesses().set(key, value),
+    delete: (key: string) => getCodexProcesses().delete(key),
+    has: (key: string) => getCodexProcesses().has(key),
+    forEach: (cb: (value: ChildProcess, key: string) => void) => getCodexProcesses().forEach(cb),
+};
 
 const SIDEBAR_WIDTH = 340;
 const TOPBAR_HEIGHT = 50;
 const TAB_BAR_HEIGHT = 36;
-let sidebarVisible = true;  // Track if sidebar panel is visible
 
 /**
  * Get the working directory for LLM execution.
  * Returns custom path if set in settings, otherwise creates a session-specific temp dir.
  */
-function getLLMWorkingDir(): string {
+function getLLMWorkingDir(windowId?: number): string {
     const { settingsService } = require('../core/settings');
     const customDir = settingsService.get('codex.workingDir') || '';
 
@@ -104,16 +160,26 @@ function getLLMWorkingDir(): string {
         return customDir;
     }
 
-    // Use system temp with session-specific subdirectory
-    const tempBase = os.tmpdir();
-    const sessionDir = path.join(tempBase, SESSION_ID);
+    // Get session for this window
+    const session = windowId
+        ? windowSessions.get(windowId)
+        : getActiveSession();
 
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(sessionDir)) {
-        fs.mkdirSync(sessionDir, { recursive: true });
+    if (session) {
+        // Create directory if it doesn't exist
+        if (!fs.existsSync(session.workDir)) {
+            fs.mkdirSync(session.workDir, { recursive: true });
+        }
+        return session.workDir;
     }
 
-    return sessionDir;
+    // Fallback: create a temp dir for app-level operations
+    const tempBase = os.tmpdir();
+    const fallbackDir = path.join(tempBase, `gnunae-fallback-${Date.now()}`);
+    if (!fs.existsSync(fallbackDir)) {
+        fs.mkdirSync(fallbackDir, { recursive: true });
+    }
+    return fallbackDir;
 }
 
 // OpenAI/ChatGPT OAuth URLs
@@ -133,6 +199,11 @@ class TabManager {
     private tabs: Map<string, TabState> = new Map();
     private activeTabId: string | null = null;
     private nextTabId = 1;
+    private ownerWindow: BrowserWindow;
+
+    constructor(window: BrowserWindow) {
+        this.ownerWindow = window;
+    }
 
     createTab(url?: string): TabState {
         const id = `tab-${this.nextTabId++}`;
@@ -154,15 +225,19 @@ class TabManager {
             title: 'New Tab',
         };
 
-        // Track URL changes
-        browserView.webContents.on('did-navigate', (_, navUrl) => {
-            tabState.url = navUrl;
-            this.notifyTabUpdate(tabState);
+        // Track URL changes - only for main frame, not iframes
+        browserView.webContents.on('did-frame-navigate', (_, navUrl, _httpResponseCode, _httpStatusText, isMainFrame) => {
+            if (isMainFrame) {
+                tabState.url = navUrl;
+                this.notifyTabUpdate(tabState);
+            }
         });
 
-        browserView.webContents.on('did-navigate-in-page', (_, navUrl) => {
-            tabState.url = navUrl;
-            this.notifyTabUpdate(tabState);
+        browserView.webContents.on('did-navigate-in-page', (_, navUrl, isMainFrame) => {
+            if (isMainFrame) {
+                tabState.url = navUrl;
+                this.notifyTabUpdate(tabState);
+            }
         });
 
         browserView.webContents.on('page-title-updated', (_, title) => {
@@ -172,13 +247,13 @@ class TabManager {
 
         browserView.webContents.on('did-start-loading', () => {
             if (this.activeTabId === id) {
-                mainWindow?.webContents.send('browser:loading', true);
+                this.ownerWindow?.webContents.send('browser:loading', true);
             }
         });
 
         browserView.webContents.on('did-stop-loading', () => {
             if (this.activeTabId === id) {
-                mainWindow?.webContents.send('browser:loading', false);
+                this.ownerWindow?.webContents.send('browser:loading', false);
             }
         });
 
@@ -232,15 +307,15 @@ class TabManager {
 
     switchToTab(tabId: string): boolean {
         const tab = this.tabs.get(tabId);
-        if (!tab || !mainWindow) return false;
+        if (!tab || !this.ownerWindow) return false;
 
         this.activeTabId = tabId;
-        mainWindow.setBrowserView(tab.browserView);
+        this.ownerWindow.setBrowserView(tab.browserView);
         this.updateLayout();
 
         // Notify UI of active tab change
-        mainWindow.webContents.send('browser:url', tab.url);
-        mainWindow.webContents.send('browser:title', tab.title);
+        this.ownerWindow.webContents.send('browser:url', tab.url);
+        this.ownerWindow.webContents.send('browser:title', tab.title);
         this.notifyTabsChanged();
 
         return true;
@@ -270,10 +345,12 @@ class TabManager {
 
     updateLayout(): void {
         const tab = this.getActiveTab();
-        if (!mainWindow || !tab) return;
+        if (!this.ownerWindow || !tab) return;
 
-        const contentBounds = mainWindow.getContentBounds();
-        const sidebarWidth = sidebarVisible ? SIDEBAR_WIDTH : 0;
+        const contentBounds = this.ownerWindow.getContentBounds();
+        // Get sidebar visibility for this window
+        const windowSession = windowSessions.get(this.ownerWindow.id);
+        const sidebarWidth = (windowSession?.sidebarVisible ?? true) ? SIDEBAR_WIDTH : 0;
         tab.browserView.setBounds({
             x: 0,
             y: TOPBAR_HEIGHT + TAB_BAR_HEIGHT,
@@ -284,14 +361,14 @@ class TabManager {
 
     private notifyTabUpdate(tab: TabState): void {
         if (tab.id === this.activeTabId) {
-            mainWindow?.webContents.send('browser:url-updated', tab.url);
-            mainWindow?.webContents.send('browser:title-updated', tab.title);
+            this.ownerWindow?.webContents.send('browser:url-updated', tab.url);
+            this.ownerWindow?.webContents.send('browser:title-updated', tab.title);
         }
         this.notifyTabsChanged();
     }
 
     private notifyTabsChanged(): void {
-        mainWindow?.webContents.send('tabs:updated', this.getAllTabs());
+        this.ownerWindow?.webContents.send('tabs:updated', this.getAllTabs());
     }
 
     destroy(): void {
@@ -302,9 +379,6 @@ class TabManager {
         this.activeTabId = null;
     }
 }
-
-// Global tab manager instance
-let tabManager: TabManager | null = null;
 
 // Set app name for macOS menu bar
 app.setName(APP_NAME);
@@ -353,6 +427,12 @@ function createMenu(): void {
         {
             label: 'File',
             submenu: [
+                {
+                    label: 'New Window',
+                    accelerator: 'CmdOrCtrl+N',
+                    click: () => createWindow()
+                },
+                { type: 'separator' as const },
                 isMac ? { role: 'close' as const } : { role: 'quit' as const }
             ]
         },
@@ -455,11 +535,13 @@ function createMenu(): void {
 }
 
 function createWindow(): void {
-    // Initialize auth service
-    authService = new AuthService();
+    // Initialize auth service (only once)
+    if (!authService) {
+        authService = new AuthService();
+    }
 
-    // Create the main window
-    mainWindow = new BrowserWindow({
+    // Create the window
+    const newWindow = new BrowserWindow({
         width: 1400,
         height: 900,
         minWidth: 800,
@@ -473,32 +555,98 @@ function createWindow(): void {
         trafficLightPosition: { x: 15, y: 15 },
     });
 
-    // Initialize tab manager and create first tab
-    tabManager = new TabManager();
+    // Generate session for this window
+    const windowId = newWindow.id;
+    const sessionId = generateSessionId(windowId);
+    const workDir = path.join(os.tmpdir(), sessionId);
 
-    // Load the UI first
+    // Create working directory
+    if (!fs.existsSync(workDir)) {
+        fs.mkdirSync(workDir, { recursive: true });
+    }
+
+    // Create tab manager for this window
+    const windowTabManager = new TabManager(newWindow);
+
+    // Register window session
+    const session: WindowSession = {
+        window: newWindow,
+        sessionId,
+        workDir,
+        codexProcesses: new Map(),
+        tabManager: windowTabManager,
+        sidebarVisible: true,
+    };
+    windowSessions.set(windowId, session);
+
+    // Compatibility: set global mainWindow to first window created
+    if (!mainWindow) {
+        mainWindow = newWindow;
+        tabManager = windowTabManager;
+    }
+
+    // Load the UI
     if (process.env.VITE_DEV_SERVER_URL) {
-        mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+        newWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
     } else {
-        mainWindow.loadFile(path.join(__dirname, '../ui/index.html'));
+        newWindow.loadFile(path.join(__dirname, '../ui/index.html'));
     }
 
     // Create initial tab with appropriate page
     const startUrl = authService.isAuthenticated()
         ? 'https://www.google.com'
         : `file://${path.join(__dirname, '../ui/login.html')}`;
-    tabManager.createTab(startUrl);
+    windowTabManager.createTab(startUrl);
 
     // Handle resize
-    mainWindow.on('resize', () => {
-        tabManager?.updateLayout();
+    newWindow.on('resize', () => {
+        windowTabManager?.updateLayout();
     });
 
-    mainWindow.on('closed', () => {
-        tabManager?.destroy();
-        tabManager = null;
-        mainWindow = null;
+    // Handle window close - cleanup session
+    newWindow.on('closed', () => {
+        const closingSession = windowSessions.get(windowId);
+        if (closingSession) {
+            // Kill any running Codex processes for this window
+            closingSession.codexProcesses.forEach((proc, key) => {
+                try {
+                    proc.kill('SIGTERM');
+                } catch (e) {
+                    // Process may already be dead
+                }
+            });
+
+            // Clean up temp directory
+            if (closingSession.workDir && closingSession.workDir.includes(os.tmpdir())) {
+                try {
+                    fs.rmSync(closingSession.workDir, { recursive: true, force: true });
+                    console.log('[Main] Cleaned up window session directory:', closingSession.workDir);
+                } catch (err) {
+                    // Ignore cleanup errors
+                }
+            }
+
+            // Destroy tab manager
+            closingSession.tabManager?.destroy();
+
+            // Remove from registry
+            windowSessions.delete(windowId);
+        }
+
+        // Update global reference if this was the main window
+        if (mainWindow === newWindow) {
+            mainWindow = null;
+            tabManager = null;
+            // Try to set a new main window if any remain
+            const firstSession = windowSessions.values().next().value;
+            if (firstSession) {
+                mainWindow = firstSession.window;
+                tabManager = firstSession.tabManager;
+            }
+        }
     });
+
+    console.log(`[Main] Created window ${windowId} with session ${sessionId}`);
 }
 
 function updateLayout(): void {
@@ -508,56 +656,84 @@ function updateLayout(): void {
 
 // IPC Handlers
 function setupIpcHandlers(): void {
-    // Get active browser view helper
-    const getActiveView = () => tabManager?.getActiveTab()?.browserView;
+    // Get session from event sender
+    const getSessionFromEvent = (event: Electron.IpcMainInvokeEvent): WindowSession | undefined => {
+        const window = BrowserWindow.fromWebContents(event.sender);
+        if (window) {
+            return windowSessions.get(window.id);
+        }
+        return getActiveSession();
+    };
+
+    // Get active browser view for the sender's window
+    const getActiveViewFromEvent = (event: Electron.IpcMainInvokeEvent) => {
+        const session = getSessionFromEvent(event);
+        return session?.tabManager?.getActiveTab()?.browserView;
+    };
+
+    // Backward-compatible helper for handlers without event context
+    const getActiveView = () => {
+        const session = getActiveSession();
+        return session?.tabManager?.getActiveTab()?.browserView;
+    };
 
     // UI handlers - toggle BrowserView for overlays
-    ipcMain.handle('ui:hide-browser', () => {
-        const browserView = getActiveView();
-        if (browserView && mainWindow) {
-            mainWindow.removeBrowserView(browserView);
+    ipcMain.handle('ui:hide-browser', (event) => {
+        const session = getSessionFromEvent(event);
+        const browserView = session?.tabManager?.getActiveTab()?.browserView;
+        if (browserView && session?.window) {
+            session.window.removeBrowserView(browserView);
         }
         return { success: true };
     });
 
-    ipcMain.handle('ui:show-browser', () => {
-        const browserView = getActiveView();
-        if (browserView && mainWindow) {
-            mainWindow.setBrowserView(browserView);
-            updateLayout();
+    ipcMain.handle('ui:show-browser', (event) => {
+        const session = getSessionFromEvent(event);
+        const browserView = session?.tabManager?.getActiveTab()?.browserView;
+        if (browserView && session?.window) {
+            session.window.setBrowserView(browserView);
+            session.tabManager?.updateLayout();
         }
         return { success: true };
     });
 
     // Set sidebar visibility and update browser layout
-    ipcMain.handle('ui:set-sidebar-visible', (_, visible: boolean) => {
-        sidebarVisible = visible;
-        updateLayout();
+    ipcMain.handle('ui:set-sidebar-visible', (event, visible: boolean) => {
+        const session = getSessionFromEvent(event);
+        if (session) {
+            session.sidebarVisible = visible;
+            session.tabManager?.updateLayout();
+        }
         return { success: true };
     });
 
     // Tab handlers
-    ipcMain.handle('tab:create', (_, url?: string) => {
-        const tab = tabManager?.createTab(url);
+    ipcMain.handle('tab:create', (event, url?: string) => {
+        const session = getSessionFromEvent(event);
+        const tab = session?.tabManager?.createTab(url);
         return { success: !!tab, tabId: tab?.id };
     });
 
-    ipcMain.handle('tab:close', (_, tabId: string) => {
-        const success = tabManager?.closeTab(tabId) ?? false;
+    ipcMain.handle('tab:close', (event, tabId: string) => {
+        const session = getSessionFromEvent(event);
+        const success = session?.tabManager?.closeTab(tabId) ?? false;
         return { success };
     });
 
-    ipcMain.handle('tab:switch', (_, tabId: string) => {
-        const success = tabManager?.switchToTab(tabId) ?? false;
+    ipcMain.handle('tab:switch', (event, tabId: string) => {
+        const session = getSessionFromEvent(event);
+        const success = session?.tabManager?.switchToTab(tabId) ?? false;
         return { success };
     });
 
-    ipcMain.handle('tab:getAll', () => {
-        return tabManager?.getAllTabs() ?? [];
+    ipcMain.handle('tab:getAll', (event) => {
+        const session = getSessionFromEvent(event);
+        return session?.tabManager?.getAllTabs() ?? [];
     });
 
-    ipcMain.handle('tab:getActive', () => {
-        return tabManager?.getActiveTabId() ?? null;
+    ipcMain.handle('tab:getActive', (event) => {
+        const session = getSessionFromEvent(event);
+        return session?.tabManager?.getActiveTabId() ?? null;
     });
 
     // DataStore handlers
@@ -840,8 +1016,8 @@ function setupIpcHandlers(): void {
     });
 
     // Navigate to URL
-    ipcMain.handle('browser:navigate', async (_, url: string) => {
-        const browserView = getActiveView();
+    ipcMain.handle('browser:navigate', async (event, url: string) => {
+        const browserView = getActiveViewFromEvent(event);
         if (!browserView) return { success: false, error: 'No browser view' };
 
         try {
@@ -913,8 +1089,12 @@ function setupIpcHandlers(): void {
     });
 
     // Execute Codex CLI with prompt (for user chat)
-    ipcMain.handle('codex:execute', async (_, prompt: string, mode: string = 'agent') => {
+    ipcMain.handle('codex:execute', async (event, prompt: string, mode: string = 'agent') => {
         console.log('[Main] Executing Codex (chat) in mode:', mode, 'prompt:', prompt.substring(0, 50) + '...');
+
+        // Capture sender window for all output messages
+        const senderWindow = BrowserWindow.fromWebContents(event.sender);
+        const senderSession = senderWindow ? windowSessions.get(senderWindow.id) : getActiveSession();
 
         // Kill any existing chat process (but not task processes)
         const existingChatProcess = codexProcesses.get('chat');
@@ -925,7 +1105,7 @@ function setupIpcHandlers(): void {
 
         // Get page snapshot to include in prompt
         let pageContext = '';
-        const browserView = getActiveView();
+        const browserView = senderSession?.tabManager?.getActiveTab()?.browserView || getActiveView();
         if (browserView) {
             try {
                 const url = browserView.webContents.getURL();
@@ -1014,8 +1194,26 @@ Execute tasks efficiently and completely without asking for permission.
 `;
             }
 
-            // Combine: modeInstructions + prePrompt + userDataContext + pageContext + user prompt
-            const fullPrompt = modeInstructions + (prePrompt ? prePrompt + userDataContext + '\n\n---\n\n' : '') + pageContext + prompt;
+            // Add tab selection context for multi-window support
+            // Use the TabManager's tracked URL (filtered to main frame only) rather than webContents.getURL() 
+            // which might return an iframe's URL
+            let tabSelectionContext = '';
+            const activeTab = senderSession?.tabManager?.getActiveTab();
+            const activeTabUrl = activeTab?.url || browserView?.webContents?.getURL();
+            if (activeTabUrl && !activeTabUrl.startsWith('file://') && !activeTabUrl.startsWith('about:')) {
+                tabSelectionContext = `
+## CRITICAL: Tab Selection for Multi-Window
+This request is for the browser tab showing: ${activeTabUrl}
+Before performing any action, use browser_snapshot to see the "Open tabs" list and ensure you are on the correct tab.
+If the current tab URL does not match the expected URL containing "${new URL(activeTabUrl).hostname}", use browser_tab_select to switch to the correct tab first.
+Do NOT operate on ad iframe tabs (like onetag-sys.com, doubleclick.net, etc.) - always select the main page tab.
+NEVER operate on a tab with a different URL than specified above unless the user explicitly asks to navigate elsewhere.
+
+`;
+            }
+
+            // Combine: tabSelectionContext + modeInstructions + prePrompt + userDataContext + pageContext + user prompt
+            const fullPrompt = tabSelectionContext + modeInstructions + (prePrompt ? prePrompt + userDataContext + '\n\n---\n\n' : '') + pageContext + prompt;
 
             // Determine Codex CLI path - different for packaged vs development
             const isWindows = process.platform === 'win32';
@@ -1036,6 +1234,10 @@ Execute tasks efficiently and completely without asking for permission.
             const cwd = getLLMWorkingDir();
             console.log('[Main] Using working directory:', cwd);
 
+            // Get window-specific session info
+            const activeSession = getActiveSession();
+            const windowId = activeSession?.window.id || 0;
+
             const chatProcess = spawn(codexBin, ['exec', '--skip-git-repo-check'], {
                 // Use shell on Windows for .cmd scripts
                 shell: isWindows ? true : false,
@@ -1044,6 +1246,9 @@ Execute tasks efficiently and completely without asking for permission.
                 windowsHide: true,
                 env: {
                     ...process.env,
+                    // GnuNae window identification for future MCP target isolation
+                    GNUNAE_WINDOW_ID: String(windowId),
+                    GNUNAE_SESSION_ID: activeSession?.sessionId || '',
                     // UTF-8 encoding for proper Korean/Unicode support
                     PYTHONIOENCODING: 'utf-8',
                     PYTHONUTF8: '1',
@@ -1077,7 +1282,7 @@ Execute tasks efficiently and completely without asking for permission.
                 if (pdsRequestMatch) {
                     const [, key, message] = pdsRequestMatch;
                     console.log('[Main] PDS Request detected:', key, message);
-                    mainWindow?.webContents.send('codex:pds-request', { key, message });
+                    senderWindow?.webContents.send('codex:pds-request', { key, message });
                 }
 
                 // Also detect [BLOCKER] patterns asking for user data
@@ -1110,7 +1315,7 @@ Execute tasks efficiently and completely without asking for permission.
                     }
 
                     console.log('[Main] BLOCKER as PDS Request detected:', inferredKey, message);
-                    mainWindow?.webContents.send('codex:pds-request', { key: inferredKey, message });
+                    senderWindow?.webContents.send('codex:pds-request', { key: inferredKey, message });
                 }
 
                 // Check for PDS_STORE pattern: [PDS_STORE:key:value]
@@ -1126,7 +1331,7 @@ Execute tasks efficiently and completely without asking for permission.
                     dataStoreService.set(key, value);
 
                     // Notify renderer of the store operation
-                    mainWindow?.webContents.send('codex:pds-stored', { key, value });
+                    senderWindow?.webContents.send('codex:pds-stored', { key, value });
                 }
 
                 // Check for CAPTCHA/2FA/login block patterns
@@ -1155,7 +1360,7 @@ Execute tasks efficiently and completely without asking for permission.
                 for (const { pattern, type } of blockPatterns) {
                     if (lowerChunk.includes(pattern)) {
                         console.log(`[Main] Block detected: ${type} (pattern: ${pattern})`);
-                        mainWindow?.webContents.send('task:blocked', {
+                        senderWindow?.webContents.send('task:blocked', {
                             type,
                             message: `Task blocked: ${type.toUpperCase()} detected`,
                             detail: chunk.substring(0, 200)
@@ -1165,14 +1370,14 @@ Execute tasks efficiently and completely without asking for permission.
                 }
 
                 // Send streaming output to renderer
-                mainWindow?.webContents.send('codex:output', { type: 'stdout', data: chunk });
+                senderWindow?.webContents.send('codex:output', { type: 'stdout', data: chunk });
             });
 
             chatProcess.stderr?.on('data', (data: Buffer) => {
                 const chunk = data.toString('utf8');
                 errorOutput += chunk;
                 console.log('[Codex stderr]', chunk);
-                mainWindow?.webContents.send('codex:output', { type: 'stderr', data: chunk });
+                senderWindow?.webContents.send('codex:output', { type: 'stderr', data: chunk });
             });
 
             chatProcess.on('close', (code) => {
@@ -1215,14 +1420,14 @@ Execute tasks efficiently and completely without asking for permission.
                     }
 
                     if (helpMessage) {
-                        mainWindow?.webContents.send('codex:output', {
+                        senderWindow?.webContents.send('codex:output', {
                             type: 'stderr',
                             data: helpMessage
                         });
                     }
                 }
 
-                mainWindow?.webContents.send('codex:complete', { code, output, errorOutput });
+                senderWindow?.webContents.send('codex:complete', { code, output, errorOutput });
                 codexProcesses.delete('chat');
                 resolve({ success: code === 0, output, errorOutput, code });
             });
@@ -1236,7 +1441,7 @@ Execute tasks efficiently and completely without asking for permission.
                     userMessage = '⚠️ Codex CLI not found. Please ensure @openai/codex is installed.';
                 }
 
-                mainWindow?.webContents.send('codex:error', { error: userMessage });
+                senderWindow?.webContents.send('codex:error', { error: userMessage });
                 codexProcesses.delete('chat');
                 resolve({ success: false, error: userMessage });
             });
@@ -1379,15 +1584,24 @@ app.on('window-all-closed', () => {
     }
 });
 
-// Cleanup session temp directory on quit
+// Cleanup all session temp directories on quit
 app.on('will-quit', () => {
-    const sessionDir = path.join(os.tmpdir(), SESSION_ID);
-    if (fs.existsSync(sessionDir)) {
-        try {
-            fs.rmSync(sessionDir, { recursive: true, force: true });
-            console.log('[Main] Cleaned up session temp directory:', sessionDir);
-        } catch (err) {
-            console.error('[Main] Failed to cleanup session temp:', err);
+    // Collect all work directories to clean up
+    const dirsToClean = new Set<string>();
+    windowSessions.forEach(session => {
+        if (session.workDir && session.workDir.includes(os.tmpdir())) {
+            dirsToClean.add(session.workDir);
         }
-    }
+    });
+
+    dirsToClean.forEach(sessionDir => {
+        if (fs.existsSync(sessionDir)) {
+            try {
+                fs.rmSync(sessionDir, { recursive: true, force: true });
+                console.log('[Main] Cleaned up session temp directory:', sessionDir);
+            } catch (err) {
+                console.error('[Main] Failed to cleanup session temp:', err);
+            }
+        }
+    });
 });

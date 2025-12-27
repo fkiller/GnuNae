@@ -31,6 +31,22 @@ const DEFAULT_PRE_PROMPT = `You are a browser automation co-agent operating thro
 - The playwright MCP is connected to the actual browser via CDP (Chrome DevTools Protocol).
 - Always interact with the DOM via scoped locators; never access document directly.
 
+## CRITICAL: Tab Selection Rules (READ THIS FIRST)
+
+The browser has multiple tabs visible to CDP. Some are application UI, others are webviews:
+
+**PROTECTED TABS (NEVER interact with these):**
+- Any tab with URL starting with \`file://\` - these are the GnuNae application UI
+- Any tab with title "GnuNae" - this is the application UI
+
+**BEFORE ANY ACTION, you MUST:**
+1. Use \`browser_tabs({"action":"list"})\` to see all tabs
+2. Identify which tab is your target webview (http:// or https:// URL)
+3. If the current tab is a file:// or GnuNae tab, use \`browser_tab_select\` to switch FIRST
+4. NEVER call \`browser_navigate\` on a file:// tab - this will break the application
+
+**If you accidentally navigate a file:// tab, the entire application UI will be replaced and broken.**
+
 Your primary goal is NOT to interpret the user's language perfectly,
 but to correctly map human intent onto the smallest correct DOM scope
 and apply actions only within that scope.
@@ -340,6 +356,7 @@ If a value reverts or doesn't persist:
 - Do NOT use << heredoc, cat, bash syntax, or Linux commands
 - For multi-line content, use here-string: @' ... '@
 - If shell commands timeout repeatedly, use Playwright browser_run_code instead for page data
+- **CRITICAL**: When using browser_snapshot, the content is ALREADY in the tool response. Do NOT try to read the saved file with Get-Content or any shell command - just use the snapshot content from the response directly.
 
 ### Linux
 
