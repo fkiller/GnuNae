@@ -257,6 +257,19 @@ class TabManager {
             }
         });
 
+        // Intercept gnunae:// protocol URLs for internal actions
+        browserView.webContents.on('will-navigate', (event, navUrl) => {
+            if (navUrl.startsWith('gnunae://')) {
+                event.preventDefault();
+
+                if (navUrl === 'gnunae://login') {
+                    // Trigger the Codex login flow
+                    console.log('[Main] Login triggered from internal page');
+                    this.ownerWindow?.webContents.send('trigger-codex-login');
+                }
+            }
+        });
+
         // Intercept window.open() and target="_blank" to open as new tabs
         browserView.webContents.setWindowOpenHandler(({ url: newUrl }) => {
             // Create new tab with the URL instead of opening new window
@@ -1079,6 +1092,167 @@ function setupIpcHandlers(): void {
         }
 
         return { authenticated: success };
+    });
+
+    // Codex CLI Authentication - check if ~/.codex/auth.json exists
+    ipcMain.handle('codex:is-cli-authenticated', () => {
+        return authService.isCodexCliAuthenticated();
+    });
+
+    // Track the login process
+    let codexLoginProcess: ChildProcess | null = null;
+
+    // Start Codex CLI login
+    // 1. Spawn CLI login (it starts server on localhost:1455)
+    // 2. Parse the OAuth URL from stderr (CLI prints it as fallback)
+    // 3. Navigate app browser to the URL
+    // 4. User completes login in app browser (can close external browser)
+    // 5. App browser redirects to localhost:1455, CLI receives callback
+    // 6. CLI saves auth token automatically
+    ipcMain.handle('codex:start-login', async (event) => {
+        const senderWindow = BrowserWindow.fromWebContents(event.sender);
+        const senderSession = senderWindow ? windowSessions.get(senderWindow.id) : getActiveSession();
+        const browserView = senderSession?.tabManager?.getActiveTab()?.browserView || getActiveView();
+
+        // Kill any existing login process
+        if (codexLoginProcess) {
+            codexLoginProcess.kill();
+            codexLoginProcess = null;
+        }
+
+        console.log('[Main] Starting Codex CLI login...');
+
+        // Determine Codex CLI path
+        const isWindows = process.platform === 'win32';
+        const codexBinName = isWindows ? 'codex.cmd' : 'codex';
+
+        let codexBin: string;
+        if (app.isPackaged) {
+            codexBin = path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.bin', codexBinName);
+        } else {
+            codexBin = path.join(__dirname, '../../node_modules/.bin', codexBinName);
+        }
+
+        console.log('[Main] Using Codex from:', codexBin);
+
+        return new Promise((resolve) => {
+            let urlNavigated = false;
+            let errorOutput = '';
+
+            // Spawn codex login - it will start server on localhost:1455
+            // and attempt to open browser (which we can't prevent on macOS)
+            codexLoginProcess = spawn(codexBin, ['login'], {
+                shell: false,
+                windowsHide: true,
+                env: {
+                    ...process.env,
+                    PYTHONIOENCODING: 'utf-8',
+                    PYTHONUTF8: '1',
+                    LANG: 'en_US.UTF-8',
+                },
+            });
+
+            // Parse output for OAuth URL - the CLI outputs it to stderr as a fallback message
+            const parseOutput = (data: string, source: 'stdout' | 'stderr') => {
+                // Look for the OAuth URL in stderr (CLI prints it as "navigate to this URL")
+                // Pattern: https://auth.openai.com/oauth/authorize?...
+                const urlMatch = data.match(/https:\/\/auth\.openai\.com\/oauth\/authorize\?[^\s]+/);
+                if (urlMatch && !urlNavigated) {
+                    const url = urlMatch[0];
+                    console.log('[Main] Found OAuth URL in CLI output:', url);
+
+                    if (browserView) {
+                        console.log('[Main] Navigating app browser to OAuth URL');
+                        browserView.webContents.loadURL(url);
+                        senderWindow?.webContents.send('codex:login-url', url);
+                        urlNavigated = true;
+                    }
+                }
+
+                // Also capture any error messages
+                if (source === 'stderr' && !data.includes('auth.openai.com')) {
+                    errorOutput += data;
+                }
+            };
+
+            codexLoginProcess.stdout?.on('data', (data: Buffer) => {
+                const chunk = data.toString('utf8');
+                console.log('[Codex Login stdout]', chunk);
+                parseOutput(chunk, 'stdout');
+            });
+
+            codexLoginProcess.stderr?.on('data', (data: Buffer) => {
+                const chunk = data.toString('utf8');
+                console.log('[Codex Login stderr]', chunk);
+                parseOutput(chunk, 'stderr');
+            });
+
+            codexLoginProcess.on('close', (code) => {
+                console.log('[Main] Codex login process exited with code:', code);
+                codexLoginProcess = null;
+
+                // Check if auth was successful
+                const success = authService.isCodexCliAuthenticated();
+
+                // Extract meaningful error from stderr
+                let errorMessage = 'Login was not completed';
+                if (errorOutput) {
+                    if (errorOutput.includes('429')) {
+                        errorMessage = 'Rate limited - please wait a few minutes and try again';
+                    } else if (errorOutput.includes('Error')) {
+                        const errorMatch = errorOutput.match(/Error[^:]*:\s*(.+)/i);
+                        if (errorMatch) {
+                            errorMessage = errorMatch[1].trim();
+                        }
+                    }
+                }
+
+                senderWindow?.webContents.send('codex:login-complete', {
+                    success,
+                    error: success ? undefined : errorMessage
+                });
+
+                // Also update app auth status if successful
+                if (success) {
+                    authService.saveToken({
+                        accessToken: 'codex-cli-authenticated',
+                        email: 'OpenAI User',
+                        expiresAt: Date.now() + (30 * 24 * 60 * 60 * 1000),
+                    });
+                    senderWindow?.webContents.send('auth:status-changed', true);
+
+                    // Navigate browser to default page after successful login
+                    if (browserView) {
+                        console.log('[Main] Login successful, navigating to start page');
+                        browserView.webContents.loadURL('https://www.google.com');
+                    }
+                }
+            });
+
+            codexLoginProcess.on('error', (err) => {
+                console.error('[Main] Codex login spawn error:', err);
+                codexLoginProcess = null;
+
+                senderWindow?.webContents.send('codex:login-complete', {
+                    success: false,
+                    error: err.message
+                });
+            });
+
+            // Return immediately - actual result comes via events
+            resolve({ success: true });
+        });
+    });
+
+    // Cancel ongoing login process
+    ipcMain.handle('codex:cancel-login', () => {
+        if (codexLoginProcess) {
+            codexLoginProcess.kill();
+            codexLoginProcess = null;
+            console.log('[Main] Codex login cancelled');
+            return { success: true };
+        }
+        return { success: false, error: 'No login in progress' };
     });
 
     // Navigate to URL

@@ -21,6 +21,7 @@ declare global {
             isAuthenticated: () => Promise<boolean>;
             getUser: () => Promise<string | null>;
             startGoogleLogin: () => Promise<{ success: boolean }>;
+            startCodexLogin: () => Promise<{ success: boolean; error?: string }>;
             logout: () => Promise<{ success: boolean }>;
             showLogin: () => Promise<{ success: boolean }>;
             checkNow: () => Promise<{ authenticated: boolean }>;
@@ -151,6 +152,12 @@ const App: React.FC = () => {
             (window as any).electronAPI?.setSidebarVisible?.(panel !== null);
         });
 
+        // Listen for login triggers from internal pages (gnunae://login)
+        const unsubTriggerLogin = (window as any).electronAPI?.onTriggerCodexLogin?.(() => {
+            console.log('[App] Login triggered from internal page');
+            window.electronAPI?.startCodexLogin?.();
+        });
+
         return () => {
             unsubTabs?.();
             unsubAuth?.();
@@ -161,6 +168,7 @@ const App: React.FC = () => {
             unsubMenuShowSettings?.();
             unsubMenuShowAbout?.();
             unsubMenuPanel?.();
+            unsubTriggerLogin?.();
         };
     }, [checkAuthStatus]);
 
@@ -198,8 +206,10 @@ const App: React.FC = () => {
     }, []);
 
     const handleRequestLogin = useCallback(async () => {
-        console.log('[App] Login requested');
-        await window.electronAPI?.startGoogleLogin?.();
+        console.log('[App] Login requested - starting Codex CLI login');
+        // Use the new Codex CLI login flow which captures OAuth URL and opens in app browser
+        const electronAPI = window as any;
+        await electronAPI.electronAPI?.startCodexLogin?.();
     }, []);
 
     const handleLogout = useCallback(async () => {

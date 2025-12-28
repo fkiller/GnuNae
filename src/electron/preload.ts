@@ -57,6 +57,15 @@ export interface ElectronAPI {
     onPdsStored: (callback: (data: { key: string; value: string }) => void) => () => void;
     onTaskBlocked: (callback: (data: { type: string; message: string; detail: string }) => void) => () => void;
 
+    // Codex CLI Authentication
+    startCodexLogin: () => Promise<{ success: boolean; error?: string }>;
+    cancelCodexLogin: () => Promise<{ success: boolean }>;
+    isCodexCliAuthenticated: () => Promise<boolean>;
+    onCodexLoginUrl: (callback: (url: string) => void) => () => void;
+    onCodexLoginComplete: (callback: (data: { success: boolean; error?: string }) => void) => () => void;
+    onCodexDeviceCode: (callback: (code: string) => void) => () => void;
+    onTriggerCodexLogin: (callback: () => void) => () => void;
+
     // File attachment
     attachFiles: () => Promise<{ success: boolean; files: { name: string; originalPath: string; workDirPath: string }[] }>;
     removeAttachedFile: (fileName: string) => Promise<{ success: boolean; error?: string }>;
@@ -193,6 +202,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const handler = (_: IpcRendererEvent, data: { type: string; message: string; detail: string }) => callback(data);
         ipcRenderer.on('task:blocked', handler);
         return () => ipcRenderer.removeListener('task:blocked', handler);
+    },
+
+    // Codex CLI Authentication
+    startCodexLogin: () => ipcRenderer.invoke('codex:start-login'),
+    cancelCodexLogin: () => ipcRenderer.invoke('codex:cancel-login'),
+    isCodexCliAuthenticated: () => ipcRenderer.invoke('codex:is-cli-authenticated'),
+    onCodexLoginUrl: (callback: (url: string) => void) => {
+        const handler = (_: IpcRendererEvent, url: string) => callback(url);
+        ipcRenderer.on('codex:login-url', handler);
+        return () => ipcRenderer.removeListener('codex:login-url', handler);
+    },
+    onCodexLoginComplete: (callback: (data: { success: boolean; error?: string }) => void) => {
+        const handler = (_: IpcRendererEvent, data: { success: boolean; error?: string }) => callback(data);
+        ipcRenderer.on('codex:login-complete', handler);
+        return () => ipcRenderer.removeListener('codex:login-complete', handler);
+    },
+    onCodexDeviceCode: (callback: (code: string) => void) => {
+        const handler = (_: IpcRendererEvent, code: string) => callback(code);
+        ipcRenderer.on('codex:device-code', handler);
+        return () => ipcRenderer.removeListener('codex:device-code', handler);
+    },
+    onTriggerCodexLogin: (callback: () => void) => {
+        const handler = () => callback();
+        ipcRenderer.on('trigger-codex-login', handler);
+        return () => ipcRenderer.removeListener('trigger-codex-login', handler);
     },
 
     // Event listeners with cleanup

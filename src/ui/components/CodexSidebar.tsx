@@ -61,6 +61,7 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
     const [blockedTask, setBlockedTask] = useState<{ type: string; message: string; detail: string } | null>(null);
     const runningTaskIdRef = useRef<string | null>(null);  // Track which task is currently running
     const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);  // Attached files for prompt
+    const [isLoggingIn, setIsLoggingIn] = useState(false);  // Track if Codex CLI login is in progress
 
     // Keep taskModeRef in sync
     useEffect(() => { taskModeRef.current = taskMode; }, [taskMode]);
@@ -323,6 +324,36 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
         };
         setLogs((prev) => [...prev.slice(-100), entry]);
     }, []);
+
+    // Subscribe to Codex login events (must be after addLog is defined)
+    useEffect(() => {
+        const unsubLoginUrl = (window as any).electronAPI?.onCodexLoginUrl?.((url: string) => {
+            console.log('[CodexSidebar] Login URL received:', url);
+            addLog('info', '🔐 Opening OpenAI login page...');
+        });
+
+        const unsubDeviceCode = (window as any).electronAPI?.onCodexDeviceCode?.((code: string) => {
+            console.log('[CodexSidebar] Device code received:', code);
+            addLog('info', `📋 Enter this code on the login page: ${code}`);
+            addLog('command', `Device Code: ${code}`);
+        });
+
+        const unsubLoginComplete = (window as any).electronAPI?.onCodexLoginComplete?.((data: { success: boolean; error?: string }) => {
+            console.log('[CodexSidebar] Login complete:', data);
+            setIsLoggingIn(false);
+            if (data.success) {
+                addLog('info', '✅ Successfully logged in to OpenAI!');
+            } else {
+                addLog('error', `❌ Login failed: ${data.error || 'Unknown error'}. Please try again.`);
+            }
+        });
+
+        return () => {
+            unsubLoginUrl?.();
+            unsubDeviceCode?.();
+            unsubLoginComplete?.();
+        };
+    }, [addLog]);
 
     const handlePdsSubmit = useCallback(async (value: string) => {
         if (!pdsRequest) return;

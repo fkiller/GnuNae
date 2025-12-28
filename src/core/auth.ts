@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { app } from 'electron';
 
 interface AuthToken {
@@ -10,6 +11,9 @@ interface AuthToken {
 }
 
 const AUTH_FILE = path.join(app.getPath('userData'), 'codex-auth.json');
+
+// Codex CLI stores its auth at ~/.codex/auth.json
+const CODEX_CLI_AUTH_FILE = path.join(os.homedir(), '.codex', 'auth.json');
 
 export class AuthService {
     private token: AuthToken | null = null;
@@ -72,6 +76,41 @@ export class AuthService {
         } catch (error) {
             console.error('[Auth] Failed to clear auth token:', error);
         }
+    }
+
+    // Check if Codex CLI has valid authentication
+    isCodexCliAuthenticated(): boolean {
+        try {
+            if (!fs.existsSync(CODEX_CLI_AUTH_FILE)) {
+                console.log('[Auth] Codex CLI auth file not found:', CODEX_CLI_AUTH_FILE);
+                return false;
+            }
+
+            const data = fs.readFileSync(CODEX_CLI_AUTH_FILE, 'utf-8');
+            const authData = JSON.parse(data);
+
+            // Check if we have valid auth data
+            // Tokens can be at top level or nested in 'tokens' object
+            const tokens = authData.tokens || authData;
+            const hasAuth = tokens && (
+                tokens.access_token ||
+                tokens.accessToken ||
+                tokens.token ||
+                tokens.api_key ||
+                tokens.refresh_token
+            );
+
+            console.log('[Auth] Codex CLI authenticated:', !!hasAuth);
+            return !!hasAuth;
+        } catch (error) {
+            console.error('[Auth] Failed to check Codex CLI auth:', error);
+            return false;
+        }
+    }
+
+    // Get the path to Codex CLI auth file
+    getCodexCliAuthPath(): string {
+        return CODEX_CLI_AUTH_FILE;
     }
 
     // Extract token from ChatGPT/OpenAI cookies after login
