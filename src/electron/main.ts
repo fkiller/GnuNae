@@ -1341,11 +1341,29 @@ function setupIpcHandlers(): void {
         if (existingChatProcess) {
             existingChatProcess.kill();
             codexProcesses.delete('chat');
+            // Give a moment for the old Playwright MCP to clean up its CDP connection
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        // Reset CDP session for the active webview to clear stale Playwright MCP state
+        // This fixes "Transport closed" errors on subsequent prompts
+        const browserView = senderSession?.tabManager?.getActiveTab()?.browserView || getActiveView();
+        if (browserView) {
+            try {
+                const debugger_ = browserView.webContents.debugger;
+                if (debugger_.isAttached()) {
+                    console.log('[Main] Detaching debugger to reset CDP session...');
+                    debugger_.detach();
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+            } catch (e) {
+                // Debugger might not be attached, that's fine
+                console.log('[Main] Debugger reset skipped:', e);
+            }
         }
 
         // Get page snapshot to include in prompt
         let pageContext = '';
-        const browserView = senderSession?.tabManager?.getActiveTab()?.browserView || getActiveView();
         if (browserView) {
             try {
                 const url = browserView.webContents.getURL();
