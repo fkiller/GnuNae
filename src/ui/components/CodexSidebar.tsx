@@ -210,11 +210,13 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
             if (taskTabRef.current) {
                 const tabIdToClose = taskTabRef.current;
                 const originalTabId = originalTabRef.current;
+                console.log('[CodexSidebar] Closing task tab:', { tabIdToClose, originalTabId });
                 taskTabRef.current = null;
                 originalTabRef.current = null;
 
                 // Switch back to original tab first, then close task tab
                 setTimeout(async () => {
+                    console.log('[CodexSidebar] Executing tab cleanup - switching to:', originalTabId, ', closing:', tabIdToClose);
                     if (originalTabId) {
                         await (window as any).electronAPI?.switchTab?.(originalTabId);
                     }
@@ -266,14 +268,17 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
             if (data.useNewTab) {
                 // Store current tab ID so we can switch back later
                 const currentTabId = await (window as any).electronAPI?.getActiveTab?.();
+                console.log('[CodexSidebar] Task useNewTab - original active tab:', currentTabId);
                 if (currentTabId) {
                     originalTabRef.current = currentTabId;
                 }
 
                 addLog('info', '🗗 Creating new tab for task...');
                 const result = await (window as any).electronAPI?.createTab?.(data.startUrl || 'about:blank');
+                console.log('[CodexSidebar] Tab created result:', result);
                 if (result?.success && result?.tabId) {
                     taskTabRef.current = result.tabId;
+                    console.log('[CodexSidebar] Stored taskTabRef:', result.tabId, ', originalTabRef:', originalTabRef.current);
                     // Switch to the new tab so Codex operates on it
                     await (window as any).electronAPI?.switchTab?.(result.tabId);
                     // Wait for tab to load

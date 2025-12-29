@@ -327,8 +327,8 @@ class TabManager {
         this.updateLayout();
 
         // Notify UI of active tab change
-        this.ownerWindow.webContents.send('browser:url', tab.url);
-        this.ownerWindow.webContents.send('browser:title', tab.title);
+        this.ownerWindow.webContents.send('browser:url-updated', tab.url);
+        this.ownerWindow.webContents.send('browser:title-updated', tab.title);
         this.notifyTabsChanged();
 
         return true;
