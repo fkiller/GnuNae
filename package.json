@@ -1,6 +1,6 @@
 {
   "name": "gnunae",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "productName": "GnuNae",
   "main": "dist/electron/main.js",
   "author": {
