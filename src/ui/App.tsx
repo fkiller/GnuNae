@@ -131,6 +131,38 @@ const App: React.FC = () => {
             if (url) setCurrentUrl(url);
         });
 
+        // Auto-enable Virtual Mode if preference is saved
+        const initVirtualMode = async () => {
+            try {
+                const settings = await (window as any).electronAPI?.getSettings?.();
+                if (settings?.docker?.useVirtualMode) {
+                    // Check if Docker is available
+                    const dockerStatus = await (window as any).electronAPI?.isDockerAvailable?.();
+                    if (dockerStatus?.available) {
+                        // Check if sandbox already active
+                        const sandboxStatus = await (window as any).electronAPI?.getSandboxStatus?.();
+                        if (!sandboxStatus?.active) {
+                            console.log('[App] Auto-enabling Virtual Mode from saved preference');
+                            // Create sandbox with electron-cdp mode
+                            const result = await (window as any).electronAPI?.createSandbox?.({
+                                browserMode: 'electron-cdp',
+                                externalCdpEndpoint: 'http://host.docker.internal:9222',
+                            });
+                            if (result?.success) {
+                                await (window as any).electronAPI?.setDockerMode?.(true);
+                                console.log('[App] Virtual Mode enabled successfully');
+                            } else {
+                                console.warn('[App] Failed to auto-enable Virtual Mode:', result?.error);
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('[App] Error during Virtual Mode auto-init:', err);
+            }
+        };
+        initVirtualMode();
+
         // Menu event: toggle settings
         const unsubMenuSettings = (window as any).electronAPI?.onMenuToggleSettings?.(() => {
             setShowSettings(prev => !prev);

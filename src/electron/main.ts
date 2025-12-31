@@ -4,11 +4,14 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { spawn, ChildProcess } from 'child_process';
 import { AuthService } from '../core/auth';
+import { DockerManager, getDockerManager, type SandboxInstance } from '../core/docker-manager';
+import { SandboxApiClient, createSandboxClient } from '../core/sandbox-api';
 
 // Enable Chrome DevTools Protocol for Playwright MCP integration
-// Bound to localhost only for security
+// Bound to all interfaces to allow Docker container access via host.docker.internal
+// Security: Only listens on local network, not exposed to internet
 app.commandLine.appendSwitch('remote-debugging-port', '9222');
-app.commandLine.appendSwitch('remote-debugging-address', '127.0.0.1');
+app.commandLine.appendSwitch('remote-debugging-address', '0.0.0.0');
 
 /**
  * Ensure Playwright MCP is configured in the global Codex config.
@@ -86,6 +89,13 @@ interface WindowSession {
     codexProcesses: Map<string, ChildProcess>;
     tabManager: TabManager | null;
     sidebarVisible: boolean;
+    // Docker sandbox support
+    sandbox?: {
+        instance: SandboxInstance;
+        client: SandboxApiClient;
+        heartbeatTimer?: NodeJS.Timeout; // Timer for sending heartbeats
+    };
+    useDocker: boolean;
 }
 
 // Registry of all window sessions
@@ -589,6 +599,7 @@ function createWindow(): void {
         codexProcesses: new Map(),
         tabManager: windowTabManager,
         sidebarVisible: true,
+        useDocker: false,  // Docker mode disabled by default, can be enabled per-window
     };
     windowSessions.set(windowId, session);
 
@@ -628,6 +639,18 @@ function createWindow(): void {
                     // Process may already be dead
                 }
             });
+
+            // Clean up Docker sandbox if any
+            if (closingSession.sandbox) {
+                // Stop heartbeat timer
+                if (closingSession.sandbox.heartbeatTimer) {
+                    clearInterval(closingSession.sandbox.heartbeatTimer);
+                }
+                const dockerManager = getDockerManager();
+                dockerManager.destroyInstance(closingSession.sandbox.instance.id).catch(err => {
+                    console.error('[Main] Failed to cleanup Docker sandbox:', err);
+                });
+            }
 
             // Clean up temp directory
             if (closingSession.workDir && closingSession.workDir.includes(os.tmpdir())) {
@@ -1094,6 +1117,282 @@ function setupIpcHandlers(): void {
         return { authenticated: success };
     });
 
+    // ==========================================
+    // Docker/Sandbox IPC Handlers
+    // ==========================================
+
+    // Check if Docker is available
+    ipcMain.handle('docker:is-available', async () => {
+        const dockerManager = getDockerManager();
+        const available = await dockerManager.isAvailable();
+        return { available };
+    });
+
+    // Get Docker runtime info
+    ipcMain.handle('docker:get-runtime-info', async () => {
+        const dockerManager = getDockerManager();
+        if (!dockerManager.getRuntimeInfo()) {
+            await dockerManager.initialize();
+            // Clean up any orphaned containers from previous sessions (crashes, etc.)
+            await dockerManager.cleanupOrphanedContainers();
+        }
+        return dockerManager.getRuntimeInfo();
+    });
+
+    // Create a sandbox instance for a window
+    ipcMain.handle('docker:create-sandbox', async (event, config?: any) => {
+        const session = getSessionFromEvent(event);
+        if (!session) {
+            return { success: false, error: 'No session found' };
+        }
+
+        const dockerManager = getDockerManager();
+        if (!await dockerManager.isAvailable()) {
+            return { success: false, error: 'Docker is not available' };
+        }
+
+        try {
+            // Destroy existing sandbox if any
+            if (session.sandbox) {
+                await dockerManager.destroyInstance(session.sandbox.instance.id);
+            }
+
+            // For electron-cdp mode, we need to fetch the WebSocket URL from CDP
+            // and pass it directly because Docker can't use Host headers properly
+            let finalConfig = { ...config };
+            if (config?.browserMode === 'electron-cdp') {
+                try {
+                    // Fetch WebSocket URL from local CDP endpoint
+                    const http = require('http');
+                    const wsUrl = await new Promise<string>((resolve, reject) => {
+                        http.get('http://127.0.0.1:9222/json/version', (res: any) => {
+                            let data = '';
+                            res.on('data', (chunk: string) => data += chunk);
+                            res.on('end', () => {
+                                try {
+                                    const json = JSON.parse(data);
+                                    // Rewrite 127.0.0.1 to host.docker.internal for Docker access
+                                    const wsUrlForDocker = json.webSocketDebuggerUrl
+                                        .replace('127.0.0.1', 'host.docker.internal')
+                                        .replace('localhost', 'host.docker.internal');
+                                    resolve(wsUrlForDocker);
+                                } catch (e) {
+                                    reject(e);
+                                }
+                            });
+                        }).on('error', reject);
+                    });
+                    console.log('[Docker] Using CDP WebSocket URL:', wsUrl);
+                    // Pass the WebSocket URL directly instead of HTTP endpoint
+                    finalConfig.externalCdpEndpoint = wsUrl;
+                } catch (err) {
+                    console.error('[Docker] Failed to fetch CDP WebSocket URL:', err);
+                    // Fall back to original endpoint
+                }
+            }
+
+            // Create new sandbox instance
+            const instance = await dockerManager.createInstance({
+                name: `gnunae-window-${session.window.id}`,
+                ...finalConfig,
+            });
+
+            // Create API client for this sandbox
+            const client = createSandboxClient({
+                apiPort: instance.apiPort,
+                cdpPort: instance.cdpPort,
+            });
+
+            // Wait for sandbox to be healthy
+            const healthy = await client.waitForHealthy(30, 1000);
+            if (!healthy) {
+                await dockerManager.destroyInstance(instance.id);
+                return { success: false, error: 'Sandbox failed to become healthy' };
+            }
+
+            // Start heartbeat timer with retry logic and container-gone detection
+            const HEARTBEAT_INTERVAL = 10000; // 10 seconds
+            let heartbeatFailures = 0;
+            const MAX_HEARTBEAT_FAILURES = 5; // 5 failures = container is gone
+
+            const heartbeatTimer = setInterval(async () => {
+                // Check if sandbox was already cleaned up
+                if (!session.sandbox) {
+                    clearInterval(heartbeatTimer);
+                    return;
+                }
+
+                try {
+                    await client.sendHeartbeat();
+                    if (heartbeatFailures > 0) {
+                        console.log(`[Docker] Heartbeat recovered after ${heartbeatFailures} failures`);
+                        heartbeatFailures = 0;
+                    }
+                } catch (err) {
+                    heartbeatFailures++;
+                    console.error(`[Docker] Heartbeat failed (${heartbeatFailures}/${MAX_HEARTBEAT_FAILURES}):`, err);
+
+                    // If we've failed too many times, container is likely gone
+                    if (heartbeatFailures >= MAX_HEARTBEAT_FAILURES) {
+                        console.warn('[Docker] Container appears to be stopped - cleaning up session');
+
+                        // Stop the heartbeat timer
+                        clearInterval(heartbeatTimer);
+
+                        // Clean up session state
+                        session.sandbox = undefined;
+                        session.useDocker = false;
+
+                        // Notify UI that Virtual Mode was deactivated
+                        session.window.webContents.send('docker:container-stopped', {
+                            reason: 'Container stopped unexpectedly',
+                            willFallbackToNative: true,
+                        });
+
+                        console.log('[Docker] Switched back to Native mode');
+                    }
+                }
+            }, HEARTBEAT_INTERVAL);
+
+            // Send first heartbeat immediately
+            try {
+                await client.sendHeartbeat();
+                console.log('[Docker] Heartbeat watchdog enabled');
+            } catch {
+                // First heartbeat failed, continue anyway
+            }
+
+            // Store in session
+            session.sandbox = { instance, client, heartbeatTimer };
+            session.useDocker = true;
+
+            console.log(`[Docker] Created sandbox for window ${session.window.id}: ${instance.id}`);
+
+            return {
+                success: true,
+                sandbox: {
+                    id: instance.id,
+                    cdpPort: instance.cdpPort,
+                    apiPort: instance.apiPort,
+                    vncPort: instance.vncPort,
+                    noVncPort: instance.noVncPort,
+                },
+            };
+        } catch (error: any) {
+            console.error('[Docker] Failed to create sandbox:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Destroy sandbox for a window
+    ipcMain.handle('docker:destroy-sandbox', async (event) => {
+        const session = getSessionFromEvent(event);
+        if (!session?.sandbox) {
+            return { success: false, error: 'No sandbox found' };
+        }
+
+        try {
+            // Stop heartbeat timer first
+            if (session.sandbox.heartbeatTimer) {
+                clearInterval(session.sandbox.heartbeatTimer);
+            }
+
+            const dockerManager = getDockerManager();
+            await dockerManager.destroyInstance(session.sandbox.instance.id);
+            session.sandbox = undefined;
+            session.useDocker = false;
+            console.log(`[Docker] Destroyed sandbox for window ${session.window.id}`);
+            return { success: true };
+        } catch (error: any) {
+            console.error('[Docker] Failed to destroy sandbox:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Get sandbox status for a window
+    ipcMain.handle('docker:get-sandbox-status', async (event) => {
+        const session = getSessionFromEvent(event);
+        if (!session?.sandbox) {
+            return { active: false };
+        }
+
+        try {
+            const status = await session.sandbox.client.getStatus();
+            return {
+                active: true,
+                sandbox: {
+                    id: session.sandbox.instance.id,
+                    cdpPort: session.sandbox.instance.cdpPort,
+                    apiPort: session.sandbox.instance.apiPort,
+                    vncPort: session.sandbox.instance.vncPort,
+                    noVncPort: session.sandbox.instance.noVncPort,
+                    status: session.sandbox.instance.status,
+                },
+                containerStatus: status,
+            };
+        } catch (error: any) {
+            return {
+                active: true,
+                sandbox: {
+                    id: session.sandbox.instance.id,
+                    status: 'error',
+                },
+                error: error.message,
+            };
+        }
+    });
+
+    // Toggle Docker mode for a window
+    ipcMain.handle('docker:set-mode', async (event, enabled: boolean) => {
+        const session = getSessionFromEvent(event);
+        if (!session) {
+            return { success: false, error: 'No session found' };
+        }
+
+        if (enabled && !session.sandbox) {
+            // Need to create sandbox first
+            return { success: false, error: 'Create a sandbox first with docker:create-sandbox' };
+        }
+
+        session.useDocker = enabled;
+        console.log(`[Docker] Window ${session.window.id} Docker mode: ${enabled}`);
+        return { success: true, useDocker: session.useDocker };
+    });
+
+    // List all active sandboxes
+    ipcMain.handle('docker:list-sandboxes', async () => {
+        const dockerManager = getDockerManager();
+        return dockerManager.listInstances();
+    });
+
+    // Check if sandbox image is available
+    ipcMain.handle('docker:is-image-available', async () => {
+        const dockerManager = getDockerManager();
+        if (!await dockerManager.isAvailable()) {
+            return { available: false, reason: 'Docker not available' };
+        }
+        const available = await dockerManager.isImageAvailable();
+        return { available };
+    });
+
+    // Pull the sandbox image
+    ipcMain.handle('docker:pull-image', async () => {
+        const dockerManager = getDockerManager();
+        if (!await dockerManager.isAvailable()) {
+            return { success: false, error: 'Docker not available' };
+        }
+        try {
+            await dockerManager.pullImage();
+            return { success: true };
+        } catch (error: any) {
+            return { success: false, error: error.message };
+        }
+    });
+
+    // ==========================================
+    // End Docker/Sandbox IPC Handlers
+    // ==========================================
+
     // Codex CLI Authentication - check if ~/.codex/auth.json exists
     ipcMain.handle('codex:is-cli-authenticated', () => {
         return authService.isCodexCliAuthenticated();
@@ -1388,6 +1687,70 @@ function setupIpcHandlers(): void {
                 console.log('[Main] Failed to get page snapshot:', e);
             }
         }
+
+        // ========== DOCKER ROUTING ==========
+        // If session is in Docker mode with active sandbox, route through container
+        if (senderSession?.useDocker && senderSession?.sandbox) {
+            console.log('[Main] Routing Codex execution through Docker container...');
+
+            const { settingsService } = require('../core/settings');
+            const prePrompt = settingsService.get('codex')?.prePrompt || '';
+
+            const { dataStoreService } = require('../core/datastore');
+            const userDataFormatted = dataStoreService.getFormatted();
+            const userDataContext = `\n\n## User's Stored Data\nUse this data when the prompt requires personal information:\n${userDataFormatted}\n`;
+
+            // Build full prompt for Docker container
+            let fullPrompt = '';
+            if (prePrompt) {
+                fullPrompt += prePrompt + '\n\n';
+            }
+            fullPrompt += userDataContext;
+            fullPrompt += pageContext;
+            fullPrompt += prompt;
+
+            // Return a Promise that uses the callback-based executeCodex API
+            return new Promise((resolve) => {
+                let output = '';
+                let errorOutput = '';
+
+                const abort = senderSession.sandbox!.client.executeCodex(
+                    fullPrompt,
+                    { mode, prePrompt },
+                    // onStdout
+                    (data: string) => {
+                        output += data;
+                        console.log('[Docker Codex stdout]', data);
+                        // Send with format expected by UI: { type, data }
+                        senderWindow?.webContents.send('codex:output', { type: 'stdout', data });
+                    },
+                    // onStderr
+                    // Note: Codex CLI outputs progress info (thinking, tool calls) to stderr
+                    // We treat it as output, not error - only actual errors will have error indicators
+                    (stderrData: string) => {
+                        errorOutput += stderrData;
+                        console.log('[Docker Codex stderr]', stderrData);
+                        // Send as stderr type - UI will display progress messages
+                        senderWindow?.webContents.send('codex:output', { type: 'stderr', data: stderrData });
+                    },
+                    // onExit
+                    (code: number | null) => {
+                        console.log('[Docker Codex] Exit code:', code);
+                        // Send complete event with format expected by UI
+                        senderWindow?.webContents.send('codex:complete', {
+                            code: code ?? 0,
+                            output,
+                            errorOutput
+                        });
+                        resolve({ success: code === 0, output, error: errorOutput || undefined });
+                    }
+                );
+
+                // Store abort function if needed for cancellation
+                // TODO: Could store this to allow stopping Docker execution
+            });
+        }
+        // ========== END DOCKER ROUTING ==========
 
         return new Promise((resolve) => {
             let output = '';
@@ -1843,7 +2206,16 @@ app.on('window-all-closed', () => {
 });
 
 // Cleanup all session temp directories on quit
-app.on('will-quit', () => {
+app.on('will-quit', async () => {
+    // Shutdown Docker manager (destroys all sandboxes)
+    try {
+        const dockerManager = getDockerManager();
+        await dockerManager.shutdown();
+        console.log('[Main] Docker manager shutdown complete');
+    } catch (err) {
+        console.error('[Main] Docker manager shutdown error:', err);
+    }
+
     // Collect all work directories to clean up
     const dirsToClean = new Set<string>();
     windowSessions.forEach(session => {
@@ -1862,4 +2234,49 @@ app.on('will-quit', () => {
             }
         }
     });
+});
+
+// Emergency cleanup on crash - use synchronous commands to ensure cleanup
+const emergencyDockerCleanup = () => {
+    console.log('[Main] Emergency Docker cleanup triggered');
+    try {
+        const runtime = 'docker'; // Could detect from runtime-detector
+        // Kill all gnunae containers synchronously
+        const { spawnSync } = require('child_process');
+        const result = spawnSync(runtime, [
+            'ps', '-q', '--filter', 'name=gnunae-'
+        ], { encoding: 'utf8' });
+
+        const containerIds = (result.stdout || '').trim().split('\n').filter(Boolean);
+        if (containerIds.length > 0) {
+            console.log('[Main] Stopping containers:', containerIds);
+            spawnSync(runtime, ['stop', ...containerIds], { timeout: 5000 });
+        }
+    } catch (err) {
+        console.error('[Main] Emergency cleanup error:', err);
+    }
+};
+
+// Handle crashes and unexpected exits
+process.on('uncaughtException', (err) => {
+    console.error('[Main] Uncaught exception:', err);
+    emergencyDockerCleanup();
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('[Main] Unhandled rejection:', reason);
+});
+
+// Also cleanup on SIGTERM/SIGINT (e.g., macOS force quit)
+process.on('SIGTERM', () => {
+    console.log('[Main] SIGTERM received');
+    emergencyDockerCleanup();
+    app.quit();
+});
+
+process.on('SIGINT', () => {
+    console.log('[Main] SIGINT received');
+    emergencyDockerCleanup();
+    app.quit();
 });

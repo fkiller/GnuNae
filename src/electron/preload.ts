@@ -66,6 +66,18 @@ export interface ElectronAPI {
     onCodexDeviceCode: (callback: (code: string) => void) => () => void;
     onTriggerCodexLogin: (callback: () => void) => () => void;
 
+    // Docker/Sandbox
+    isDockerAvailable: () => Promise<{ available: boolean }>;
+    getDockerRuntimeInfo: () => Promise<any>;
+    createSandbox: (config?: any) => Promise<{ success: boolean; sandbox?: any; error?: string }>;
+    destroySandbox: () => Promise<{ success: boolean; error?: string }>;
+    getSandboxStatus: () => Promise<{ active: boolean; sandbox?: any; containerStatus?: any; error?: string }>;
+    setDockerMode: (enabled: boolean) => Promise<{ success: boolean; useDocker?: boolean; error?: string }>;
+    listSandboxes: () => Promise<any[]>;
+    isSandboxImageAvailable: () => Promise<{ available: boolean; reason?: string }>;
+    pullSandboxImage: () => Promise<{ success: boolean; error?: string }>;
+    onContainerStopped: (callback: (data: { reason: string; willFallbackToNative: boolean }) => void) => () => void;
+
     // File attachment
     attachFiles: () => Promise<{ success: boolean; files: { name: string; originalPath: string; workDirPath: string }[] }>;
     removeAttachedFile: (fileName: string) => Promise<{ success: boolean; error?: string }>;
@@ -227,6 +239,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const handler = () => callback();
         ipcRenderer.on('trigger-codex-login', handler);
         return () => ipcRenderer.removeListener('trigger-codex-login', handler);
+    },
+
+    // Docker/Sandbox APIs
+    isDockerAvailable: () => ipcRenderer.invoke('docker:is-available'),
+    getDockerRuntimeInfo: () => ipcRenderer.invoke('docker:get-runtime-info'),
+    createSandbox: (config?: any) => ipcRenderer.invoke('docker:create-sandbox', config),
+    destroySandbox: () => ipcRenderer.invoke('docker:destroy-sandbox'),
+    getSandboxStatus: () => ipcRenderer.invoke('docker:get-sandbox-status'),
+    setDockerMode: (enabled: boolean) => ipcRenderer.invoke('docker:set-mode', enabled),
+    listSandboxes: () => ipcRenderer.invoke('docker:list-sandboxes'),
+    isSandboxImageAvailable: () => ipcRenderer.invoke('docker:is-image-available'),
+    pullSandboxImage: () => ipcRenderer.invoke('docker:pull-image'),
+    onContainerStopped: (callback: (data: { reason: string; willFallbackToNative: boolean }) => void) => {
+        const handler = (_: IpcRendererEvent, data: { reason: string; willFallbackToNative: boolean }) => callback(data);
+        ipcRenderer.on('docker:container-stopped', handler);
+        return () => ipcRenderer.removeListener('docker:container-stopped', handler);
     },
 
     // Event listeners with cleanup

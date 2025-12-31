@@ -21,6 +21,9 @@ export interface AppSettings {
         sidebarWidth: number;
         theme: 'dark' | 'light' | 'system';
     };
+    docker: {
+        useVirtualMode: boolean; // If true, prefer Docker Virtual Mode over Native
+    };
 }
 
 const DEFAULT_PRE_PROMPT = `You are a browser automation co-agent operating through Playwright MCP.
@@ -415,6 +418,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     ui: {
         sidebarWidth: 380,
         theme: 'dark',
+    },
+    docker: {
+        useVirtualMode: false, // Default to Native mode
     },
 };
 

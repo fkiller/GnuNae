@@ -49,3 +49,7 @@ settings.json
 
 # Electron-builder cache
 electron-builder.env
+
+# Docker (ignore local build artifacts, not the source)
+docker/*.log
+docker/node_modules

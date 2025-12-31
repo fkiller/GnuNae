@@ -1,0 +1,24 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode
+.idea
+
+# Node modules (will be installed fresh in container)
+node_modules
+
+# Build artifacts from local testing
+*.log

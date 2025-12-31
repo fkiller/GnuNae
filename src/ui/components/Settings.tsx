@@ -45,6 +45,13 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
     const [currentWorkDir, setCurrentWorkDir] = useState<string>('');
 
+    // Docker/Virtual Mode state
+    const [dockerAvailable, setDockerAvailable] = useState<boolean | null>(null);
+    const [dockerRuntimeInfo, setDockerRuntimeInfo] = useState<any>(null);
+    const [sandboxStatus, setSandboxStatus] = useState<any>(null);
+    const [isCreatingSandbox, setIsCreatingSandbox] = useState(false);
+    const [dockerError, setDockerError] = useState<string | null>(null);
+
     useEffect(() => {
         if (isOpen) {
             (window as any).electronAPI?.hideBrowser?.();
@@ -65,6 +72,16 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
             // Load current LLM working directory
             (window as any).electronAPI?.getLLMWorkDir?.().then((dir: string) => {
                 setCurrentWorkDir(dir || '');
+            });
+            // Load Docker/Virtual Mode status
+            (window as any).electronAPI?.isDockerAvailable?.().then((result: { available: boolean }) => {
+                setDockerAvailable(result?.available ?? false);
+            });
+            (window as any).electronAPI?.getDockerRuntimeInfo?.().then((info: any) => {
+                setDockerRuntimeInfo(info);
+            });
+            (window as any).electronAPI?.getSandboxStatus?.().then((status: any) => {
+                setSandboxStatus(status);
             });
         } else {
             (window as any).electronAPI?.showBrowser?.();
@@ -111,6 +128,50 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
         });
     };
 
+    // Docker/Virtual Mode helpers
+    const enableVirtualMode = async () => {
+        if (!dockerAvailable) return;
+
+        setIsCreatingSandbox(true);
+        setDockerError(null);
+
+        try {
+            // Create sandbox with electron-cdp mode (connects to Electron's BrowserView)
+            const result = await (window as any).electronAPI?.createSandbox?.({
+                browserMode: 'electron-cdp',
+                externalCdpEndpoint: 'http://host.docker.internal:9222',
+            });
+
+            if (result?.success) {
+                // Enable Docker mode
+                await (window as any).electronAPI?.setDockerMode?.(true);
+                // Save preference to settings
+                updateSetting('docker.useVirtualMode', true);
+                // Refresh status
+                const status = await (window as any).electronAPI?.getSandboxStatus?.();
+                setSandboxStatus(status);
+            } else {
+                setDockerError(result?.error || 'Failed to create sandbox');
+            }
+        } catch (err: any) {
+            setDockerError(err.message || 'Failed to enable Virtual Mode');
+        } finally {
+            setIsCreatingSandbox(false);
+        }
+    };
+
+    const disableVirtualMode = async () => {
+        try {
+            await (window as any).electronAPI?.destroySandbox?.();
+            // Save preference to settings
+            updateSetting('docker.useVirtualMode', false);
+            setSandboxStatus({ active: false });
+            setDockerError(null);
+        } catch (err: any) {
+            setDockerError(err.message || 'Failed to disable Virtual Mode');
+        }
+    };
+
     if (!isOpen) return null;
 
     const filterBySearch = (label: string) => {
@@ -136,6 +197,74 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                 </div>
 
                 <div className="settings-content">
+                    {/* Execution Backend Section */}
+                    {filterBySearch('execution backend docker virtual native mode sandbox container') && (
+                        <div className="settings-section">
+                            <h3>⚡ Execution Backend</h3>
+                            <span className="setting-hint">
+                                Choose how Codex CLI executes commands
+                            </span>
+
+                            <div className="execution-mode-selector">
+                                <button
+                                    className={`mode-option ${!sandboxStatus?.active ? 'active' : ''}`}
+                                    onClick={disableVirtualMode}
+                                    disabled={!sandboxStatus?.active}
+                                >
+                                    <span className="mode-icon">🖥️</span>
+                                    <span className="mode-label">Native Mode</span>
+                                    <span className="mode-desc">Runs directly on your system</span>
+                                </button>
+
+                                <button
+                                    className={`mode-option ${sandboxStatus?.active ? 'active' : ''} ${!dockerAvailable ? 'disabled' : ''}`}
+                                    onClick={enableVirtualMode}
+                                    disabled={!dockerAvailable || isCreatingSandbox || sandboxStatus?.active}
+                                >
+                                    <span className="mode-icon">🐳</span>
+                                    <span className="mode-label">Virtual Mode</span>
+                                    <span className="mode-desc">
+                                        {isCreatingSandbox ? 'Starting container...' :
+                                            !dockerAvailable ? 'Docker not available' :
+                                                'Runs in isolated Docker container'}
+                                    </span>
+                                </button>
+                            </div>
+
+                            {/* Docker Status */}
+                            <div className="docker-status">
+                                <div className="status-row">
+                                    <span className="status-label">Docker:</span>
+                                    <span className={`status-value ${dockerAvailable ? 'available' : 'unavailable'}`}>
+                                        {dockerAvailable === null ? 'Checking...' :
+                                            dockerAvailable ? `✓ ${dockerRuntimeInfo?.type || 'Available'} ${dockerRuntimeInfo?.version || ''}` :
+                                                '✗ Not available'}
+                                    </span>
+                                </div>
+                                {sandboxStatus?.active && (
+                                    <div className="status-row">
+                                        <span className="status-label">Container:</span>
+                                        <span className="status-value available">
+                                            ✓ Running (Port {sandboxStatus?.sandbox?.apiPort})
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {dockerError && (
+                                <div className="docker-error">
+                                    ⚠️ {dockerError}
+                                </div>
+                            )}
+
+                            {!dockerAvailable && dockerRuntimeInfo?.reason && (
+                                <div className="docker-hint">
+                                    💡 {dockerRuntimeInfo.reason}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* DataStore Section */}
                     {filterBySearch('data store personal info') && (
                         <div className="settings-section">

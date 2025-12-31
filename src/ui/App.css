@@ -2202,3 +2202,117 @@ body {
 .task-favorite-btn.active {
     color: #fbbf24;
 }
+
+/* ===== Execution Backend Section ===== */
+.execution-mode-selector {
+    display: flex;
+    gap: 12px;
+    margin: 16px 0;
+}
+
+.mode-option {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 12px;
+    background: var(--bg-glass);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    text-align: center;
+}
+
+.mode-option:hover:not(:disabled):not(.disabled) {
+    border-color: var(--accent-secondary);
+    background: rgba(14, 165, 233, 0.1);
+}
+
+.mode-option.active {
+    border-color: var(--accent-secondary);
+    background: rgba(14, 165, 233, 0.15);
+    box-shadow: 0 0 12px rgba(14, 165, 233, 0.3);
+}
+
+.mode-option.disabled,
+.mode-option:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.mode-icon {
+    font-size: 28px;
+}
+
+.mode-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.mode-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.docker-status {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--bg-glass);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+.status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+}
+
+.status-row + .status-row {
+    border-top: 1px solid var(--border-color);
+    margin-top: 8px;
+    padding-top: 8px;
+}
+
+.status-label {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.status-value {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.status-value.available {
+    color: var(--accent-success);
+}
+
+.status-value.unavailable {
+    color: var(--accent-primary);
+}
+
+.docker-error {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: rgba(233, 69, 96, 0.15);
+    border: 1px solid var(--accent-primary);
+    border-radius: var(--radius-sm);
+    color: var(--accent-primary);
+    font-size: 12px;
+}
+
+.docker-hint {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: rgba(14, 165, 233, 0.1);
+    border: 1px solid var(--accent-secondary);
+    border-radius: var(--radius-sm);
+    color: var(--accent-secondary);
+    font-size: 12px;
+}

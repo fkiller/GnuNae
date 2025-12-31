@@ -12,7 +12,9 @@
   "scripts": {
     "build:electron": "tsc",
     "build:ui": "vite build && node scripts/build-ui.js",
+    "build:docker": "docker build -t gnunae/sandbox:latest ./docker",
     "build": "npm run build:electron && npm run build:ui",
+    "build:all": "npm run build && npm run build:docker",
     "dev:ui": "vite --config vite.config.ts",
     "dev:electron": "npm run build:electron && electron .",
     "dev": "concurrently \"npm run dev:ui\" \"wait-on http://localhost:5173 && npm run dev:electron\"",
