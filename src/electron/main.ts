@@ -1212,47 +1212,7 @@ function setupIpcHandlers(): void {
 
             // Start heartbeat timer with retry logic and container-gone detection
             const HEARTBEAT_INTERVAL = 10000; // 10 seconds
-            let heartbeatFailures = 0;
             const MAX_HEARTBEAT_FAILURES = 5; // 5 failures = container is gone
-
-            const heartbeatTimer = setInterval(async () => {
-                // Check if sandbox was already cleaned up
-                if (!session.sandbox) {
-                    clearInterval(heartbeatTimer);
-                    return;
-                }
-
-                try {
-                    await client.sendHeartbeat();
-                    if (heartbeatFailures > 0) {
-                        console.log(`[Docker] Heartbeat recovered after ${heartbeatFailures} failures`);
-                        heartbeatFailures = 0;
-                    }
-                } catch (err) {
-                    heartbeatFailures++;
-                    console.error(`[Docker] Heartbeat failed (${heartbeatFailures}/${MAX_HEARTBEAT_FAILURES}):`, err);
-
-                    // If we've failed too many times, container is likely gone
-                    if (heartbeatFailures >= MAX_HEARTBEAT_FAILURES) {
-                        console.warn('[Docker] Container appears to be stopped - cleaning up session');
-
-                        // Stop the heartbeat timer
-                        clearInterval(heartbeatTimer);
-
-                        // Clean up session state
-                        session.sandbox = undefined;
-                        session.useDocker = false;
-
-                        // Notify UI that Virtual Mode was deactivated
-                        session.window.webContents.send('docker:container-stopped', {
-                            reason: 'Container stopped unexpectedly',
-                            willFallbackToNative: true,
-                        });
-
-                        console.log('[Docker] Switched back to Native mode');
-                    }
-                }
-            }, HEARTBEAT_INTERVAL);
 
             // Send first heartbeat immediately
             try {
@@ -1263,23 +1223,88 @@ function setupIpcHandlers(): void {
             }
 
             // Store in session
-            session.sandbox = { instance, client, heartbeatTimer };
+            session.sandbox = { instance, client };
             session.useDocker = true;
 
+            // Set interval for subsequent heartbeats
+            session.sandbox.heartbeatTimer = setInterval(async () => {
+                if (!session.sandbox) return;
+
+                // Track failures
+                const sandbox = session.sandbox;
+                const heartbeatFailures = (sandbox as any).heartbeatFailures || 0;
+
+                try {
+                    const result = await sandbox.client.sendHeartbeat();
+                    if (result.success) {
+                        // Reset failure count on success
+                        (sandbox as any).heartbeatFailures = 0;
+                    } else {
+                        throw new Error('Heartbeat returned false');
+                    }
+                } catch (err) {
+                    // Increment failure count
+                    (sandbox as any).heartbeatFailures = heartbeatFailures + 1;
+                    console.error(`[Docker] Heartbeat failed (${(sandbox as any).heartbeatFailures}/${MAX_HEARTBEAT_FAILURES}):`, err);
+
+                    // If we've failed too many times, container is likely gone
+                    if ((sandbox as any).heartbeatFailures >= MAX_HEARTBEAT_FAILURES) {
+                        console.warn('[Docker] Container appears to be stopped - cleaning up session');
+
+                        // Stop the heartbeat timer
+                        if (sandbox.heartbeatTimer) clearInterval(sandbox.heartbeatTimer);
+
+                        // Clean up session state
+                        session.sandbox = undefined;
+                        session.useDocker = false;
+
+                        // Notify UI that Virtual Mode was deactivated
+                        session.window.webContents.send('docker:container-stopped', {
+                            reason: 'Heartbeat timeout - container unresponsive or stopped',
+                            willFallbackToNative: true,
+                        });
+
+                        // Broadcast status change
+                        session.window.webContents.send('docker:status-changed', {
+                            active: false,
+                            error: 'Container stopped unexpectedly'
+                        });
+
+                        console.log('[Docker] Switched back to Native mode');
+                    }
+                }
+            }, HEARTBEAT_INTERVAL);
+
             console.log(`[Docker] Created sandbox for window ${session.window.id}: ${instance.id}`);
+
+            // Broadcast status change (success)
+            session.window.webContents.send('docker:status-changed', {
+                active: true,
+                sandbox: {
+                    id: instance.id,
+                    containerId: instance.containerId,
+                    apiPort: instance.apiPort,
+                    cdpPort: instance.cdpPort
+                }
+            });
 
             return {
                 success: true,
                 sandbox: {
                     id: instance.id,
-                    cdpPort: instance.cdpPort,
                     apiPort: instance.apiPort,
-                    vncPort: instance.vncPort,
-                    noVncPort: instance.noVncPort,
                 },
             };
         } catch (error: any) {
             console.error('[Docker] Failed to create sandbox:', error);
+            if (session.sandbox?.instance) {
+                await dockerManager.destroyInstance(session.sandbox.instance.id);
+            }
+            // Broadcast status change (failed)
+            session.window.webContents.send('docker:status-changed', {
+                active: false,
+                error: error.message
+            });
             return { success: false, error: error.message };
         }
     });
@@ -1288,20 +1313,28 @@ function setupIpcHandlers(): void {
     ipcMain.handle('docker:destroy-sandbox', async (event) => {
         const session = getSessionFromEvent(event);
         if (!session?.sandbox) {
-            return { success: false, error: 'No sandbox found' };
+            return { success: false, error: 'No sandbox active' };
         }
 
         try {
-            // Stop heartbeat timer first
+            const dockerManager = getDockerManager();
+
+            // Clear heartbeat timer
             if (session.sandbox.heartbeatTimer) {
                 clearInterval(session.sandbox.heartbeatTimer);
             }
 
-            const dockerManager = getDockerManager();
             await dockerManager.destroyInstance(session.sandbox.instance.id);
             session.sandbox = undefined;
             session.useDocker = false;
+
             console.log(`[Docker] Destroyed sandbox for window ${session.window.id}`);
+
+            // Broadcast status change
+            session.window.webContents.send('docker:status-changed', {
+                active: false
+            });
+
             return { success: true };
         } catch (error: any) {
             console.error('[Docker] Failed to destroy sandbox:', error);

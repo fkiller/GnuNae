@@ -77,6 +77,7 @@ export interface ElectronAPI {
     isSandboxImageAvailable: () => Promise<{ available: boolean; reason?: string }>;
     pullSandboxImage: () => Promise<{ success: boolean; error?: string }>;
     onContainerStopped: (callback: (data: { reason: string; willFallbackToNative: boolean }) => void) => () => void;
+    onDockerStatusChanged: (callback: (data: { active: boolean; error?: string; sandbox?: any }) => void) => () => void;
 
     // File attachment
     attachFiles: () => Promise<{ success: boolean; files: { name: string; originalPath: string; workDirPath: string }[] }>;
@@ -255,6 +256,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const handler = (_: IpcRendererEvent, data: { reason: string; willFallbackToNative: boolean }) => callback(data);
         ipcRenderer.on('docker:container-stopped', handler);
         return () => ipcRenderer.removeListener('docker:container-stopped', handler);
+    },
+    onDockerStatusChanged: (callback: (data: { active: boolean; error?: string; sandbox?: any }) => void) => {
+        const handler = (_: IpcRendererEvent, data: { active: boolean; error?: string; sandbox?: any }) => callback(data);
+        ipcRenderer.on('docker:status-changed', handler);
+        return () => ipcRenderer.removeListener('docker:status-changed', handler);
     },
 
     // Event listeners with cleanup

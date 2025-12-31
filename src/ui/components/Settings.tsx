@@ -83,6 +83,25 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
             (window as any).electronAPI?.getSandboxStatus?.().then((status: any) => {
                 setSandboxStatus(status);
             });
+
+            // Listen for Docker status changes
+            const unsubStatus = (window as any).electronAPI?.onDockerStatusChanged?.((data: any) => {
+                console.log('[Settings] Docker status changed:', data);
+                if (data.active !== undefined) {
+                    setSandboxStatus((prev: any) => ({ ...prev, active: data.active }));
+                }
+                if (data.error) {
+                    setDockerError(data.error);
+                }
+                // If activated or error occurred, we're done creating
+                if (data.active || data.error) {
+                    setIsCreatingSandbox(false);
+                }
+            });
+
+            return () => {
+                unsubStatus?.();
+            };
         } else {
             (window as any).electronAPI?.showBrowser?.();
         }
