@@ -62,6 +62,7 @@ graph TB
 - 🪟 **Multi-Window** - Open multiple independent windows (Cmd/Ctrl+N)
 - 📑 **Multi-Tab** - Multiple tabs per window with tab bar
 - 🤖 **Codex Sidebar** - AI assistant powered by OpenAI's Codex CLI
+- 🐳 **Virtual Mode** - Docker-based sandbox for isolated Codex + Playwright execution
 - 📋 **Task Manager** - Save, schedule, and run automated tasks
 - 🔐 **OpenAI Auth** - Sign in with your OpenAI account
 - 🔧 **Page Analysis** - Codex can see and analyze your current page
@@ -250,11 +251,22 @@ docs/                     # GitHub Pages (gnunae.com)
 | ✅ Done | Personal Data Store (PDS) - persistent storage with smart card UI |
 | ✅ Done | Two-way PDS integration - Codex can request AND store data |
 | ✅ Done | Task Manager - save, schedule, and automate tasks |
+| ✅ Done | Virtual Mode - Docker sandbox for Codex + Playwright isolation |
+| 🔜 Planned | Remote backend (home server, cloud) with VNC streaming |
 | 🔜 Planned | Edge/Chrome extension mode with GnuNae sidebar/backend |
 | 🔜 Planned | Project management for multi-page workflows |
 | 🔜 Planned | More LLM options including local LLM support |
 
 ## Version History
+
+### v0.6.0 (2025-01-04)
+- **Virtual Mode (Docker Sandbox)**
+  - Enables isolated execution of Codex CLI and Playwright MCP in a Docker container
+  - Requires Docker Desktop installed on your machine
+  - Shares OpenAI authentication with the container securely
+  - Mounts working directory so attached files are accessible
+  - Foundation for future remote backend support (home server, cloud)
+  - Toggle via Settings panel when Docker is detected
 
 ### v0.5.0 (2025-12-27)
 - **Multi-Window Support**
