@@ -116,6 +116,29 @@ npm run start
 
 > ⚠️ **First-time users**: You must run `npx codex auth openai` to authenticate with OpenAI before using the app. This is a one-time setup.
 
+### Virtual Mode (Docker)
+
+To use Virtual Mode, you need Docker Desktop installed. This runs Codex and Playwright in an isolated container.
+
+```bash
+# Build the Docker sandbox image
+npm run build:docker
+
+# Or build without cache (recommended after updates)
+npm run build:docker:clean
+
+# Build everything (app + Docker image)
+npm run build:all
+```
+
+| Script | Description |
+|--------|-------------|
+| `build:docker` | Build the Docker sandbox image |
+| `build:docker:clean` | Build Docker image without cache |
+| `build:all` | Build app + Docker image |
+
+Once built, enable Virtual Mode in Settings when Docker is detected.
+
 ## Usage
 
 1. **Launch the app** - A browser window opens with a sidebar
@@ -222,7 +245,14 @@ src/
     ├── tasks.ts            # Task service and scheduler
     ├── settings.ts         # App settings & pre-prompt
     ├── schema.ts           # Type definitions
+    ├── docker-manager.ts   # Docker sandbox lifecycle management
     └── vault.ts            # Secure storage
+
+docker/                   # Virtual Mode sandbox
+├── Dockerfile            # Container image definition
+├── entrypoint.sh         # Container startup script
+├── api-server.js         # REST API for Codex execution
+└── playwright.config.ts  # Playwright MCP configuration
 
 docs/                     # GitHub Pages (gnunae.com)
 ├── index.html            # Landing page
