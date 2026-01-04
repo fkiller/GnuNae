@@ -4,6 +4,8 @@ An Electron-based browser with an AI-powered Codex sidebar for intelligent web a
 
 🌐 **Website:** [www.gnunae.com](https://www.gnunae.com?utm_source=github) | 📺 **YouTube:** [@GnuNae](https://www.youtube.com/@GnuNae)
 
+<a href="https://www.producthunt.com/products/gnunae?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-gnunae" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1053446&theme=light&t=1767570584390" alt="GnuNae - AI Browser with no limit | Product Hunt" width="250" height="54" /></a>
+
 > ⚠️ **Alpha Warning**: This app is still in alpha stage. Do not use it in production or with sensitive data.
 
 ## Architecture
