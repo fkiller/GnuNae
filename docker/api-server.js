@@ -133,13 +133,17 @@ function executeCodex(prompt, options, onData, onError, onComplete) {
     // Handle output
     if (codexProcess.stdout) {
         codexProcess.stdout.on('data', (data) => {
-            onData(data.toString('utf8'));
+            const text = data.toString('utf8');
+            console.log('[Codex stdout]', text.trim());
+            onData(text);
         });
     }
 
     if (codexProcess.stderr) {
         codexProcess.stderr.on('data', (data) => {
-            onError(data.toString('utf8'));
+            const text = data.toString('utf8');
+            console.log('[Codex stderr]', text.trim());
+            onError(text);
         });
     }
 
