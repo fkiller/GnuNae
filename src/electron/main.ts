@@ -1782,7 +1782,7 @@ function setupIpcHandlers(): void {
 
                 const abort = senderSession.sandbox!.client.executeCodex(
                     fullPrompt,
-                    { mode, prePrompt },
+                    { mode },  // Don't pass prePrompt - it's already in fullPrompt
                     // onStdout
                     (data: string) => {
                         output += data;
@@ -1791,11 +1791,15 @@ function setupIpcHandlers(): void {
                         senderWindow?.webContents.send('codex:output', { type: 'stdout', data });
 
                         // Check for PDS_REQUEST pattern: [PDS_REQUEST:key:message]
+                        // Filter out example patterns from documentation (key_name is the example placeholder)
                         const pdsRequestMatch = data.match(/\[PDS_REQUEST:([^:]+):([^\]]+)\]/);
                         if (pdsRequestMatch) {
                             const [, key, message] = pdsRequestMatch;
-                            console.log('[Docker Codex] PDS Request detected:', key, message);
-                            senderWindow?.webContents.send('codex:pds-request', { key, message });
+                            // Skip documentation examples
+                            if (key !== 'key_name') {
+                                console.log('[Docker Codex] PDS Request detected:', key, message);
+                                senderWindow?.webContents.send('codex:pds-request', { key, message });
+                            }
                         }
                     },
                     // onStderr
@@ -1808,11 +1812,15 @@ function setupIpcHandlers(): void {
                         senderWindow?.webContents.send('codex:output', { type: 'stderr', data: stderrData });
 
                         // Also check stderr for PDS_REQUEST (Codex may output to either stream)
+                        // Filter out example patterns from documentation (key_name is the example placeholder)
                         const pdsRequestMatch = stderrData.match(/\[PDS_REQUEST:([^:]+):([^\]]+)\]/);
                         if (pdsRequestMatch) {
                             const [, key, message] = pdsRequestMatch;
-                            console.log('[Docker Codex] PDS Request detected in stderr:', key, message);
-                            senderWindow?.webContents.send('codex:pds-request', { key, message });
+                            // Skip documentation examples
+                            if (key !== 'key_name') {
+                                console.log('[Docker Codex] PDS Request detected in stderr:', key, message);
+                                senderWindow?.webContents.send('codex:pds-request', { key, message });
+                            }
                         }
                     },
                     // onExit
@@ -1828,8 +1836,8 @@ function setupIpcHandlers(): void {
                     }
                 );
 
-                // Store abort function if needed for cancellation
-                // TODO: Could store this to allow stopping Docker execution
+                // Store abort function on session for cancellation via codex:stop
+                (senderSession as any).dockerAbort = abort;
             });
         }
         // ========== END DOCKER ROUTING ==========
@@ -1981,11 +1989,15 @@ NEVER operate on a tab with a different URL than specified above unless the user
                 console.log('[Codex stdout]', chunk);
 
                 // Check for PDS_REQUEST pattern: [PDS_REQUEST:key:message]
+                // Filter out example patterns from documentation (key_name is the example placeholder)
                 const pdsRequestMatch = chunk.match(/\[PDS_REQUEST:([^:]+):([^\]]+)\]/);
                 if (pdsRequestMatch) {
                     const [, key, message] = pdsRequestMatch;
-                    console.log('[Main] PDS Request detected:', key, message);
-                    senderWindow?.webContents.send('codex:pds-request', { key, message });
+                    // Skip documentation examples
+                    if (key !== 'key_name') {
+                        console.log('[Main] PDS Request detected:', key, message);
+                        senderWindow?.webContents.send('codex:pds-request', { key, message });
+                    }
                 }
 
                 // Also detect [BLOCKER] patterns asking for user data
@@ -2152,7 +2164,28 @@ NEVER operate on a tab with a different URL than specified above unless the user
     });
 
     // Stop running Codex process (chat)
-    ipcMain.handle('codex:stop', async () => {
+    ipcMain.handle('codex:stop', async (event) => {
+        // First, try to stop Docker execution if active
+        const senderWindow = BrowserWindow.fromWebContents(event.sender);
+        const senderSession = senderWindow ? windowSessions.get(senderWindow.id) : getActiveSession();
+
+        if (senderSession?.sandbox && (senderSession as any).dockerAbort) {
+            console.log('[Main] Stop requested for Docker execution');
+            try {
+                // Call the stored abort function
+                (senderSession as any).dockerAbort();
+                (senderSession as any).dockerAbort = null;
+
+                // Also call the API to stop Codex in container
+                await senderSession.sandbox.client.stopCodex();
+                console.log('[Main] Docker Codex stopped');
+                return { success: true };
+            } catch (e) {
+                console.error('[Main] Error stopping Docker Codex:', e);
+                // Continue to try local process stop as fallback
+            }
+        }
+
         const chatProcess = codexProcesses.get('chat');
         console.log('[Main] Stop requested, chatProcess:', !!chatProcess);
         if (chatProcess) {
