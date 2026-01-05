@@ -88,7 +88,11 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
             const unsubStatus = (window as any).electronAPI?.onDockerStatusChanged?.((data: any) => {
                 console.log('[Settings] Docker status changed:', data);
                 if (data.active !== undefined) {
-                    setSandboxStatus((prev: any) => ({ ...prev, active: data.active }));
+                    setSandboxStatus((prev: any) => ({
+                        ...prev,
+                        active: data.active,
+                        sandbox: data.sandbox || prev?.sandbox
+                    }));
                 }
                 if (data.error) {
                     setDockerError(data.error);
