@@ -1157,22 +1157,42 @@ function setupIpcHandlers(): void {
                 await dockerManager.destroyInstance(session.sandbox.instance.id);
             }
 
-            // For electron-cdp mode, we need to fetch the WebSocket URL from CDP
-            // and pass it directly because Docker can't use Host headers properly
+            // For electron-cdp mode, we need to fetch the WebSocket URL for the SPECIFIC BrowserView target.
+            // This ensures isolation so Window 1's sandbox only controls Window 1.
             let finalConfig = { ...config };
             if (config?.browserMode === 'electron-cdp') {
                 try {
+                    const browserView = session.tabManager?.getActiveTab()?.browserView || getActiveView();
+                    if (!browserView) throw new Error('No active BrowserView found for session');
+
+                    const targetId = `gnunae-identify-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+                    const originalTitle = await browserView.webContents.executeJavaScript('document.title');
+
+                    // Set temporary unique title to identify the target
+                    await browserView.webContents.executeJavaScript(`document.title = "${targetId}"`);
+
+                    // Small delay to ensure CDP update
+                    await new Promise(resolve => setTimeout(resolve, 300));
+
                     // Fetch WebSocket URL from local CDP endpoint
                     const http = require('http');
                     const wsUrl = await new Promise<string>((resolve, reject) => {
-                        http.get('http://127.0.0.1:9222/json/version', (res: any) => {
+                        http.get('http://127.0.0.1:9222/json', (res: any) => {
                             let data = '';
                             res.on('data', (chunk: string) => data += chunk);
                             res.on('end', () => {
                                 try {
-                                    const json = JSON.parse(data);
+                                    const targets = JSON.parse(data);
+                                    // Find target with matching title
+                                    const target = targets.find((t: any) => t.title === targetId);
+
+                                    if (!target || !target.webSocketDebuggerUrl) {
+                                        reject(new Error(`CDP target not found with identifier ${targetId}`));
+                                        return;
+                                    }
+
                                     // Rewrite 127.0.0.1 to host.docker.internal for Docker access
-                                    const wsUrlForDocker = json.webSocketDebuggerUrl
+                                    const wsUrlForDocker = target.webSocketDebuggerUrl
                                         .replace('127.0.0.1', 'host.docker.internal')
                                         .replace('localhost', 'host.docker.internal');
                                     resolve(wsUrlForDocker);
@@ -1180,14 +1200,18 @@ function setupIpcHandlers(): void {
                                     reject(e);
                                 }
                             });
-                        }).on('error', reject);
+                        }).on('error', (e: Error) => reject(e));
                     });
-                    console.log('[Docker] Using CDP WebSocket URL:', wsUrl);
-                    // Pass the WebSocket URL directly instead of HTTP endpoint
+
+                    // Restore original title
+                    await browserView.webContents.executeJavaScript(`document.title = ${JSON.stringify(originalTitle)}`);
+
+                    console.log(`[Docker] Using isolated CDP WebSocket URL for window ${session.window.id}:`, wsUrl);
                     finalConfig.externalCdpEndpoint = wsUrl;
                 } catch (err) {
-                    console.error('[Docker] Failed to fetch CDP WebSocket URL:', err);
-                    // Fall back to original endpoint
+                    console.error('[Docker] Failed to identify isolated CDP target:', err);
+                    // Fallback to global browser endpoint if isolation fails, though discouraged
+                    finalConfig.externalCdpEndpoint = 'ws://host.docker.internal:9222/devtools/browser';
                 }
             }
 
@@ -1727,7 +1751,9 @@ function setupIpcHandlers(): void {
             console.log('[Main] Routing Codex execution through Docker container...');
 
             const { settingsService } = require('../core/settings');
-            const prePrompt = settingsService.get('codex')?.prePrompt || '';
+            const codexSettings = settingsService.get('codex');
+            const prePrompt = codexSettings?.prePrompt || '';
+            const model = codexSettings?.model;
 
             const { dataStoreService } = require('../core/datastore');
             const userDataFormatted = dataStoreService.getFormatted();
@@ -1749,7 +1775,7 @@ function setupIpcHandlers(): void {
 
                 const abort = senderSession.sandbox!.client.executeCodex(
                     fullPrompt,
-                    { mode, prePrompt },
+                    { mode, prePrompt, model },
                     // onStdout
                     (data: string) => {
                         output += data;

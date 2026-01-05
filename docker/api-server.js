@@ -97,6 +97,9 @@ function executeCodex(prompt, options, onData, onError, onComplete) {
     }
 
     const args = ['exec', '--skip-git-repo-check'];
+    if (options.model) {
+        args.push('--model', options.model);
+    }
 
     const env = {
         ...process.env,
@@ -313,6 +316,7 @@ async function handleRequest(req, res) {
                 body.prompt,
                 {
                     mode: body.mode,
+                    model: body.model,
                     workDir: body.workDir,
                     prePrompt: body.prePrompt,
                     env: body.env,

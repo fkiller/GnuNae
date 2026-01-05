@@ -31,6 +31,8 @@ export interface SandboxConnectionConfig {
 export interface CodexExecuteOptions {
     /** Execution mode: 'ask', 'agent', 'full-access' */
     mode?: string;
+    /** Model to use */
+    model?: string;
     /** Working directory inside container */
     workDir?: string;
     /** Pre-prompt to prepend */
@@ -199,6 +201,7 @@ export class SandboxApiClient extends EventEmitter {
         const body = JSON.stringify({
             prompt,
             mode: options.mode,
+            model: options.model,
             workDir: options.workDir,
             prePrompt: options.prePrompt,
             env: options.env,
