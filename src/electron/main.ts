@@ -1215,6 +1215,19 @@ function setupIpcHandlers(): void {
                 }
             }
 
+            // Mount working directory so attached files are accessible inside container
+            // Convert Windows paths (C:\...) to Docker format (/c/...) for Docker Desktop
+            const workDir = session.workDir;
+            let dockerWorkDir = workDir;
+            if (process.platform === 'win32') {
+                dockerWorkDir = workDir
+                    .replace(/^([A-Z]):\\/i, (_, drive: string) => `/${drive.toLowerCase()}/`)
+                    .replace(/\\/g, '/');
+            }
+            finalConfig.volumes = finalConfig.volumes || [];
+            finalConfig.volumes.push(`${dockerWorkDir}:/workspace`);
+            console.log(`[Docker] Mounting working directory: ${workDir} -> /workspace`);
+
             // Create new sandbox instance
             const instance = await dockerManager.createInstance({
                 name: `gnunae-window-${session.window.id}`,
@@ -1228,8 +1241,28 @@ function setupIpcHandlers(): void {
             });
 
             // Wait for sandbox to be healthy
-            const healthy = await client.waitForHealthy(30, 1000);
+            // Use longer timeout on Windows as container startup can be slower
+            const maxAttempts = process.platform === 'win32' ? 60 : 30;
+            const healthy = await client.waitForHealthy(maxAttempts, 1000);
             if (!healthy) {
+                // Capture container logs for debugging
+                const containerCmd = dockerManager.getContainerCommand();
+                if (containerCmd) {
+                    try {
+                        const { promisify } = require('util');
+                        const { execFile } = require('child_process');
+                        const execFileAsync = promisify(execFile);
+                        const { stdout, stderr } = await execFileAsync(
+                            containerCmd,
+                            ['logs', '--tail', '50', instance.containerName],
+                            { timeout: 5000 }
+                        );
+                        console.error('[Docker] Container logs on health check failure:');
+                        console.error(stdout || stderr || '(no logs)');
+                    } catch (logErr: any) {
+                        console.error('[Docker] Could not retrieve container logs:', logErr.message);
+                    }
+                }
                 await dockerManager.destroyInstance(instance.id);
                 return { success: false, error: 'Sandbox failed to become healthy' };
             }
@@ -1782,6 +1815,14 @@ function setupIpcHandlers(): void {
                         console.log('[Docker Codex stdout]', data);
                         // Send with format expected by UI: { type, data }
                         senderWindow?.webContents.send('codex:output', { type: 'stdout', data });
+
+                        // Check for PDS_REQUEST pattern: [PDS_REQUEST:key:message]
+                        const pdsRequestMatch = data.match(/\[PDS_REQUEST:([^:]+):([^\]]+)\]/);
+                        if (pdsRequestMatch) {
+                            const [, key, message] = pdsRequestMatch;
+                            console.log('[Docker Codex] PDS Request detected:', key, message);
+                            senderWindow?.webContents.send('codex:pds-request', { key, message });
+                        }
                     },
                     // onStderr
                     // Note: Codex CLI outputs progress info (thinking, tool calls) to stderr
@@ -1791,6 +1832,14 @@ function setupIpcHandlers(): void {
                         console.log('[Docker Codex stderr]', stderrData);
                         // Send as stderr type - UI will display progress messages
                         senderWindow?.webContents.send('codex:output', { type: 'stderr', data: stderrData });
+
+                        // Also check stderr for PDS_REQUEST (Codex may output to either stream)
+                        const pdsRequestMatch = stderrData.match(/\[PDS_REQUEST:([^:]+):([^\]]+)\]/);
+                        if (pdsRequestMatch) {
+                            const [, key, message] = pdsRequestMatch;
+                            console.log('[Docker Codex] PDS Request detected in stderr:', key, message);
+                            senderWindow?.webContents.send('codex:pds-request', { key, message });
+                        }
                     },
                     // onExit
                     (code: number | null) => {

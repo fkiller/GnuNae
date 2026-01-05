@@ -222,6 +222,13 @@ export class DockerManager extends EventEmitter {
     }
 
     /**
+     * Get the container command (docker or podman)
+     */
+    getContainerCommand(): string | null {
+        return this.containerCommand;
+    }
+
+    /**
      * Clean up any orphaned GnuNae containers from previous sessions
      * Should be called on app startup
      */
@@ -388,9 +395,48 @@ export class DockerManager extends EventEmitter {
             });
 
             instance.containerId = stdout.trim();
-            instance.status = 'running';
-
             console.log(`[DockerManager] Container started: ${instance.containerId.substring(0, 12)}`);
+
+            // Immediately verify container is still running (catches early crashes)
+            // Wait a moment for container to fully initialize or crash
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            try {
+                const { stdout: inspectOut } = await execFileAsync(
+                    this.containerCommand,
+                    ['inspect', '--format', '{{.State.Running}}', instance.containerName],
+                    { timeout: 5000 }
+                );
+                const isRunning = inspectOut.trim() === 'true';
+
+                if (!isRunning) {
+                    // Container crashed - try to get logs before it's removed
+                    console.error('[DockerManager] Container crashed immediately after start!');
+                    try {
+                        const { stdout: logs, stderr: logsErr } = await execFileAsync(
+                            this.containerCommand,
+                            ['logs', '--tail', '100', instance.containerName],
+                            { timeout: 5000 }
+                        );
+                        console.error('[DockerManager] Container crash logs:');
+                        console.error(logs || logsErr || '(no logs available)');
+                    } catch {
+                        console.error('[DockerManager] Could not retrieve crash logs');
+                    }
+
+                    throw new Error('Container crashed immediately after starting. Check logs above.');
+                }
+            } catch (inspectErr: any) {
+                // Container might already be removed by --rm
+                if (inspectErr.message?.includes('No such container') ||
+                    inspectErr.message?.includes('No such object')) {
+                    console.error('[DockerManager] Container exited and was removed before we could inspect it');
+                    throw new Error('Container exited immediately. The image may have startup issues on Windows.');
+                }
+                throw inspectErr;
+            }
+
+            instance.status = 'running';
             this.emit('instance-started', instance);
 
             return instance;
@@ -408,6 +454,18 @@ export class DockerManager extends EventEmitter {
     }
 
     /**
+     * Convert Windows paths to Docker mount format
+     * On Windows, converts C:\Users\... to /c/Users/... for Docker volume mounts
+     */
+    private toDockerMountPath(hostPath: string): string {
+        if (process.platform !== 'win32') return hostPath;
+        // Convert C:\Users\... to /c/Users/... for Docker on Windows
+        return hostPath
+            .replace(/^([A-Z]):\\/i, (_, drive: string) => `/${drive.toLowerCase()}/`)
+            .replace(/\\/g, '/');
+    }
+
+    /**
      * Build the docker/podman run command arguments
      */
     private buildRunArgs(instance: SandboxInstance, config: SandboxConfig): string[] {
@@ -418,7 +476,7 @@ export class DockerManager extends EventEmitter {
         const args = [
             'run',
             '-d', // Detached mode
-            '--rm', // Auto-remove container when stopped (critical for cleanup)
+            '--rm', // Auto-remove container when stopped
             '--stop-timeout', '3', // Fast shutdown (3 seconds)
             '--name', instance.containerName,
             '--memory', memoryLimit,
@@ -478,8 +536,10 @@ export class DockerManager extends EventEmitter {
             // Only mount if auth.json exists
             if (fs.existsSync(authJsonPath)) {
                 // Mount auth.json as a single file (read-only)
-                args.push('-v', `${authJsonPath}:/home/sandbox/.codex/auth.json:ro`);
-                console.log(`[DockerManager] Mounting auth token from: ${authJsonPath}`);
+                // Convert Windows paths (C:\...) to Docker format (/c/...)
+                const dockerPath = this.toDockerMountPath(authJsonPath);
+                args.push('-v', `${dockerPath}:/home/sandbox/.codex/auth.json:ro`);
+                console.log(`[DockerManager] Mounting auth token from: ${authJsonPath} -> ${dockerPath}`);
             } else {
                 console.log(`[DockerManager] No auth.json found at ${authJsonPath}, skipping auth mount`);
             }

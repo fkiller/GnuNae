@@ -78,7 +78,8 @@ RUN mkdir -p /app /workspace /var/log/sandbox \
 # Copy entrypoint and API server
 COPY entrypoint.sh /entrypoint.sh
 COPY api-server.js /app/api-server.js
-RUN chmod +x /entrypoint.sh
+# Convert CRLF to LF (fixes Windows line ending issues) and make executable
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 
 # Copy Playwright MCP configuration
 COPY playwright.config.ts /app/playwright.config.ts
