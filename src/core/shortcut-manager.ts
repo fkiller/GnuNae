@@ -212,7 +212,7 @@ $Shortcut.Save()
         const appName = `GnuNae + ${options.browserName}.app`;
         const appPath = path.join(shortcutDir, appName);
         const gnuNaeExe = options.gnuNaeExecutable || this.getGnuNaeExecutable();
-        const args = `--hidden --external-browser=${options.browserId}`;
+        const args = `--chat-mode --external-browser=${options.browserId}`;
 
         try {
             // Create .app bundle structure
@@ -227,7 +227,7 @@ $Shortcut.Save()
             fs.mkdirSync(macOSDir, { recursive: true });
             fs.mkdirSync(resourcesDir, { recursive: true });
 
-            // Create Info.plist
+            // Create Info.plist with icon reference
             const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -242,14 +242,45 @@ $Shortcut.Save()
     <string>APPL</string>
     <key>CFBundleVersion</key>
     <string>1.0</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
 </dict>
 </plist>`;
             fs.writeFileSync(path.join(contentsDir, 'Info.plist'), plistContent);
 
+            // Copy icon to Resources folder
+            const iconSource = options.iconPath || this.getGnuNaeIcon();
+            if (fs.existsSync(iconSource)) {
+                // macOS prefers .icns but will accept .png with proper naming
+                const iconDest = path.join(resourcesDir, 'AppIcon.icns');
+                // Try to copy .icns if available, otherwise convert/copy .png
+                const icnsSource = iconSource.replace('.png', '.icns');
+                if (fs.existsSync(icnsSource)) {
+                    fs.copyFileSync(icnsSource, iconDest);
+                } else {
+                    // Fallback: copy png as .icns (macOS can sometimes handle it)
+                    fs.copyFileSync(iconSource, iconDest);
+                }
+            }
+
             // Create launcher script
-            const launcherScript = `#!/bin/bash
+            // For packaged macOS apps, we need to use 'open' command with --args
+            // Direct execution of the binary inside .app bundle may not handle args correctly
+            let launcherScript: string;
+            if (app.isPackaged) {
+                // Find the .app bundle path from the executable path
+                // gnuNaeExe is like /Applications/GnuNae.app/Contents/MacOS/GnuNae
+                // We need /Applications/GnuNae.app
+                const appBundlePath = gnuNaeExe.replace(/\/Contents\/MacOS\/[^/]+$/, '');
+                launcherScript = `#!/bin/bash
+open -a "${appBundlePath}" --args ${args}
+`;
+            } else {
+                // Dev mode: run electron directly
+                launcherScript = `#!/bin/bash
 "${gnuNaeExe}" ${args}
 `;
+            }
             const launcherPath = path.join(macOSDir, 'launcher');
             fs.writeFileSync(launcherPath, launcherScript);
             fs.chmodSync(launcherPath, '755');
@@ -301,7 +332,7 @@ Version=1.0
 Type=Application
 Name=GnuNae + ${options.browserName}
 Comment=Launch ${options.browserName} with GnuNae AI Integration
-Exec="${gnuNaeExe}" --hidden --external-browser=${options.browserId}
+Exec="${gnuNaeExe}" --chat-mode --external-browser=${options.browserId}
 Icon=${iconPath}
 Terminal=false
 Categories=Network;WebBrowser;
