@@ -63,6 +63,8 @@ graph TB
 - 🌐 **Full Browser** - Chrome-based web browser with address bar and navigation
 - 🪟 **Multi-Window** - Open multiple independent windows (Cmd/Ctrl+N)
 - 📑 **Multi-Tab** - Multiple tabs per window with tab bar
+- 💬 **Chat Mode** - Sidebar-only mode for use with external browsers (Chrome, Edge, etc.)
+- 🔗 **External Browser Support** - Connect Codex to your existing browser with full automation
 - 🤖 **Codex Sidebar** - AI assistant powered by OpenAI's Codex CLI
 - 🐳 **Virtual Mode** - Docker-based sandbox for isolated Codex + Playwright execution
 - 📋 **Task Manager** - Save, schedule, and run automated tasks
@@ -140,6 +142,15 @@ npm run build:all
 | `build:all` | Build app + Docker image |
 
 Once built, enable Virtual Mode in Settings when Docker is detected.
+
+## External Browsers & Chat Mode
+
+GnuNae can now control your existing external browsers (Chrome, Edge, Brave, Opera) instead of using the built-in window.
+
+1. **Manage Browsers**: Go to Settings → External Browsers to scan for installed browsers.
+2. **Create Shortcuts**: Generate special shortcuts that launch your browser connected to GnuNae.
+3. **Chat Mode**: Launching via shortcut opens GnuNae in "Chat Mode" - a floating sidebar that attaches to your external browser.
+4. **Full Automation**: Codex can read, analyze, and control the external browser just like the built-in one.
 
 ## Usage
 
@@ -284,12 +295,22 @@ docs/                     # GitHub Pages (gnunae.com)
 | ✅ Done | Two-way PDS integration - Codex can request AND store data |
 | ✅ Done | Task Manager - save, schedule, and automate tasks |
 | ✅ Done | Virtual Mode - Docker sandbox for Codex + Playwright isolation |
+| ✅ Done | External Browser Support (Chrome, Edge, Brave, Opera) |
+| ✅ Done | Chat Mode (Sidebar-only window) |
 | 🔜 Planned | Remote backend (home server, cloud) with VNC streaming |
-| 🔜 Planned | Edge/Chrome extension mode with GnuNae sidebar/backend |
 | 🔜 Planned | Project management for multi-page workflows |
 | 🔜 Planned | More LLM options including local LLM support |
 
 ## Version History
+
+### v0.6.1 (2026-01-05)
+- **Chat Mode & External Browsers**
+  - **Support for External Browsers**: Use Chrome, Edge, Brave, or Opera with GnuNae.
+  - **Chat Mode Window**: Minimized sidebar-only interface when using external browsers.
+  - **CDP Integration**: Real-time two-way control of external browsers via Chrome DevTools Protocol.
+  - **Docker & Chat Mode**: Fixed complex CDP connection issues allowing Dockerized Codex to control external browsers via `host.docker.internal`.
+  - **Standalone Settings**: Settings now open in a dedicated window in Chat Mode.
+  - **Shortcuts**: Auto-generate shortcuts for your installed browsers with GnuNae integration.
 
 ### v0.6.0 (2025-01-04)
 - **Virtual Mode (Docker Sandbox)**
