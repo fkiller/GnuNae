@@ -2273,7 +2273,7 @@ body {
     padding: 4px 0;
 }
 
-.status-row + .status-row {
+.status-row+.status-row {
     border-top: 1px solid var(--border-color);
     margin-top: 8px;
     padding-top: 8px;
@@ -2315,4 +2315,250 @@ body {
     border-radius: var(--radius-sm);
     color: var(--accent-secondary);
     font-size: 12px;
+}
+
+/* External Browsers Section */
+.browser-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.browser-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    background: var(--bg-glass);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+}
+
+.browser-item:hover {
+    border-color: var(--accent-secondary);
+}
+
+.browser-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.browser-icon {
+    font-size: 24px;
+    opacity: 0.9;
+}
+
+.browser-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.browser-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.browser-version {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.browser-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.shortcut-btn {
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.shortcut-btn.create {
+    background: linear-gradient(135deg, var(--accent-secondary) 0%, #0284c7 100%);
+    border: none;
+    color: white;
+}
+
+.shortcut-btn.create:hover:not(:disabled) {
+    filter: brightness(1.1);
+}
+
+.shortcut-btn.create:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.shortcut-btn.remove {
+    background: rgba(34, 197, 94, 0.15);
+    border: 1px solid var(--accent-success);
+    color: var(--accent-success);
+}
+
+.shortcut-btn.remove:hover {
+    background: rgba(233, 69, 96, 0.15);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.shortcut-location-options {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--bg-glass);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
+.shortcut-location-options .setting-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 8px;
+}
+
+.location-checkboxes {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.location-checkboxes label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.location-checkboxes label:hover {
+    color: var(--text-primary);
+}
+
+.location-checkboxes input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    accent-color: var(--accent-secondary);
+}
+
+/* Chat Mode Styles */
+.chat-mode-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--bg-primary);
+}
+
+.chat-mode-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    -webkit-app-region: drag;
+}
+
+.chat-mode-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--text-primary);
+    overflow: hidden;
+}
+
+.chat-mode-title .browser-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.chat-mode-title .browser-name {
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.chat-mode-title .page-title {
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-mode-header .settings-button {
+    -webkit-app-region: no-drag;
+    background: transparent;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    transition: background var(--transition-fast);
+}
+
+.chat-mode-header .settings-button:hover {
+    background: var(--bg-glass);
+}
+
+.chat-mode-content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+}
+
+.chat-mode-content .right-panel {
+    width: 100%;
+    border: none;
+}
+
+/* Settings-only container (standalone frameless window) */
+.settings-only-container {
+    height: 100vh;
+    width: 100vw;
+    background: var(--bg-secondary);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-only-container .settings-overlay {
+    position: static;
+    background: transparent;
+    backdrop-filter: none;
+    height: 100%;
+    width: 100%;
+}
+
+.settings-only-container .settings-panel {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.settings-only-container .settings-header {
+    -webkit-app-region: drag;
+    cursor: move;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.settings-only-container .settings-close {
+    -webkit-app-region: no-drag;
+}
+
+.settings-only-container .settings-content {
+    flex: 1;
+    overflow-y: auto;
 }

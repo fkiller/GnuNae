@@ -6,6 +6,30 @@ interface Settings {
     browser: { startPage: string; userAgent: string };
     codex: { model: string; mode: 'ask' | 'agent' | 'full-access'; prePrompt: string; prePromptCustomized: boolean };
     ui: { sidebarWidth: number; theme: 'dark' | 'light' | 'system' };
+    app?: { runInBackground: boolean; launchHidden: boolean };
+    externalBrowsers?: {
+        cdpPort: number;
+        shortcuts: Array<{
+            browserId: string;
+            browserName: string;
+            shortcutLocations: string[];
+            created: boolean;
+            createdAt?: string;
+        }>;
+    };
+}
+
+interface DetectedBrowser {
+    id: string;
+    name: string;
+    executablePath: string;
+    version?: string;
+    supportsCDP: boolean;
+}
+
+interface ShortcutLocation {
+    id: string;
+    label: string;
 }
 
 type DataStoreData = Record<string, string | number | boolean>;
@@ -52,6 +76,14 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     const [isCreatingSandbox, setIsCreatingSandbox] = useState(false);
     const [dockerError, setDockerError] = useState<string | null>(null);
 
+    // External Browser state
+    const [detectedBrowsers, setDetectedBrowsers] = useState<DetectedBrowser[]>([]);
+    const [createdShortcuts, setCreatedShortcuts] = useState<any[]>([]);
+    const [availableLocations, setAvailableLocations] = useState<ShortcutLocation[]>([]);
+    const [selectedLocations, setSelectedLocations] = useState<Set<string>>(new Set(['desktop']));
+    const [isCreatingShortcut, setIsCreatingShortcut] = useState<string | null>(null);
+    const [shortcutError, setShortcutError] = useState<string | null>(null);
+
     useEffect(() => {
         if (isOpen) {
             (window as any).electronAPI?.hideBrowser?.();
@@ -82,6 +114,21 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
             });
             (window as any).electronAPI?.getSandboxStatus?.().then((status: any) => {
                 setSandboxStatus(status);
+            });
+
+            // Load External Browsers
+            (window as any).electronAPI?.detectBrowsers?.().then((browsers: DetectedBrowser[]) => {
+                setDetectedBrowsers(browsers || []);
+            });
+            (window as any).electronAPI?.getCreatedShortcuts?.().then((shortcuts: any[]) => {
+                setCreatedShortcuts(shortcuts || []);
+            });
+            (window as any).electronAPI?.getShortcutLocations?.().then((locations: ShortcutLocation[]) => {
+                setAvailableLocations(locations || []);
+                // Default to first location
+                if (locations?.length > 0) {
+                    setSelectedLocations(new Set([locations[0].id]));
+                }
             });
 
             // Listen for Docker status changes
@@ -280,6 +327,152 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                                 <div className="docker-hint">
                                     💡 {dockerRuntimeInfo.reason}
                                 </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Application Behavior Section */}
+                    {filterBySearch('application background tray minimize hidden') && (
+                        <div className="settings-section">
+                            <h3>🖥️ Application</h3>
+                            <span className="setting-hint">
+                                Control how GnuNae behaves when closing windows
+                            </span>
+
+                            <div className="settings-item">
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        checked={settings?.app?.runInBackground ?? false}
+                                        onChange={(e) => updateSetting('app.runInBackground', e.target.checked)}
+                                    />
+                                    Run in Background
+                                </label>
+                                <span className="setting-hint">
+                                    When enabled, closing the window minimizes GnuNae to the system tray instead of quitting.
+                                    Use the tray icon to show the window again or quit completely.
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* External Browsers Section */}
+                    {filterBySearch('external browser chrome edge brave shortcut integration cdp') && (
+                        <div className="settings-section">
+                            <h3>🌐 External Browsers</h3>
+                            <span className="setting-hint">
+                                Create shortcuts to launch installed browsers with GnuNae AI integration
+                            </span>
+
+                            {detectedBrowsers.length === 0 ? (
+                                <div className="empty-state">
+                                    No Chromium-based browsers detected. Supported browsers: Chrome, Edge, Brave, Chromium, Vivaldi, Opera.
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Shortcut placement options */}
+                                    {availableLocations.length > 0 && (
+                                        <div className="shortcut-location-options">
+                                            <span className="setting-label">Shortcut locations:</span>
+                                            <div className="location-checkboxes">
+                                                {availableLocations.map(loc => (
+                                                    <label key={loc.id}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedLocations.has(loc.id)}
+                                                            onChange={(e) => {
+                                                                const newSet = new Set(selectedLocations);
+                                                                if (e.target.checked) {
+                                                                    newSet.add(loc.id);
+                                                                } else {
+                                                                    newSet.delete(loc.id);
+                                                                }
+                                                                setSelectedLocations(newSet);
+                                                            }}
+                                                        />
+                                                        {loc.label}
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {shortcutError && (
+                                        <div className="docker-error">
+                                            ⚠️ {shortcutError}
+                                        </div>
+                                    )}
+
+                                    <div className="browser-list">
+                                        {detectedBrowsers.map(browser => {
+                                            const hasShortcut = createdShortcuts.some(s => s.browserId === browser.id);
+                                            const isCreating = isCreatingShortcut === browser.id;
+
+                                            return (
+                                                <div key={browser.id} className="browser-item">
+                                                    <div className="browser-info">
+                                                        <span className="browser-icon">🌐</span>
+                                                        <div className="browser-details">
+                                                            <span className="browser-name">{browser.name}</span>
+                                                            {browser.version && (
+                                                                <span className="browser-version">v{browser.version}</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="browser-actions">
+                                                        {hasShortcut ? (
+                                                            <button
+                                                                className="shortcut-btn remove"
+                                                                onClick={async () => {
+                                                                    setShortcutError(null);
+                                                                    await (window as any).electronAPI?.removeBrowserShortcut?.(browser.id);
+                                                                    // Refresh shortcuts
+                                                                    const shortcuts = await (window as any).electronAPI?.getCreatedShortcuts?.();
+                                                                    setCreatedShortcuts(shortcuts || []);
+                                                                }}
+                                                            >
+                                                                ✓ Shortcut Created
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                className="shortcut-btn create"
+                                                                disabled={isCreating || selectedLocations.size === 0}
+                                                                onClick={async () => {
+                                                                    setIsCreatingShortcut(browser.id);
+                                                                    setShortcutError(null);
+                                                                    try {
+                                                                        const results = await (window as any).electronAPI?.createBrowserShortcut?.(
+                                                                            browser.id,
+                                                                            browser.name,
+                                                                            Array.from(selectedLocations)
+                                                                        );
+                                                                        const failed = results?.filter((r: any) => !r.success);
+                                                                        if (failed?.length > 0) {
+                                                                            setShortcutError(failed.map((f: any) => f.error).join(', '));
+                                                                        }
+                                                                        // Refresh shortcuts
+                                                                        const shortcuts = await (window as any).electronAPI?.getCreatedShortcuts?.();
+                                                                        setCreatedShortcuts(shortcuts || []);
+                                                                    } catch (err: any) {
+                                                                        setShortcutError(err.message || 'Failed to create shortcut');
+                                                                    } finally {
+                                                                        setIsCreatingShortcut(null);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                {isCreating ? 'Creating...' : '+ Create Shortcut'}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <div className="setting-hint" style={{ marginTop: '12px' }}>
+                                        💡 Shortcuts will launch GnuNae in hidden mode (tray only) and open the selected browser with AI integration enabled.
+                                    </div>
+                                </>
                             )}
                         </div>
                     )}

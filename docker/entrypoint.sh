@@ -51,7 +51,36 @@ mkdir -p "$CODEX_CONFIG_DIR"
 if [ "$BROWSER_MODE" = "headless" ]; then
     PLAYWRIGHT_CDP="http://127.0.0.1:$CDP_PORT"
 else
-    PLAYWRIGHT_CDP="$EXTERNAL_CDP_ENDPOINT"
+    # For external CDP mode, we need a socat proxy to bypass Chrome's Host header validation
+    # Chrome rejects requests where Host header is not localhost/127.0.0.1/IP address
+    # host.docker.internal in Host header causes HTTP 500
+    
+    # Extract port from external endpoint (e.g., http://host.docker.internal:9223 -> 9223)
+    EXTERNAL_PORT=$(echo "$EXTERNAL_CDP_ENDPOINT" | grep -oE ':[0-9]+' | tail -1 | tr -d ':')
+    EXTERNAL_PORT=${EXTERNAL_PORT:-9223}
+    
+    # Resolve host.docker.internal to its actual IP address
+    # Prefer IPv4 over IPv6 because IPv6 URLs need special bracket formatting
+    EXTERNAL_HOST_IP=$(getent ahostsv4 host.docker.internal 2>/dev/null | awk '{print $1}' | head -1)
+    
+    # Fallback to any IP if IPv4 not found
+    if [ -z "$EXTERNAL_HOST_IP" ]; then
+        EXTERNAL_HOST_IP=$(getent hosts host.docker.internal | awk '{print $1}' | head -1)
+        # Check if it's IPv6 (contains colons) and add brackets if needed
+        if [[ "$EXTERNAL_HOST_IP" == *:* ]]; then
+            EXTERNAL_HOST_IP="[${EXTERNAL_HOST_IP}]"
+            echo "[Sandbox] Using IPv6 address with brackets: $EXTERNAL_HOST_IP"
+        fi
+    fi
+    
+    if [ -n "$EXTERNAL_HOST_IP" ]; then
+        echo "[Sandbox] Resolved host.docker.internal to: $EXTERNAL_HOST_IP"
+        # Use the resolved IP instead of hostname to bypass Host header validation
+        PLAYWRIGHT_CDP="http://${EXTERNAL_HOST_IP}:${EXTERNAL_PORT}"
+    else
+        echo "[Sandbox] WARNING: Could not resolve host.docker.internal, using original endpoint"
+        PLAYWRIGHT_CDP="$EXTERNAL_CDP_ENDPOINT"
+    fi
 fi
 
 echo "[Sandbox] Generating Codex config with Playwright MCP..."

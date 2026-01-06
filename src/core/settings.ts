@@ -2,6 +2,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { app } from 'electron';
 
+// Browser shortcut configuration
+export interface BrowserShortcut {
+    browserId: string;
+    browserName: string;
+    shortcutLocations: ('desktop' | 'startMenu' | 'applications')[];
+    created: boolean;
+    createdAt?: string;
+}
+
 export interface AppSettings {
     debug: {
         enabled: boolean;
@@ -23,6 +32,16 @@ export interface AppSettings {
     };
     docker: {
         useVirtualMode: boolean; // If true, prefer Docker Virtual Mode over Native
+    };
+    // Hidden mode and system tray settings
+    app: {
+        runInBackground: boolean;  // Minimize to tray instead of quit
+        launchHidden: boolean;     // Start minimized to tray (via command line)
+    };
+    // External browser integration
+    externalBrowsers: {
+        cdpPort: number;           // Centralized CDP port (default 9223)
+        shortcuts: BrowserShortcut[];
     };
 }
 
@@ -421,6 +440,14 @@ const DEFAULT_SETTINGS: AppSettings = {
     },
     docker: {
         useVirtualMode: false, // Default to Native mode
+    },
+    app: {
+        runInBackground: false, // Default: quit on close
+        launchHidden: false,    // Default: show window on start
+    },
+    externalBrowsers: {
+        cdpPort: 9223,          // Centralized CDP port
+        shortcuts: [],
     },
 };
 

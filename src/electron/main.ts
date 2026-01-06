@@ -6,6 +6,11 @@ import { spawn, ChildProcess } from 'child_process';
 import { AuthService } from '../core/auth';
 import { DockerManager, getDockerManager, type SandboxInstance } from '../core/docker-manager';
 import { SandboxApiClient, createSandboxClient } from '../core/sandbox-api';
+import { TrayManager } from '../core/tray-manager';
+import { getExternalBrowserManager } from '../core/external-browser-manager';
+import { browserDetector } from '../core/browser-detector';
+import { shortcutManager, ShortcutLocation } from '../core/shortcut-manager';
+import { settingsService } from '../core/settings';
 
 // Enable Chrome DevTools Protocol for Playwright MCP integration
 // Bound to all interfaces to allow Docker container access via host.docker.internal
@@ -139,6 +144,44 @@ let mainWindow: BrowserWindow | null = null;
 let tabManager: TabManager | null = null;
 let sidebarVisible = true;
 
+// System tray manager
+let trayManager: TrayManager | null = null;
+
+// Command line arguments for hidden mode and external browser
+interface CommandLineArgs {
+    hidden: boolean;
+    externalBrowser: string | null;
+    cdpPort: number | null;
+    chatMode: boolean;  // Chat-only mode for external browser integration
+}
+
+function parseCommandLineArgs(): CommandLineArgs {
+    const args = process.argv.slice(2);
+    const result: CommandLineArgs = {
+        hidden: false,
+        externalBrowser: null,
+        cdpPort: null,
+        chatMode: false,
+    };
+
+    for (const arg of args) {
+        if (arg === '--hidden') {
+            result.hidden = true;
+        } else if (arg === '--chat-mode') {
+            result.chatMode = true;
+        } else if (arg.startsWith('--external-browser=')) {
+            result.externalBrowser = arg.split('=')[1];
+        } else if (arg.startsWith('--cdp-port=')) {
+            result.cdpPort = parseInt(arg.split('=')[1], 10);
+        }
+    }
+
+    return result;
+}
+
+const cliArgs = parseCommandLineArgs();
+console.log('[Main] Command line args:', cliArgs);
+
 // Global codexProcesses for backward compatibility (uses active session's processes)
 function getCodexProcesses(): Map<string, ChildProcess> {
     const session = getActiveSession();
@@ -157,6 +200,7 @@ const codexProcesses = {
 const SIDEBAR_WIDTH = 340;
 const TOPBAR_HEIGHT = 50;
 const TAB_BAR_HEIGHT = 36;
+
 
 /**
  * Get the working directory for LLM execution.
@@ -433,7 +477,7 @@ function createMenu(): void {
                     label: 'Settings...',
                     accelerator: 'Cmd+,',
                     click: () => {
-                        mainWindow?.webContents.send('menu:toggle-settings');
+                        createSettingsWindow();
                     }
                 },
                 { type: 'separator' as const },
@@ -476,7 +520,7 @@ function createMenu(): void {
                         label: 'Settings',
                         accelerator: 'Ctrl+,',
                         click: () => {
-                            mainWindow?.webContents.send('menu:show-settings');
+                            createSettingsWindow();
                         }
                     }
                 ] : [])
@@ -683,6 +727,197 @@ function createWindow(): void {
     });
 
     console.log(`[Main] Created window ${windowId} with session ${sessionId}`);
+}
+
+// Chat window for external browser mode - shows only the chat panel
+let chatWindow: BrowserWindow | null = null;
+let chatWindowSession: WindowSession | null = null;
+let externalBrowserTitleInterval: NodeJS.Timeout | null = null;
+
+interface ChatWindowOptions {
+    browserName: string;
+    browserId: string;
+}
+
+function createChatWindow(options: ChatWindowOptions): BrowserWindow {
+    // Initialize auth service (only once)
+    if (!authService) {
+        authService = new AuthService();
+    }
+
+    // Create a smaller chat-only window
+    const newWindow = new BrowserWindow({
+        width: 400,
+        height: 700,
+        minWidth: 350,
+        minHeight: 500,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            nodeIntegration: false,
+            contextIsolation: true,
+        },
+        title: `${options.browserName} - GnuNae`,
+        // No custom title bar - use standard window frame
+        frame: true,
+    });
+
+    // Generate session for this window
+    const windowId = newWindow.id;
+    const sessionId = generateSessionId(windowId);
+    const workDir = path.join(os.tmpdir(), sessionId);
+
+    // Create working directory
+    if (!fs.existsSync(workDir)) {
+        fs.mkdirSync(workDir, { recursive: true });
+    }
+
+    // Register window session (no tab manager for chat mode)
+    const session: WindowSession = {
+        window: newWindow,
+        sessionId,
+        workDir,
+        codexProcesses: new Map(),
+        tabManager: null,  // No tabs in chat mode
+        sidebarVisible: true,
+        useDocker: false,
+    };
+    windowSessions.set(windowId, session);
+    chatWindow = newWindow;
+    chatWindowSession = session;
+
+    // Load the chat-mode UI with query param
+    if (process.env.VITE_DEV_SERVER_URL) {
+        newWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}?chatMode=true&browserName=${encodeURIComponent(options.browserName)}`);
+    } else {
+        newWindow.loadFile(path.join(__dirname, '../ui/index.html'), {
+            query: { chatMode: 'true', browserName: options.browserName }
+        });
+    }
+
+    // Start polling external browser title via CDP
+    startExternalBrowserTitleSync(newWindow, options.browserName);
+
+    // Handle window close
+    newWindow.on('closed', () => {
+        stopExternalBrowserTitleSync();
+
+        const closingSession = windowSessions.get(windowId);
+        if (closingSession) {
+            // Kill any running Codex processes
+            closingSession.codexProcesses.forEach((proc) => {
+                try { proc.kill('SIGTERM'); } catch { }
+            });
+
+            // Clean up temp directory
+            if (closingSession.workDir && closingSession.workDir.includes(os.tmpdir())) {
+                try {
+                    fs.rmSync(closingSession.workDir, { recursive: true, force: true });
+                } catch { }
+            }
+
+            windowSessions.delete(windowId);
+        }
+
+        chatWindow = null;
+        chatWindowSession = null;
+    });
+
+    console.log(`[Main] Created chat window ${windowId} for ${options.browserName}`);
+    return newWindow;
+}
+
+// Poll external browser title via CDP and update chat window title
+function startExternalBrowserTitleSync(window: BrowserWindow, browserName: string): void {
+    const externalBrowserMgr = getExternalBrowserManager();
+
+    const updateTitle = async () => {
+        if (!window || window.isDestroyed()) {
+            stopExternalBrowserTitleSync();
+            return;
+        }
+
+        const status = externalBrowserMgr.getStatus();
+        if (status.hasActiveSession && status.cdpPort) {
+            try {
+                // Get page title from CDP
+                const http = require('http');
+                const response = await new Promise<string>((resolve, reject) => {
+                    const req = http.get(`http://127.0.0.1:${status.cdpPort}/json`, (res: any) => {
+                        let data = '';
+                        res.on('data', (chunk: string) => data += chunk);
+                        res.on('end', () => resolve(data));
+                    });
+                    req.on('error', reject);
+                    req.setTimeout(2000, () => { req.destroy(); reject(new Error('timeout')); });
+                });
+
+                const pages = JSON.parse(response);
+                // Find the first non-extension page
+                const page = pages.find((p: any) => p.type === 'page' && !p.url.startsWith('chrome-extension://'));
+                if (page && page.title) {
+                    window.setTitle(`${browserName} | ${page.title} - GnuNae`);
+                    // Also send to renderer for UI updates
+                    window.webContents.send('external-browser-title', page.title);
+                    window.webContents.send('external-browser-url', page.url);
+                }
+            } catch {
+                // CDP query failed, keep existing title
+            }
+        }
+    };
+
+    // Update immediately, then poll every 2 seconds
+    updateTitle();
+    externalBrowserTitleInterval = setInterval(updateTitle, 2000);
+}
+
+function stopExternalBrowserTitleSync(): void {
+    if (externalBrowserTitleInterval) {
+        clearInterval(externalBrowserTitleInterval);
+        externalBrowserTitleInterval = null;
+    }
+}
+
+// Create standalone settings window
+let settingsWindow: BrowserWindow | null = null;
+
+function createSettingsWindow(): void {
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+        settingsWindow.focus();
+        return;
+    }
+
+    settingsWindow = new BrowserWindow({
+        width: 520,
+        height: 650,
+        minWidth: 480,
+        minHeight: 500,
+        resizable: true,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            nodeIntegration: false,
+            contextIsolation: true,
+        },
+        frame: false,  // No OS window frame/title bar
+        transparent: false,
+        parent: chatWindow || undefined,
+        modal: false,
+    });
+
+    // Remove menu for this window
+    settingsWindow.setMenu(null);
+
+    if (process.env.VITE_DEV_SERVER_URL) {
+        settingsWindow.loadURL(`${process.env.VITE_DEV_SERVER_URL}?settingsOnly=true`);
+    } else {
+        settingsWindow.loadFile(path.join(__dirname, '../ui/index.html'), {
+            query: { settingsOnly: 'true' }
+        });
+    }
+
+    settingsWindow.on('closed', () => {
+        settingsWindow = null;
+    });
 }
 
 function updateLayout(): void {
@@ -2248,21 +2483,287 @@ NEVER operate on a tab with a different URL than specified above unless the user
     });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     // Ensure Codex is configured with Playwright MCP
     ensurePlaywrightMcpConfig();
 
     createMenu();
-    createWindow();
+
+    // Register IPC handlers first (before any windows are created)
     setupIpcHandlers();
+    setupExternalBrowserIpcHandlers();
+
+    // Initialize browser detection
+    const externalBrowserMgr = getExternalBrowserManager();
+    await externalBrowserMgr.initialize();
+
+    // Initialize tray manager
+    trayManager = new TrayManager({
+        onShowWindow: () => {
+            const win = getMainWindow();
+            if (win) {
+                win.show();
+                win.focus();
+            }
+            trayManager?.setWindowVisible(true);
+        },
+        onHideWindow: () => {
+            const win = getMainWindow();
+            if (win) {
+                win.hide();
+            }
+            trayManager?.setWindowVisible(false);
+        },
+        onQuit: () => {
+            // Force quit - don't minimize to tray
+            app.quit();
+        },
+        onOpenSettings: () => {
+            // Open standalone settings window (works in both normal and chat mode)
+            createSettingsWindow();
+        },
+        onExternalBrowserLaunch: async (browserId: string) => {
+            console.log('[Main] Tray: launching external browser:', browserId);
+            const result = await externalBrowserMgr.launchBrowser(browserId);
+            if (!result.success) {
+                dialog.showErrorBox('Browser Launch Failed', result.error || 'Unknown error');
+            }
+        },
+        getDetectedBrowsers: async () => {
+            return externalBrowserMgr.getDetectedBrowsers().map(b => ({
+                id: b.id,
+                name: b.name,
+            }));
+        },
+    });
+    await trayManager.initialize();
+
+    // Handle hidden mode / chat mode from command line
+    if (cliArgs.hidden || cliArgs.chatMode) {
+        console.log('[Main] Starting in', cliArgs.chatMode ? 'chat mode' : 'hidden mode');
+
+        // If external browser specified, launch it first
+        if (cliArgs.externalBrowser) {
+            console.log('[Main] Launching external browser:', cliArgs.externalBrowser);
+            const result = await externalBrowserMgr.launchBrowser(cliArgs.externalBrowser);
+            if (!result.success) {
+                console.error('[Main] Failed to launch external browser:', result.error);
+                trayManager.showNotification(
+                    'Browser Launch Failed',
+                    result.error || 'Could not launch the external browser'
+                );
+                // Fall back to normal window if browser launch fails
+                createWindow();
+            } else {
+                // Browser launched successfully
+                const browserInfo = externalBrowserMgr.getBrowser(cliArgs.externalBrowser);
+                const browserName = browserInfo?.name || cliArgs.externalBrowser;
+
+                if (cliArgs.chatMode) {
+                    // Chat mode: create chat-only window
+                    const chatWin = createChatWindow({
+                        browserName,
+                        browserId: cliArgs.externalBrowser,
+                    });
+
+                    // If Virtual Mode is enabled, create Docker sandbox for chat window
+                    const settings = settingsService.getAll();
+                    console.log('[Main] Chat mode - Virtual Mode setting:', settings.docker?.useVirtualMode);
+                    if (settings.docker?.useVirtualMode) {
+                        const chatSession = windowSessions.get(chatWin.id);
+                        console.log('[Main] Chat session found:', !!chatSession);
+                        if (chatSession) {
+                            try {
+                                const dockerManager = getDockerManager();
+
+                                // Initialize Docker manager first
+                                console.log('[Main] Initializing Docker manager for chat mode...');
+                                const dockerReady = await dockerManager.initialize();
+                                if (!dockerReady) {
+                                    console.error('[Main] Docker manager failed to initialize');
+                                    throw new Error('Docker not available');
+                                }
+
+                                // Verify CDP is responding before creating Docker sandbox
+                                const cdpStatus = externalBrowserMgr.getStatus();
+                                console.log('[Main] Verifying CDP connection on port:', cdpStatus.cdpPort);
+
+                                // Wait a bit for browser to fully initialize CDP
+                                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                                const cdpPort = cdpStatus.cdpPort || 9223;
+                                const externalCdpEndpoint = `http://host.docker.internal:${cdpPort}`;
+
+                                console.log('[Main] Creating Docker sandbox for chat mode with CDP:', externalCdpEndpoint);
+                                const sandboxResult = await dockerManager.createInstance({
+                                    name: `gnunae-chat-${chatWin.id}`,
+                                    browserMode: 'external-cdp',
+                                    externalCdpEndpoint,
+                                });
+
+                                const sandboxClient = createSandboxClient({
+                                    apiPort: sandboxResult.apiPort,
+                                    cdpPort: sandboxResult.cdpPort,
+                                });
+                                chatSession.sandbox = {
+                                    instance: sandboxResult,
+                                    client: sandboxClient,
+                                };
+                                chatSession.useDocker = true;
+                                console.log('[Main] Chat mode Docker sandbox created successfully');
+                            } catch (err) {
+                                console.warn('[Main] Failed to create Docker sandbox for chat mode:', err);
+                            }
+                        }
+                    }
+                } else {
+                    // Hidden mode without chat: create hidden window
+                    createWindow();
+                    const win = getMainWindow();
+                    if (win) {
+                        win.hide();
+                    }
+                    trayManager.setWindowVisible(false);
+                }
+            }
+        } else {
+            // No external browser - just create hidden window
+            createWindow();
+            const win = getMainWindow();
+            if (win) {
+                win.hide();
+            }
+            trayManager.setWindowVisible(false);
+        }
+    } else {
+        // Normal startup - show window
+        createWindow();
+    }
+
     startTaskScheduler();
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
             createWindow();
+        } else {
+            // On macOS, show the window when clicking dock icon
+            const win = getMainWindow();
+            if (win) {
+                win.show();
+                win.focus();
+            }
         }
     });
 });
+
+/**
+ * Setup IPC handlers for external browser and shortcut functionality
+ */
+function setupExternalBrowserIpcHandlers(): void {
+    const externalBrowserMgr = getExternalBrowserManager();
+
+    // Detect installed browsers
+    ipcMain.handle('external-browser:detect', async () => {
+        await externalBrowserMgr.initialize();
+        return externalBrowserMgr.getDetectedBrowsers();
+    });
+
+    // Launch external browser
+    ipcMain.handle('external-browser:launch', async (_, browserId: string) => {
+        const result = await externalBrowserMgr.launchBrowser(browserId);
+        return result;
+    });
+
+    // Close external browser session
+    ipcMain.handle('external-browser:close', async () => {
+        return externalBrowserMgr.closeSession();
+    });
+
+    // Get external browser status
+    ipcMain.handle('external-browser:status', () => {
+        return externalBrowserMgr.getStatus();
+    });
+
+    // Create browser shortcut
+    ipcMain.handle('shortcut:create', async (_, browserId: string, browserName: string, locations: ShortcutLocation[]) => {
+        const results = await shortcutManager.createShortcuts({
+            browserId,
+            browserName,
+            locations,
+        });
+
+        // Update settings with created shortcut
+        const settings = settingsService.getAll();
+        const shortcuts = settings.externalBrowsers?.shortcuts || [];
+        const existingIdx = shortcuts.findIndex(s => s.browserId === browserId);
+
+        const shortcutRecord = {
+            browserId,
+            browserName,
+            shortcutLocations: locations,
+            created: results.some(r => r.success),
+            createdAt: new Date().toISOString(),
+        };
+
+        if (existingIdx >= 0) {
+            shortcuts[existingIdx] = shortcutRecord;
+        } else {
+            shortcuts.push(shortcutRecord);
+        }
+
+        settingsService.update({
+            externalBrowsers: {
+                ...settings.externalBrowsers,
+                shortcuts,
+            },
+        });
+
+        return results;
+    });
+
+    // Remove browser shortcut
+    ipcMain.handle('shortcut:remove', async (_, browserId: string) => {
+        const settings = settingsService.getAll();
+        const shortcut = settings.externalBrowsers?.shortcuts?.find(s => s.browserId === browserId);
+
+        if (shortcut) {
+            const results = await shortcutManager.removeShortcuts(browserId, shortcut.shortcutLocations);
+
+            // Update settings
+            const shortcuts = settings.externalBrowsers?.shortcuts?.filter(s => s.browserId !== browserId) || [];
+            settingsService.update({
+                externalBrowsers: {
+                    ...settings.externalBrowsers,
+                    shortcuts,
+                },
+            });
+
+            return results;
+        }
+
+        return [{ success: true, location: 'desktop' as ShortcutLocation }];
+    });
+
+    // Get created shortcuts
+    ipcMain.handle('shortcut:list', () => {
+        const settings = settingsService.getAll();
+        return settings.externalBrowsers?.shortcuts || [];
+    });
+
+    // Get available shortcut locations for platform
+    ipcMain.handle('shortcut:locations', () => {
+        return shortcutManager.getAvailableLocations().map(loc => ({
+            id: loc,
+            label: shortcutManager.getLocationLabel(loc),
+        }));
+    });
+
+    // Open standalone settings window (for chat mode)
+    ipcMain.handle('settings:open-standalone', () => {
+        createSettingsWindow();
+        return { success: true };
+    });
+}
 
 // Task Scheduler: checks for due scheduled tasks every minute
 function startTaskScheduler(): void {
@@ -2315,6 +2816,16 @@ function startTaskScheduler(): void {
 }
 
 app.on('window-all-closed', () => {
+    // Check if we should stay running in background (tray mode)
+    const settings = settingsService.getAll();
+    const runInBackground = settings.app?.runInBackground || cliArgs.hidden;
+
+    if (runInBackground) {
+        // Keep running - user can access via tray icon
+        console.log('[Main] All windows closed, staying in background (tray mode)');
+        return;
+    }
+
     if (process.platform !== 'darwin') {
         app.quit();
     }
@@ -2322,6 +2833,21 @@ app.on('window-all-closed', () => {
 
 // Cleanup all session temp directories on quit
 app.on('will-quit', async () => {
+    // Close external browser session
+    try {
+        const externalBrowserMgr = getExternalBrowserManager();
+        await externalBrowserMgr.closeSession();
+        console.log('[Main] External browser session closed');
+    } catch (err) {
+        console.error('[Main] External browser cleanup error:', err);
+    }
+
+    // Destroy tray manager
+    if (trayManager) {
+        trayManager.destroy();
+        trayManager = null;
+    }
+
     // Shutdown Docker manager (destroys all sandboxes)
     try {
         const dockerManager = getDockerManager();

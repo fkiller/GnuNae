@@ -83,10 +83,60 @@ export interface ElectronAPI {
     attachFiles: () => Promise<{ success: boolean; files: { name: string; originalPath: string; workDirPath: string }[] }>;
     removeAttachedFile: (fileName: string) => Promise<{ success: boolean; error?: string }>;
 
+    // External Browser Support
+    detectBrowsers: () => Promise<Array<{
+        id: string;
+        name: string;
+        executablePath: string;
+        version?: string;
+        supportsCDP: boolean;
+    }>>;
+    launchExternalBrowser: (browserId: string) => Promise<{
+        success: boolean;
+        session?: { browserName: string; cdpPort: number; cdpEndpoint: string };
+        error?: string;
+        reused?: boolean;
+    }>;
+    closeExternalBrowser: () => Promise<{ success: boolean; error?: string }>;
+    getExternalBrowserStatus: () => Promise<{
+        hasActiveSession: boolean;
+        browserName?: string;
+        cdpPort?: number;
+        cdpEndpoint?: string;
+    }>;
+
+    // Browser Shortcuts
+    createBrowserShortcut: (browserId: string, browserName: string, locations: string[]) => Promise<Array<{
+        success: boolean;
+        location: string;
+        path?: string;
+        error?: string;
+    }>>;
+    removeBrowserShortcut: (browserId: string) => Promise<Array<{
+        success: boolean;
+        location: string;
+        error?: string;
+    }>>;
+    getCreatedShortcuts: () => Promise<Array<{
+        browserId: string;
+        browserName: string;
+        shortcutLocations: string[];
+        created: boolean;
+        createdAt?: string;
+    }>>;
+    getShortcutLocations: () => Promise<Array<{ id: string; label: string }>>;
+
     // Event listeners
     onUrlUpdate: (callback: (url: string) => void) => () => void;
     onTitleUpdate: (callback: (title: string) => void) => () => void;
     onLoadingChange: (callback: (loading: boolean) => void) => () => void;
+
+    // External browser updates (for chat mode)
+    onExternalBrowserTitle: (callback: (title: string) => void) => () => void;
+    onExternalBrowserUrl: (callback: (url: string) => void) => () => void;
+
+    // Settings window
+    openSettingsWindow: () => Promise<{ success: boolean }>;
 
     // Platform info
     platform: 'darwin' | 'win32' | 'linux';
@@ -303,6 +353,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('menu:show-panel', handler);
         return () => ipcRenderer.removeListener('menu:show-panel', handler);
     },
+
+    // External Browser Support
+    detectBrowsers: () => ipcRenderer.invoke('external-browser:detect'),
+    launchExternalBrowser: (browserId: string) => ipcRenderer.invoke('external-browser:launch', browserId),
+    closeExternalBrowser: () => ipcRenderer.invoke('external-browser:close'),
+    getExternalBrowserStatus: () => ipcRenderer.invoke('external-browser:status'),
+
+    // Browser Shortcuts
+    createBrowserShortcut: (browserId: string, browserName: string, locations: string[]) =>
+        ipcRenderer.invoke('shortcut:create', browserId, browserName, locations),
+    removeBrowserShortcut: (browserId: string) => ipcRenderer.invoke('shortcut:remove', browserId),
+    getCreatedShortcuts: () => ipcRenderer.invoke('shortcut:list'),
+    getShortcutLocations: () => ipcRenderer.invoke('shortcut:locations'),
+
+    // External browser updates (for chat mode)
+    onExternalBrowserTitle: (callback: (title: string) => void) => {
+        const handler = (_: IpcRendererEvent, title: string) => callback(title);
+        ipcRenderer.on('external-browser-title', handler);
+        return () => ipcRenderer.removeListener('external-browser-title', handler);
+    },
+    onExternalBrowserUrl: (callback: (url: string) => void) => {
+        const handler = (_: IpcRendererEvent, url: string) => callback(url);
+        ipcRenderer.on('external-browser-url', handler);
+        return () => ipcRenderer.removeListener('external-browser-url', handler);
+    },
+
+    // Settings window
+    openSettingsWindow: () => ipcRenderer.invoke('settings:open-standalone'),
 
     // Platform info
     platform: process.platform as 'darwin' | 'win32' | 'linux',
