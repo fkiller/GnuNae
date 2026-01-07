@@ -251,21 +251,66 @@ $Shortcut.Save()
             // Copy icon to Resources folder
             const iconSource = options.iconPath || this.getGnuNaeIcon();
             if (fs.existsSync(iconSource)) {
-                // macOS prefers .icns but will accept .png with proper naming
                 const iconDest = path.join(resourcesDir, 'AppIcon.icns');
-                // Try to copy .icns if available, otherwise convert/copy .png
+                // Check if there's already an .icns version
                 const icnsSource = iconSource.replace('.png', '.icns');
                 if (fs.existsSync(icnsSource)) {
                     fs.copyFileSync(icnsSource, iconDest);
+                } else if (iconSource.endsWith('.png')) {
+                    // Convert PNG to ICNS using macOS tools (sips + iconutil)
+                    try {
+                        const iconsetDir = path.join(resourcesDir, 'AppIcon.iconset');
+                        if (!fs.existsSync(iconsetDir)) {
+                            fs.mkdirSync(iconsetDir, { recursive: true });
+                        }
+
+                        // Create iconset with required sizes using sips
+                        const sizes = [16, 32, 64, 128, 256, 512];
+                        for (const size of sizes) {
+                            const destFile = path.join(iconsetDir, `icon_${size}x${size}.png`);
+                            execSync(`sips -z ${size} ${size} "${iconSource}" --out "${destFile}"`, { stdio: 'pipe' });
+                            // Also create @2x version for Retina
+                            if (size <= 256) {
+                                const dest2x = path.join(iconsetDir, `icon_${size}x${size}@2x.png`);
+                                execSync(`sips -z ${size * 2} ${size * 2} "${iconSource}" --out "${dest2x}"`, { stdio: 'pipe' });
+                            }
+                        }
+
+                        // Convert iconset to icns
+                        execSync(`iconutil -c icns "${iconsetDir}" -o "${iconDest}"`, { stdio: 'pipe' });
+
+                        // Clean up iconset folder
+                        fs.rmSync(iconsetDir, { recursive: true });
+                        console.log(`[ShortcutManager] Converted PNG to ICNS: ${iconDest}`);
+                    } catch (e: any) {
+                        console.error('[ShortcutManager] Failed to convert PNG to ICNS:', e.message);
+                        // Fallback: just copy the PNG (icon won't show but app will work)
+                        fs.copyFileSync(iconSource, iconDest);
+                    }
                 } else {
-                    // Fallback: copy png as .icns (macOS can sometimes handle it)
+                    // Copy whatever format it is
                     fs.copyFileSync(iconSource, iconDest);
                 }
             }
 
             // Create launcher script
-            // For packaged macOS apps, we need to use 'open' command with --args
-            // Direct execution of the binary inside .app bundle may not handle args correctly
+            // IMPORTANT: macOS .app bundles run with minimal PATH that doesn't include Homebrew, nvm, etc.
+            // We need to source the user's shell profile to get the full PATH
+            // Also set common paths explicitly as fallback
+            const pathSetup = `
+# Source user's shell profile to get full PATH (node, docker, etc.)
+if [ -f "$HOME/.zshrc" ]; then
+    source "$HOME/.zshrc" 2>/dev/null || true
+elif [ -f "$HOME/.bashrc" ]; then
+    source "$HOME/.bashrc" 2>/dev/null || true
+elif [ -f "$HOME/.bash_profile" ]; then
+    source "$HOME/.bash_profile" 2>/dev/null || true
+fi
+
+# Add common paths as fallback (Homebrew, nvm, etc.)
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.nvm/versions/node/*/bin:$PATH"
+`;
+
             let launcherScript: string;
             if (app.isPackaged) {
                 // Find the .app bundle path from the executable path
@@ -273,12 +318,16 @@ $Shortcut.Save()
                 // We need /Applications/GnuNae.app
                 const appBundlePath = gnuNaeExe.replace(/\/Contents\/MacOS\/[^/]+$/, '');
                 launcherScript = `#!/bin/bash
+${pathSetup}
 open -a "${appBundlePath}" --args ${args}
 `;
             } else {
-                // Dev mode: run electron directly
+                // Dev mode: electron needs the app directory as the FIRST argument before any flags
+                // This is critical - without the app path, Electron won't load the app code
+                const appDir = path.resolve(__dirname, '../..');  // Points to project root (dist -> src -> root)
                 launcherScript = `#!/bin/bash
-"${gnuNaeExe}" ${args}
+${pathSetup}
+"${gnuNaeExe}" "${appDir}" ${args}
 `;
             }
             const launcherPath = path.join(macOSDir, 'launcher');
@@ -327,12 +376,25 @@ open -a "${appBundlePath}" --args ${args}
         const gnuNaeExe = options.gnuNaeExecutable || this.getGnuNaeExecutable();
         const iconPath = options.iconPath || this.getGnuNaeIcon();
 
+        // In dev mode, we need to pass the app directory as the first argument
+        // Also create a wrapper script to ensure proper PATH for nvm etc.
+        let execCommand: string;
+        if (app.isPackaged) {
+            execCommand = `"${gnuNaeExe}" --chat-mode --external-browser=${options.browserId}`;
+        } else {
+            // Dev mode: electron needs the app path as first arg
+            const appDir = path.resolve(__dirname, '../..');
+            execCommand = `"${gnuNaeExe}" "${appDir}" --chat-mode --external-browser=${options.browserId}`;
+        }
+
+        // For .desktop files, we can use a shell wrapper to source profile
+        // This ensures node, docker etc. are in PATH when launched from desktop
         const desktopContent = `[Desktop Entry]
 Version=1.0
 Type=Application
 Name=GnuNae + ${options.browserName}
 Comment=Launch ${options.browserName} with GnuNae AI Integration
-Exec="${gnuNaeExe}" --chat-mode --external-browser=${options.browserId}
+Exec=/bin/bash -c 'source ~/.bashrc 2>/dev/null || source ~/.profile 2>/dev/null || true; export PATH="/usr/local/bin:$HOME/.nvm/versions/node/$(ls $HOME/.nvm/versions/node 2>/dev/null | tail -1)/bin:$PATH"; ${execCommand.replace(/'/g, "'\\''")}'
 Icon=${iconPath}
 Terminal=false
 Categories=Network;WebBrowser;
@@ -606,6 +668,41 @@ Categories=Network;WebBrowser;
             if (fs.existsSync(iconPath)) return iconPath;
             return path.join(devAssetsDir, 'gnunae.png');
         }
+    }
+
+    /**
+     * Get browser-specific icon path
+     * Uses browser icons (chrome.ico/png, edge.ico/png) instead of generic GnuNae icon
+     * Returns .ico on Windows, .png on macOS/Linux
+     */
+    getBrowserIcon(browserId: string): string {
+        const assetsDir = path.join(__dirname, '../../assets');
+        const devAssetsDir = path.join(__dirname, '../../../assets');
+
+        // Determine extension based on platform
+        const ext = this.platform === 'win32' ? 'ico' : 'png';
+
+        // Map browser IDs to icon filenames
+        let iconName: string;
+        if (browserId.toLowerCase().includes('chrome')) {
+            iconName = `chrome.${ext}`;
+        } else if (browserId.toLowerCase().includes('edge')) {
+            iconName = `edge.${ext}`;
+        } else {
+            // Fallback to GnuNae icon for unknown browsers
+            return this.getGnuNaeIcon();
+        }
+
+        // Try production assets first, then development assets
+        const iconPath = path.join(assetsDir, iconName);
+        if (fs.existsSync(iconPath)) return iconPath;
+
+        const devIconPath = path.join(devAssetsDir, iconName);
+        if (fs.existsSync(devIconPath)) return devIconPath;
+
+        // Final fallback to GnuNae icon
+        return this.getGnuNaeIcon();
+
     }
 
     /**

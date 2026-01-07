@@ -21,6 +21,7 @@ app.commandLine.appendSwitch('remote-debugging-address', '0.0.0.0');
 /**
  * Ensure Playwright MCP is configured in the global Codex config.
  * - Adds the playwright MCP server entry if not present
+ * - Updates CDP endpoint to native localhost (127.0.0.1) if currently set to Docker endpoint
  * - Adds startup_timeout_sec if missing from existing playwright config
  * Does NOT remove other MCPs - we use the prompt to guide Codex to use Playwright.
  */
@@ -43,11 +44,22 @@ function ensurePlaywrightMcpConfig(): void {
 
     // Check if playwright MCP is already configured
     if (configContent.includes('[mcp_servers.playwright]')) {
-        // Extract the playwright section to check if it has startup_timeout_sec
+        // Extract the playwright section to check for issues
         const playwrightSectionMatch = configContent.match(
             /\[mcp_servers\.playwright\][\s\S]*?(?=\n\[|$)/
         );
         const playwrightSection = playwrightSectionMatch ? playwrightSectionMatch[0] : '';
+
+        // IMPORTANT: Fix CDP endpoint if it's set to Docker's host.docker.internal
+        // Native mode needs 127.0.0.1, Docker mode uses its own entrypoint.sh config
+        if (playwrightSection.includes('host.docker.internal')) {
+            configContent = configContent.replace(
+                /host\.docker\.internal:(\d+)/g,
+                '127.0.0.1:$1'
+            );
+            modified = true;
+            console.log('[Config] Updated Playwright CDP endpoint from Docker to native (127.0.0.1)');
+        }
 
         if (!playwrightSection.includes('startup_timeout_sec')) {
             // Add timeout after the playwright section's args line
@@ -85,6 +97,26 @@ startup_timeout_sec = 60
 const packageJson = require('../../package.json');
 const APP_NAME = packageJson.productName || 'GnuNae';
 const APP_VERSION = packageJson.version || '0.0.1';
+
+// ============ SINGLETON MODE ============
+// Ensure only one instance of the app runs at a time (works on macOS, Windows, Linux)
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+    console.log('[Main] Another instance is already running, quitting...');
+    app.quit();
+}
+
+// Handle second-instance event - focus existing window when user tries to launch again
+app.on('second-instance', (event, commandLine, workingDirectory) => {
+    console.log('[Main] Second instance detected, focusing existing window');
+    const mainWin = getMainWindow();
+    if (mainWin) {
+        if (mainWin.isMinimized()) mainWin.restore();
+        mainWin.show();
+        mainWin.focus();
+    }
+});
+// ============ END SINGLETON MODE ============
 
 // Window session interface for multi-window isolation
 interface WindowSession {
@@ -157,6 +189,9 @@ interface CommandLineArgs {
 
 function parseCommandLineArgs(): CommandLineArgs {
     const args = process.argv.slice(2);
+    console.log('[Main] Raw process.argv:', process.argv);
+    console.log('[Main] Arguments to parse:', args);
+
     const result: CommandLineArgs = {
         hidden: false,
         externalBrowser: null,
@@ -165,6 +200,7 @@ function parseCommandLineArgs(): CommandLineArgs {
     };
 
     for (const arg of args) {
+        console.log('[Main] Processing arg:', arg);
         if (arg === '--hidden') {
             result.hidden = true;
         } else if (arg === '--chat-mode') {
@@ -180,7 +216,7 @@ function parseCommandLineArgs(): CommandLineArgs {
 }
 
 const cliArgs = parseCommandLineArgs();
-console.log('[Main] Command line args:', cliArgs);
+console.log('[Main] Parsed command line args:', JSON.stringify(cliArgs));
 
 // Global codexProcesses for backward compatibility (uses active session's processes)
 function getCodexProcesses(): Map<string, ChildProcess> {
@@ -931,10 +967,16 @@ function setupIpcHandlers(): void {
     const getSessionFromEvent = (event: Electron.IpcMainInvokeEvent): WindowSession | undefined => {
         const window = BrowserWindow.fromWebContents(event.sender);
         if (window) {
-            return windowSessions.get(window.id);
+            const session = windowSessions.get(window.id);
+            if (session) {
+                return session;
+            }
+            // Window found but session not in map - fallback to active session
+            console.log(`[Main] Session not found for window ${window.id}, falling back to active session`);
         }
         return getActiveSession();
     };
+
 
     // Get active browser view for the sender's window
     const getActiveViewFromEvent = (event: Electron.IpcMainInvokeEvent) => {
@@ -1038,7 +1080,27 @@ function setupIpcHandlers(): void {
 
     ipcMain.handle('settings:update', (_, settings) => {
         const { settingsService } = require('../core/settings');
+        const oldSettings = settingsService.getAll();
         settingsService.update(settings);
+
+        // Sync launch at startup setting with OS login items
+        const newSettings = settingsService.getAll();
+        if (oldSettings.app?.launchAtStartup !== newSettings.app?.launchAtStartup) {
+            const launchAtStartup = newSettings.app?.launchAtStartup || false;
+            console.log('[Main] Setting launch at startup:', launchAtStartup);
+
+            app.setLoginItemSettings({
+                openAtLogin: launchAtStartup,
+                // On Windows, use args; on macOS, openAsHidden is preferred
+                openAsHidden: launchAtStartup, // macOS: start hidden
+                args: launchAtStartup ? ['--hidden'] : [], // Windows/Linux: pass hidden flag
+            });
+
+            // Auto-enable hidden mode when launch at startup is enabled
+            if (launchAtStartup && !newSettings.app?.launchHidden) {
+                settingsService.update({ app: { ...newSettings.app, launchHidden: true } });
+            }
+        }
 
         // Broadcast settings change to all renderers
         const updatedSettings = settingsService.getAll();
@@ -1046,6 +1108,7 @@ function setupIpcHandlers(): void {
 
         return { success: true };
     });
+
 
     // Get current LLM working directory
     ipcMain.handle('settings:get-llm-workdir', () => {
@@ -1392,15 +1455,28 @@ function setupIpcHandlers(): void {
                 await dockerManager.destroyInstance(session.sandbox.instance.id);
             }
 
-            // For electron-cdp mode, we need to fetch the WebSocket URL from CDP
-            // and pass it directly because Docker can't use Host headers properly
+            // For electron-cdp mode (external browser), get the CDP endpoint from the active session
+            // The external browser manager tracks the actual running browser's CDP port and endpoint
             let finalConfig = { ...config };
             if (config?.browserMode === 'electron-cdp') {
                 try {
-                    // Fetch WebSocket URL from local CDP endpoint
+                    // Get the active external browser session which has the actual dynamic CDP port
+                    const { getExternalBrowserManager } = require('../core/external-browser-manager');
+                    const browserManager = getExternalBrowserManager();
+                    const activeSession = browserManager.getActiveSession();
+
+                    if (!activeSession) {
+                        console.error('[Docker] No active external browser session found');
+                        return { success: false, error: 'No external browser session active. Please launch an external browser first.' };
+                    }
+
+                    const externalCdpPort = activeSession.cdpPort;
+                    console.log('[Docker] Using external browser CDP port from active session:', externalCdpPort);
+
+                    // Fetch WebSocket URL from external browser's CDP endpoint
                     const http = require('http');
                     const wsUrl = await new Promise<string>((resolve, reject) => {
-                        http.get('http://127.0.0.1:9222/json/version', (res: any) => {
+                        http.get(`http://127.0.0.1:${externalCdpPort}/json/version`, (res: any) => {
                             let data = '';
                             res.on('data', (chunk: string) => data += chunk);
                             res.on('end', () => {
@@ -1812,13 +1888,11 @@ function setupIpcHandlers(): void {
                     error: success ? undefined : errorMessage
                 });
 
-                // Also update app auth status if successful
+                // Notify UI of auth status change
+                // NOTE: Don't call saveToken() here - codex login already wrote valid tokens
+                // We just need to reload from the file that CLI wrote
                 if (success) {
-                    authService.saveToken({
-                        accessToken: 'codex-cli-authenticated',
-                        email: 'OpenAI User',
-                        expiresAt: Date.now() + (30 * 24 * 60 * 60 * 1000),
-                    });
+                    authService.reloadToken();  // Reload from ~/.codex/auth.json that CLI wrote
                     senderWindow?.webContents.send('auth:status-changed', true);
 
                     // Navigate browser to default page after successful login
@@ -2061,6 +2135,28 @@ function setupIpcHandlers(): void {
                     // onExit
                     (code: number | null) => {
                         console.log('[Docker Codex] Exit code:', code);
+
+                        // Check for auth token errors in output
+                        const allOutput = (output + ' ' + errorOutput).toLowerCase();
+                        if (code !== 0 && (
+                            allOutput.includes('refresh token') ||
+                            allOutput.includes('log out and sign in') ||
+                            allOutput.includes('sign in again') ||
+                            allOutput.includes('token could not be refreshed') ||
+                            (allOutput.includes('access token') && allOutput.includes('expired'))
+                        )) {
+                            // NOTE: Do NOT auto-delete auth.json here!
+                            // Docker has read-write access to auth.json and may be refreshing it.
+                            // Deleting would create a race condition and invalidate a potentially valid new token.
+                            console.log('[Docker Codex] Auth token error detected - notifying UI');
+
+                            // Just notify UI - user can manually re-authenticate if needed
+                            senderWindow?.webContents.send('codex:auth-error', {
+                                type: 'token_expired',
+                                message: 'Authentication failed. Please try again or re-login if the issue persists.'
+                            });
+                        }
+
                         // Send complete event with format expected by UI
                         senderWindow?.webContents.send('codex:complete', {
                             code: code ?? 0,
@@ -2156,6 +2252,17 @@ Do NOT operate on ad iframe tabs (like onetag-sys.com, doubleclick.net, etc.) - 
 NEVER operate on a tab with a different URL than specified above unless the user explicitly asks to navigate elsewhere.
 
 `;
+            } else {
+                // FALLBACK: If no active tab context, force Codex to index on "Browser Mode"
+                // This prevents "search test" from defaulting to 'rg' (file search) when user means web search
+                tabSelectionContext = `
+## BROWSER ENVIRONMENT
+You are controlling a web browser via Playwright.
+If the user asks to "search" or "go to" something, they MEAN WEB SEARCH or WEB NAVIGATION, NOT local file search.
+Use 'playwright.browser_navigate' or 'playwright.browser_tabs' to start browsing.
+DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
+
+`;
             }
 
             // Combine: tabSelectionContext + modeInstructions + prePrompt + userDataContext + pageContext + user prompt
@@ -2184,7 +2291,28 @@ NEVER operate on a tab with a different URL than specified above unless the user
             const activeSession = getActiveSession();
             const windowId = activeSession?.window.id || 0;
 
-            const chatProcess = spawn(codexBin, ['exec', '--skip-git-repo-check'], {
+            // Build Codex arguments dynamically
+            const codexArgs = ['exec', '--skip-git-repo-check'];
+
+            // Add dynamic Playwright MCP config via -c flag
+            // This passes CDP endpoint at runtime without modifying global config.toml
+            const extBrowserManager = getExternalBrowserManager();
+            const browserStatus = extBrowserManager.getStatus();
+
+            // Use external browser's CDP port if available, otherwise use default (9222)
+            // The external browser manager has the current active CDP port
+            const cdpPort = browserStatus.cdpPort || 9222;
+            const cdpEndpoint = `http://127.0.0.1:${cdpPort}`;
+
+            console.log('[Main] Configuring Playwright MCP with CDP endpoint:', cdpEndpoint);
+
+            // Override mcp_servers.playwright config at runtime
+            // Format: -c 'mcp_servers.playwright.args=["@playwright/mcp@latest","--cdp-endpoint","URL"]'
+            // Use single quotes for inner strings to ensure safe passing via spawn without shell
+            const playwrightArgsValue = `['@playwright/mcp@latest','--cdp-endpoint','${cdpEndpoint}']`;
+            codexArgs.push('-c', `mcp_servers.playwright.args=${playwrightArgsValue}`);
+
+            const chatProcess = spawn(codexBin, codexArgs, {
                 // Use shell on Windows for .cmd scripts
                 shell: isWindows ? true : false,
                 cwd,
@@ -2209,6 +2337,15 @@ NEVER operate on a tab with a different URL than specified above unless the user
                 },
             });
 
+            // Handle spawn errors (e.g. binary not found, permission denied, provenance issues)
+            chatProcess.on('error', (err) => {
+                console.error('[Main] Failed to spawn Codex process:', err);
+                senderWindow?.webContents.send('codex:output', {
+                    type: 'error',
+                    data: `Failed to launch Codex: ${err.message}\nCheck logs for details.`
+                });
+            });
+
             // Store in processes map
             codexProcesses.set('chat', chatProcess);
 
@@ -2223,7 +2360,7 @@ NEVER operate on a tab with a different URL than specified above unless the user
                 output += chunk;
                 console.log('[Codex stdout]', chunk);
 
-                // Check for PDS_REQUEST pattern: [PDS_REQUEST:key:message]
+                // Check for PDS_REQUEST pattern: [PDS_REQUEST:([^:]+):([^\]]+)\]/
                 // Filter out example patterns from documentation (key_name is the example placeholder)
                 const pdsRequestMatch = chunk.match(/\[PDS_REQUEST:([^:]+):([^\]]+)\]/);
                 if (pdsRequestMatch) {
@@ -2268,7 +2405,7 @@ NEVER operate on a tab with a different URL than specified above unless the user
                     senderWindow?.webContents.send('codex:pds-request', { key: inferredKey, message });
                 }
 
-                // Check for PDS_STORE pattern: [PDS_STORE:key:value]
+                // Check for PDS_STORE pattern: [PDS_STORE:([^:]+):([^\]]+)\]/g
                 // Can have multiple stores in one chunk
                 const pdsStoreRegex = /\[PDS_STORE:([^:]+):([^\]]+)\]/g;
                 let storeMatch;
@@ -2312,14 +2449,14 @@ NEVER operate on a tab with a different URL than specified above unless the user
                         console.log(`[Main] Block detected: ${type} (pattern: ${pattern})`);
                         senderWindow?.webContents.send('task:blocked', {
                             type,
-                            message: `Task blocked: ${type.toUpperCase()} detected`,
-                            detail: chunk.substring(0, 200)
+                            reason: `Access blocked by ${type} check`,
+                            pattern,
                         });
-                        break;
+                        break; // Only report first match
                     }
                 }
 
-                // Send streaming output to renderer
+                // Send chunk to renderer
                 senderWindow?.webContents.send('codex:output', { type: 'stdout', data: chunk });
             });
 
@@ -2356,7 +2493,25 @@ NEVER operate on a tab with a different URL than specified above unless the user
                     else if (allOutput.includes('model') && (allOutput.includes('access') || allOutput.includes('permission') || allOutput.includes('denied'))) {
                         helpMessage = '⚠️ Model access denied.\n\nYour OpenAI account does not have access to the required models. ChatGPT Pro/Plus subscription is required.';
                     }
-                    // Authentication issues
+                    // Authentication issues - token expired or refresh failed
+                    else if (allOutput.includes('refresh token') ||
+                        allOutput.includes('log out and sign in') ||
+                        allOutput.includes('sign in again') ||
+                        allOutput.includes('token could not be refreshed') ||
+                        allOutput.includes('access token') && allOutput.includes('expired')) {
+
+                        // NOTE: Do NOT auto-delete auth.json - CLI may be refreshing it.
+                        console.log('[Codex] Auth token error detected - notifying UI');
+
+                        helpMessage = '⚠️ OpenAI session expired.\n\nPlease re-authenticate using the Codex login.';
+
+                        // Notify UI of auth error
+                        senderWindow?.webContents.send('codex:auth-error', {
+                            type: 'token_expired',
+                            message: 'Authentication failed. Please try again or re-login if the issue persists.'
+                        });
+                    }
+                    // Other authentication issues
                     else if (allOutput.includes('openai_api_key') ||
                         allOutput.includes('authentication') ||
                         allOutput.includes('unauthorized') ||
@@ -2539,13 +2694,16 @@ app.whenReady().then(async () => {
     await trayManager.initialize();
 
     // Handle hidden mode / chat mode from command line
+    console.log('[Main] Checking startup mode - hidden:', cliArgs.hidden, 'chatMode:', cliArgs.chatMode, 'externalBrowser:', cliArgs.externalBrowser);
     if (cliArgs.hidden || cliArgs.chatMode) {
         console.log('[Main] Starting in', cliArgs.chatMode ? 'chat mode' : 'hidden mode');
 
         // If external browser specified, launch it first
         if (cliArgs.externalBrowser) {
+            console.log('[Main] Detected browsers:', externalBrowserMgr.getDetectedBrowsers().map(b => `${b.id}:${b.name}`).join(', '));
             console.log('[Main] Launching external browser:', cliArgs.externalBrowser);
             const result = await externalBrowserMgr.launchBrowser(cliArgs.externalBrowser);
+            console.log('[Main] Launch result:', JSON.stringify(result));
             if (!result.success) {
                 console.error('[Main] Failed to launch external browser:', result.error);
                 trayManager.showNotification(
@@ -2558,8 +2716,10 @@ app.whenReady().then(async () => {
                 // Browser launched successfully
                 const browserInfo = externalBrowserMgr.getBrowser(cliArgs.externalBrowser);
                 const browserName = browserInfo?.name || cliArgs.externalBrowser;
+                console.log('[Main] Browser launched successfully:', browserName);
 
                 if (cliArgs.chatMode) {
+                    console.log('[Main] Creating chat window for:', browserName);
                     // Chat mode: create chat-only window
                     const chatWin = createChatWindow({
                         browserName,
@@ -2686,10 +2846,14 @@ function setupExternalBrowserIpcHandlers(): void {
 
     // Create browser shortcut
     ipcMain.handle('shortcut:create', async (_, browserId: string, browserName: string, locations: ShortcutLocation[]) => {
+        // Get browser-specific icon (chrome.png, edge.png, etc.)
+        const iconPath = shortcutManager.getBrowserIcon(browserId);
+
         const results = await shortcutManager.createShortcuts({
             browserId,
             browserName,
             locations,
+            iconPath,  // Use browser-specific icon
         });
 
         // Update settings with created shortcut

@@ -6,7 +6,7 @@ interface Settings {
     browser: { startPage: string; userAgent: string };
     codex: { model: string; mode: 'ask' | 'agent' | 'full-access'; prePrompt: string; prePromptCustomized: boolean };
     ui: { sidebarWidth: number; theme: 'dark' | 'light' | 'system' };
-    app?: { runInBackground: boolean; launchHidden: boolean };
+    app?: { runInBackground: boolean; launchHidden: boolean; launchAtStartup: boolean };
     externalBrowsers?: {
         cdpPort: number;
         shortcuts: Array<{
@@ -353,6 +353,29 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                                     Use the tray icon to show the window again or quit completely.
                                 </span>
                             </div>
+
+                            <div className="settings-item">
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        checked={settings?.app?.launchAtStartup ?? false}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            updateSetting('app.launchAtStartup', checked);
+                                            // Auto-enable Run in Background when Launch at Startup is enabled
+                                            if (checked) {
+                                                updateSetting('app.runInBackground', true);
+                                            }
+                                        }}
+                                    />
+                                    Launch at Startup
+                                </label>
+                                <span className="setting-hint">
+                                    Start GnuNae automatically when your computer starts.
+                                    Enabling this will also enable "Run in Background" so the app starts in system tray.
+                                </span>
+                            </div>
+
                         </div>
                     )}
 

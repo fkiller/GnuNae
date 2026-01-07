@@ -54,6 +54,8 @@ export interface ElectronAPI {
     onCodexComplete: (callback: (data: { code: number; output: string; errorOutput: string }) => void) => () => void;
     onCodexError: (callback: (data: { error: string }) => void) => () => void;
     onPdsRequest: (callback: (data: { key: string; message: string }) => void) => () => void;
+    onCodexAuthError: (callback: (data: { type: string; message: string; autoRelogin?: boolean }) => void) => () => void;
+    onTriggerCliLogin: (callback: () => void) => () => void;
     onPdsStored: (callback: (data: { key: string; value: string }) => void) => () => void;
     onTaskBlocked: (callback: (data: { type: string; message: string; detail: string }) => void) => () => void;
 
@@ -255,6 +257,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const handler = (_: IpcRendererEvent, data: { key: string; message: string }) => callback(data);
         ipcRenderer.on('codex:pds-request', handler);
         return () => ipcRenderer.removeListener('codex:pds-request', handler);
+    },
+    onCodexAuthError: (callback: (data: { type: string; message: string; autoRelogin?: boolean }) => void) => {
+        const handler = (_: IpcRendererEvent, data: { type: string; message: string; autoRelogin?: boolean }) => callback(data);
+        ipcRenderer.on('codex:auth-error', handler);
+        return () => ipcRenderer.removeListener('codex:auth-error', handler);
+    },
+    onTriggerCliLogin: (callback: () => void) => {
+        const handler = () => callback();
+        ipcRenderer.on('codex:trigger-cli-login', handler);
+        return () => ipcRenderer.removeListener('codex:trigger-cli-login', handler);
     },
     onPdsStored: (callback: (data: { key: string; value: string }) => void) => {
         const handler = (_: IpcRendererEvent, data: { key: string; value: string }) => callback(data);

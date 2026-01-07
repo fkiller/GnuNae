@@ -37,6 +37,7 @@ export interface AppSettings {
     app: {
         runInBackground: boolean;  // Minimize to tray instead of quit
         launchHidden: boolean;     // Start minimized to tray (via command line)
+        launchAtStartup: boolean;  // Launch app when OS starts
     };
     // External browser integration
     externalBrowsers: {
@@ -444,6 +445,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     app: {
         runInBackground: false, // Default: quit on close
         launchHidden: false,    // Default: show window on start
+        launchAtStartup: false, // Default: don't launch at OS startup
     },
     externalBrowsers: {
         cdpPort: 9223,          // Centralized CDP port

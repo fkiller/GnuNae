@@ -195,13 +195,10 @@ export class ExternalBrowserManager {
                 isConnected: true,
             };
 
-            // Update Playwright MCP config to use external browser
-            // Check if Docker/Virtual Mode is active - if so, Codex runs in Docker
-            // and needs to reach the external browser via host.docker.internal
-            const isDockerMode = await this.isDockerModeActive();
-            await this.updatePlaywrightConfig(cdpPort, isDockerMode);
+            // NOTE: Playwright MCP config is now passed via -c flag when spawning Codex CLI
+            // No need to modify global config.toml - the main.ts spawn adds the CDP endpoint dynamically
 
-            console.log('[ExternalBrowserManager] Browser launched successfully');
+            console.log('[ExternalBrowserManager] Browser launched successfully (CDP port:', cdpPort, ')');
             return {
                 success: true,
                 session: this.activeSession,
@@ -296,53 +293,9 @@ export class ExternalBrowserManager {
         return settings.docker?.useVirtualMode === true;
     }
 
-    /**
-     * Update Playwright MCP configuration to connect to external browser
-     * 
-     * @param cdpPort - The CDP port to connect to
-     * @param isDocker - If true, use host.docker.internal for Docker container access
-     */
-    private async updatePlaywrightConfig(cdpPort: number, isDocker: boolean = false): Promise<void> {
-        const codexConfigDir = path.join(os.homedir(), '.codex');
-        const codexConfigPath = path.join(codexConfigDir, 'config.toml');
-
-        if (!fs.existsSync(codexConfigDir)) {
-            fs.mkdirSync(codexConfigDir, { recursive: true });
-        }
-
-        let configContent = '';
-        if (fs.existsSync(codexConfigPath)) {
-            configContent = fs.readFileSync(codexConfigPath, 'utf-8');
-        }
-
-        // Use host.docker.internal for Docker mode, 127.0.0.1 for native mode
-        const cdpHost = isDocker ? 'host.docker.internal' : '127.0.0.1';
-        const cdpEndpoint = `http://${cdpHost}:${cdpPort}`;
-
-        console.log(`[ExternalBrowserManager] Configuring Playwright for ${isDocker ? 'Docker' : 'Native'} mode: ${cdpEndpoint}`);
-
-        if (configContent.includes('[mcp_servers.playwright]')) {
-            // Update existing config
-            configContent = configContent.replace(
-                /(\[mcp_servers\.playwright\][^]*?args\s*=\s*\[)[^\]]*(\])/,
-                `$1"@playwright/mcp@latest", "--cdp-endpoint", "${cdpEndpoint}"$2`
-            );
-        } else {
-            // Add new config
-            const playwrightConfig = `
-
-# GnuNae Playwright MCP - External Browser Mode
-[mcp_servers.playwright]
-command = "npx"
-args = ["@playwright/mcp@latest", "--cdp-endpoint", "${cdpEndpoint}"]
-startup_timeout_sec = 60
-`;
-            configContent = configContent.trimEnd() + playwrightConfig;
-        }
-
-        fs.writeFileSync(codexConfigPath, configContent, 'utf-8');
-        console.log('[ExternalBrowserManager] Updated Playwright config for CDP port:', cdpPort);
-    }
+    // NOTE: updatePlaywrightConfig() has been removed.
+    // CDP endpoint is now passed dynamically via Codex CLI's -c flag at spawn time.
+    // This avoids modifying global ~/.codex/config.toml for per-session state.
 
     /**
      * Get status information for UI display

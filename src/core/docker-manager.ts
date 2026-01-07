@@ -535,11 +535,13 @@ export class DockerManager extends EventEmitter {
 
             // Only mount if auth.json exists
             if (fs.existsSync(authJsonPath)) {
-                // Mount auth.json as a single file (read-only)
+                // Mount auth.json as a single file (READ-WRITE - required for token refresh!)
+                // The Codex CLI needs to update auth.json when refreshing tokens.
+                // If mounted read-only, token refresh fails with "refresh token already used" error.
                 // Convert Windows paths (C:\...) to Docker format (/c/...)
                 const dockerPath = this.toDockerMountPath(authJsonPath);
-                args.push('-v', `${dockerPath}:/home/sandbox/.codex/auth.json:ro`);
-                console.log(`[DockerManager] Mounting auth token from: ${authJsonPath} -> ${dockerPath}`);
+                args.push('-v', `${dockerPath}:/home/sandbox/.codex/auth.json:rw`);
+                console.log(`[DockerManager] Mounting auth token (rw) from: ${authJsonPath} -> ${dockerPath}`);
             } else {
                 console.log(`[DockerManager] No auth.json found at ${authJsonPath}, skipping auth mount`);
             }

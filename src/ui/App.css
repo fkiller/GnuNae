@@ -2512,10 +2512,15 @@ body {
     flex: 1;
     overflow: hidden;
     display: flex;
+    width: 100%;
+    /* Ensure full width */
 }
 
 .chat-mode-content .right-panel {
     width: 100%;
+    min-width: 0;
+    /* Allow shrinking below content size for responsiveness */
+    flex: 1;
     border: none;
 }
 
