@@ -62,6 +62,7 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
     const runningTaskIdRef = useRef<string | null>(null);  // Track which task is currently running
     const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);  // Attached files for prompt
     const [isLoggingIn, setIsLoggingIn] = useState(false);  // Track if Codex CLI login is in progress
+    const [isInitializing, setIsInitializing] = useState(false);  // Track MCP initialization phase
 
     // Keep taskModeRef in sync
     useEffect(() => { taskModeRef.current = taskMode; }, [taskMode]);
@@ -129,6 +130,38 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
             // Check if debug mode is enabled (async - use localStorage cache)
             const isDebugMode = localStorage.getItem('gnunae-debug') === 'true';
 
+            // Check for MCP status messages (show these even in non-debug mode)
+            const mcpPatterns = [
+                /^mcp:\s*(\w+)\s+(starting|ready|failed)/i,
+                /^mcp startup:/i,
+            ];
+            const isMcpStatus = mcpPatterns.some(pattern => pattern.test(message));
+
+            if (isMcpStatus) {
+                // Parse and show MCP status
+                const startMatch = message.match(/^mcp:\s*(\w+)\s+starting/i);
+                const readyMatch = message.match(/^mcp:\s*(\w+)\s+ready/i);
+                const failedMatch = message.match(/^mcp:\s*(\w+)\s+failed/i);
+                const summaryMatch = message.match(/^mcp startup:\s*(.+)/i);
+
+                if (startMatch) {
+                    addLog('info', `⏳ Starting ${startMatch[1]}...`);
+                } else if (readyMatch) {
+                    addLog('info', `✓ ${readyMatch[1]} ready`);
+                    setIsInitializing(false);  // MCP is ready, allow input
+                } else if (failedMatch) {
+                    addLog('error', `⚠ ${failedMatch[1]} failed to start`);
+                } else if (summaryMatch) {
+                    // Parse summary like "ready: playwright; failed: browser"
+                    const summary = summaryMatch[1];
+                    if (summary.includes('ready:')) {
+                        setIsInitializing(false);  // At least one MCP ready
+                    }
+                    addLog('info', `🔧 MCP: ${summary}`);
+                }
+                return;  // Don't apply other filters to MCP messages
+            }
+
             // In non-debug mode, aggressively filter verbose output
             if (!isDebugMode) {
                 // Patterns to skip - DOM elements, debug info, verbose logs
@@ -183,6 +216,7 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
 
         const unsubComplete = (window as any).electronAPI?.onCodexComplete?.((data: any) => {
             setIsProcessing(false);
+            setIsInitializing(false);  // Reset initialization state on complete
             // DON'T clear pdsRequest here - let the card stay visible if there's a pending request
             if (data.code === 0) {
                 addLog('info', '✓ Completed');
@@ -228,6 +262,7 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
 
         const unsubError = (window as any).electronAPI?.onCodexError?.((data: any) => {
             setIsProcessing(false);
+            setIsInitializing(false);  // Reset initialization state on error
             setPdsRequest(null);
             addLog('error', `Error: ${data.error}`);
             // Clear running task state
@@ -430,6 +465,7 @@ You can read, process, or reference these files as needed.
         }
         setPrompt('');
         setIsProcessing(true);
+        setIsInitializing(true);  // Start initialization phase
 
         // Clear attached files after sending (they're already in working dir)
         setAttachedFiles([]);
@@ -675,7 +711,13 @@ You can read, process, or reference these files as needed.
                         value={prompt}
                         onChange={(e) => { setPrompt(e.target.value); autoResize(); }}
                         onKeyDown={handleKeyDown}
-                        placeholder={isAuthenticated ? (taskMode ? "Describe task to automate..." : "Ask Codex...") : "Sign in to use Codex..."}
+                        placeholder={
+                            !isAuthenticated ? "Sign in to use Codex..." :
+                                isInitializing ? "Initializing MCP servers..." :
+                                    isProcessing ? "Processing..." :
+                                        taskMode ? "Describe task to automate..." :
+                                            "Ask Codex..."
+                        }
                         disabled={isProcessing || !isAuthenticated}
                         rows={1}
                     />

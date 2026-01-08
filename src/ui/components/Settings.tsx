@@ -434,9 +434,22 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                                             return (
                                                 <div key={browser.id} className="browser-item">
                                                     <div className="browser-info">
-                                                        <span className="browser-icon">🌐</span>
+                                                        <img
+                                                            className="browser-icon-img"
+                                                            src={`./${browser.id}.png`}
+                                                            alt={browser.name}
+                                                            onError={(e) => {
+                                                                // Fallback: replace with emoji if image fails
+                                                                const target = e.target as HTMLImageElement;
+                                                                target.style.display = 'none';
+                                                                const fallback = document.createElement('span');
+                                                                fallback.className = 'browser-icon';
+                                                                fallback.textContent = '🌐';
+                                                                target.parentElement?.insertBefore(fallback, target);
+                                                            }}
+                                                        />
                                                         <div className="browser-details">
-                                                            <span className="browser-name">{browser.name}</span>
+                                                            <span className="browser-name">GnuNae + {browser.name}</span>
                                                             {browser.version && (
                                                                 <span className="browser-version">v{browser.version}</span>
                                                             )}

@@ -2294,7 +2294,14 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
             // Build Codex arguments dynamically
             const codexArgs = ['exec', '--skip-git-repo-check'];
 
-            // Add dynamic Playwright MCP config via -c flag
+            // Add all Codex configuration via -c flags
+            // This makes GnuNae work without depending on ~/.codex/config.toml
+
+            // Model configuration
+            codexArgs.push('-c', 'model=gpt-5.1-codex-max');
+            codexArgs.push('-c', 'model_reasoning_effort=xhigh');
+
+            // Dynamic Playwright MCP config via -c flag
             // This passes CDP endpoint at runtime without modifying global config.toml
             const extBrowserManager = getExternalBrowserManager();
             const browserStatus = extBrowserManager.getStatus();
@@ -2306,11 +2313,12 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
 
             console.log('[Main] Configuring Playwright MCP with CDP endpoint:', cdpEndpoint);
 
-            // Override mcp_servers.playwright config at runtime
-            // Format: -c 'mcp_servers.playwright.args=["@playwright/mcp@latest","--cdp-endpoint","URL"]'
-            // Use single quotes for inner strings to ensure safe passing via spawn without shell
+            // Configure mcp_servers.playwright completely via -c flags
+            // This is the only MCP server we need - the "browser" MCP is not used
+            codexArgs.push('-c', 'mcp_servers.playwright.command=npx');
             const playwrightArgsValue = `['@playwright/mcp@latest','--cdp-endpoint','${cdpEndpoint}']`;
             codexArgs.push('-c', `mcp_servers.playwright.args=${playwrightArgsValue}`);
+            codexArgs.push('-c', 'mcp_servers.playwright.startup_timeout_sec=30');
 
             const chatProcess = spawn(codexBin, codexArgs, {
                 // Use shell on Windows for .cmd scripts

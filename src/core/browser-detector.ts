@@ -41,7 +41,7 @@ interface BrowserDefinition {
 const BROWSER_DEFINITIONS: BrowserDefinition[] = [
     {
         id: 'chrome',
-        name: 'Google Chrome',
+        name: 'Chrome',
         windows: {
             registryKeys: [
                 'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\chrome.exe',
@@ -69,7 +69,7 @@ const BROWSER_DEFINITIONS: BrowserDefinition[] = [
     },
     {
         id: 'edge',
-        name: 'Microsoft Edge',
+        name: 'Edge',
         windows: {
             registryKeys: [
                 'HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\msedge.exe',

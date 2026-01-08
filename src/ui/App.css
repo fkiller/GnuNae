@@ -2351,6 +2351,13 @@ body {
     opacity: 0.9;
 }
 
+.browser-icon-img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    border-radius: 4px;
+}
+
 .browser-details {
     display: flex;
     flex-direction: column;
