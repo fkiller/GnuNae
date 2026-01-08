@@ -15,7 +15,6 @@ graph TB
     subgraph Electron["Electron App"]
         Main["Main Process<br/>(main.ts)"]
         Preload["Preload Script<br/>(preload.ts)"]
-        MCP["MCP Server<br/>(mcp-server.ts)"]
     end
     
     subgraph UI["React UI"]
@@ -25,38 +24,38 @@ graph TB
         Settings["Settings"]
     end
     
-    subgraph Browser["BrowserView"]
+    subgraph Browser["BrowserView / External Browser"]
         WebPage["Web Content"]
+        CDP["CDP Endpoint<br/>(port 9222)"]
     end
     
     subgraph External["External Services"]
-        Codex["Codex CLI"]
+        Codex["Codex CLI<br/>(runtime -c config)"]
         OpenAI["OpenAI API"]
         Playwright["Playwright MCP"]
     end
     
     Main --> Preload
-    Main --> MCP
     Main --> Browser
     Preload <--> UI
     UI --> Sidebar
-    Sidebar --> |IPC| Codex
+    Sidebar --> |IPC| Main
+    Main --> |spawn with -c flags| Codex
     Codex --> OpenAI
     Codex --> Playwright
-    Playwright --> |DOM Control| Browser
-    MCP --> |Snapshot/Actions| Browser
+    Playwright --> |CDP| CDP
+    CDP --> |DOM Control| WebPage
 ```
 
 ### Component Overview
 
 | Component | Description |
 |-----------|-------------|
-| **Main Process** | Electron main, window management, IPC handlers |
-| **BrowserView** | Chromium-based web content rendering |
+| **Main Process** | Electron main, window management, IPC handlers, Codex spawning with `-c` flags |
+| **BrowserView** | Chromium-based web content rendering with CDP endpoint |
 | **React UI** | Sidebar, address bar, settings overlay |
-| **Codex CLI** | OpenAI's CLI for AI-powered automation |
-| **MCP Server** | Model Context Protocol for browser control |
-| **Playwright MCP** | DOM interaction and page automation |
+| **Codex CLI** | OpenAI's CLI for AI-powered automation (configured at runtime) |
+| **Playwright MCP** | DOM interaction via Chrome DevTools Protocol (CDP) |
 
 ## Features
 
@@ -231,9 +230,8 @@ If you have custom settings in `~/.codex/config.toml`, GnuNae will override them
 ```
 src/
 ├── electron/              # Main process
-│   ├── main.ts           # App entry, window management, IPC handlers
-│   ├── preload.ts        # Context bridge for renderer
-│   └── mcp-server.ts     # MCP server for browser control
+│   ├── main.ts           # App entry, window management, IPC handlers, Codex spawning
+│   └── preload.ts        # Context bridge for renderer
 ├── ui/                   # Renderer process (React)
 │   ├── index.tsx         # React entry point
 │   ├── App.tsx           # Main UI layout
@@ -250,6 +248,7 @@ src/
 │       └── About.tsx           # About dialog
 └── core/                   # Shared utilities
     ├── auth.ts             # OpenAI authentication
+    ├── browser-detector.ts # External browser detection (Chrome, Edge, etc.)
     ├── datastore.ts        # Personal Data Store service
     ├── tasks.ts            # Task service and scheduler
     ├── settings.ts         # App settings & pre-prompt
