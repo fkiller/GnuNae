@@ -219,16 +219,12 @@ npm run pack:linux
 
 ## Configuration
 
-Codex settings are stored in `~/.codex/config.toml`:
+GnuNae configures Codex CLI automatically at runtime via `-c` flags. **No manual configuration needed** - GnuNae works out of the box without modifying `~/.codex/config.toml`.
 
-```toml
-model = "gpt-5.1-codex-max"
-model_reasoning_effort = "xhigh"
-
-[mcp_servers.browser]
-command = "node"
-args = ["/path/to/scripts/mcp-server.cjs"]
-```
+If you have custom settings in `~/.codex/config.toml`, GnuNae will override them with:
+- Model: `gpt-5.1-codex-max`
+- Reasoning: `xhigh`
+- Playwright MCP with dynamic CDP endpoint
 
 ## Project Structure
 
@@ -302,6 +298,18 @@ docs/                     # GitHub Pages (gnunae.com)
 | 🔜 Planned | More LLM options including local LLM support |
 
 ## Version History
+
+### v0.6.2 (2026-01-07)
+- **Self-Contained Configuration**
+  - GnuNae now configures Codex CLI entirely via `-c` flags at runtime
+  - No longer depends on `~/.codex/config.toml` - works with empty config
+  - Only uses Playwright MCP (removed unused `browser` MCP reference)
+- **UI Improvements**
+  - MCP initialization status: Shows clear messages like "⏳ Starting playwright...", "✓ playwright ready"
+  - Input placeholder changes during initialization: "Initializing MCP servers..."
+  - External browser shortcuts now show browser-specific icons
+  - Shortcut labels display as "GnuNae + Chrome", "GnuNae + Edge"
+- **Browser Naming**: Shortened from "Google Chrome"/"Microsoft Edge" to "Chrome"/"Edge"
 
 ### v0.6.1 (2026-01-05)
 - **Chat Mode & External Browsers**
