@@ -4,6 +4,7 @@ import RightPanel from './components/RightPanel';
 import Settings from './components/Settings';
 import About from './components/About';
 import TabBar from './components/TabBar';
+import BottomPanel from './components/BottomPanel';
 
 // Tab info type
 interface TabInfo {
@@ -63,6 +64,8 @@ const App: React.FC = () => {
     const [showAbout, setShowAbout] = useState(false);
     const [tabs, setTabs] = useState<TabInfo[]>([]);
     const [activePanel, setActivePanel] = useState<'chat' | 'tasks' | null>('chat');
+    const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
+    const [bottomPanelTab, setBottomPanelTab] = useState<'console' | 'terminal'>('console');
 
     const checkAuthStatus = useCallback(async () => {
         console.log('[App] Checking auth status...');
@@ -190,6 +193,18 @@ const App: React.FC = () => {
             window.electronAPI?.startCodexLogin?.();
         });
 
+        // Menu event: show console (⌘3)
+        const unsubMenuShowConsole = (window as any).electronAPI?.onMenuShowConsole?.(() => {
+            setBottomPanelOpen(true);
+            setBottomPanelTab('console');
+        });
+
+        // Menu event: show terminal (⌘4)
+        const unsubMenuShowTerminal = (window as any).electronAPI?.onMenuShowTerminal?.(() => {
+            setBottomPanelOpen(true);
+            setBottomPanelTab('terminal');
+        });
+
         return () => {
             unsubTabs?.();
             unsubAuth?.();
@@ -201,6 +216,8 @@ const App: React.FC = () => {
             unsubMenuShowAbout?.();
             unsubMenuPanel?.();
             unsubTriggerLogin?.();
+            unsubMenuShowConsole?.();
+            unsubMenuShowTerminal?.();
         };
     }, [checkAuthStatus]);
 
@@ -295,6 +312,12 @@ const App: React.FC = () => {
                 <Settings isOpen={showSettings} onClose={() => setShowSettings(false)} />
                 <About isOpen={showAbout} onClose={() => setShowAbout(false)} />
             </div>
+            <BottomPanel
+                isOpen={bottomPanelOpen}
+                activeTab={bottomPanelTab}
+                onClose={() => setBottomPanelOpen(false)}
+                onTabChange={setBottomPanelTab}
+            />
         </div>
     );
 };

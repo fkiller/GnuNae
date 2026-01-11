@@ -398,6 +398,41 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Settings window
     openSettingsWindow: () => ipcRenderer.invoke('settings:open-standalone'),
 
+    // Console APIs (bottom panel)
+    getConsoleLogs: () => ipcRenderer.invoke('console:get-logs'),
+    onConsoleLog: (callback: (entry: { timestamp: Date; level: string; message: string; source: string }) => void) => {
+        const handler = (_: IpcRendererEvent, entry: { timestamp: Date; level: string; message: string; source: string }) => callback(entry);
+        ipcRenderer.on('console:log', handler);
+        return () => ipcRenderer.removeListener('console:log', handler);
+    },
+
+    // Terminal APIs (bottom panel)
+    spawnTerminal: () => ipcRenderer.invoke('terminal:spawn'),
+    sendTerminalInput: (input: string) => ipcRenderer.invoke('terminal:input', input),
+    resizeTerminal: (cols: number, rows: number) => ipcRenderer.invoke('terminal:resize', cols, rows),
+    onTerminalOutput: (callback: (data: string) => void) => {
+        const handler = (_: IpcRendererEvent, data: string) => callback(data);
+        ipcRenderer.on('terminal:output', handler);
+        return () => ipcRenderer.removeListener('terminal:output', handler);
+    },
+    onTerminalReady: (callback: () => void) => {
+        const handler = () => callback();
+        ipcRenderer.on('terminal:ready', handler);
+        return () => ipcRenderer.removeListener('terminal:ready', handler);
+    },
+
+    // Menu events for bottom panel
+    onMenuShowConsole: (callback: () => void) => {
+        const handler = () => callback();
+        ipcRenderer.on('menu:show-console', handler);
+        return () => ipcRenderer.removeListener('menu:show-console', handler);
+    },
+    onMenuShowTerminal: (callback: () => void) => {
+        const handler = () => callback();
+        ipcRenderer.on('menu:show-terminal', handler);
+        return () => ipcRenderer.removeListener('menu:show-terminal', handler);
+    },
+
     // Platform info
     platform: process.platform as 'darwin' | 'win32' | 'linux',
 } as ElectronAPI);

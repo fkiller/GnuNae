@@ -599,6 +599,21 @@ function createMenu(): void {
                     }
                 },
                 { type: 'separator' as const },
+                {
+                    label: 'Show Console',
+                    accelerator: 'Cmd+3',
+                    click: () => {
+                        mainWindow?.webContents.send('menu:show-console');
+                    }
+                },
+                {
+                    label: 'Show Terminal',
+                    accelerator: 'Cmd+4',
+                    click: () => {
+                        mainWindow?.webContents.send('menu:show-terminal');
+                    }
+                },
+                { type: 'separator' as const },
                 { role: 'reload' as const },
                 { role: 'forceReload' as const },
                 { role: 'toggleDevTools' as const },
@@ -1162,6 +1177,123 @@ function setupIpcHandlers(): void {
     ipcMain.handle('runtime:status', () => {
         const runtimeManager = getRuntimeManager();
         return runtimeManager.getStatus();
+    });
+
+    // ============================================
+    // Console Log Buffer (for bottom panel)
+    // ============================================
+    const consoleLogs: Array<{ timestamp: Date; level: string; message: string; source: string }> = [];
+    const MAX_CONSOLE_LOGS = 500;
+    let terminalProcess: any = null;
+
+    // Override console methods to capture logs
+    const originalConsoleLog = console.log;
+    const originalConsoleWarn = console.warn;
+    const originalConsoleError = console.error;
+    const originalConsoleInfo = console.info;
+
+    const addLog = (level: string, args: any[]) => {
+        const entry = {
+            timestamp: new Date(),
+            level,
+            message: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '),
+            source: 'main'
+        };
+        consoleLogs.push(entry);
+        if (consoleLogs.length > MAX_CONSOLE_LOGS) {
+            consoleLogs.shift();
+        }
+        // Send to renderer if main window exists
+        mainWindow?.webContents.send('console:log', entry);
+    };
+
+    console.log = (...args: any[]) => {
+        originalConsoleLog.apply(console, args);
+        addLog('log', args);
+    };
+    console.warn = (...args: any[]) => {
+        originalConsoleWarn.apply(console, args);
+        addLog('warn', args);
+    };
+    console.error = (...args: any[]) => {
+        originalConsoleError.apply(console, args);
+        addLog('error', args);
+    };
+    console.info = (...args: any[]) => {
+        originalConsoleInfo.apply(console, args);
+        addLog('info', args);
+    };
+
+    // Get buffered console logs
+    ipcMain.handle('console:get-logs', () => {
+        return consoleLogs;
+    });
+
+    // ============================================
+    // Terminal (for bottom panel)
+    // ============================================
+
+    // Spawn terminal with embedded Node.js/npm/codex in PATH
+    ipcMain.handle('terminal:spawn', async () => {
+        if (terminalProcess) {
+            return { success: true, message: 'Terminal already running' };
+        }
+
+        const runtimeManager = getRuntimeManager();
+        const env = runtimeManager.getEnv();
+        const shell = process.platform === 'win32'
+            ? process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe'
+            : process.env.SHELL || '/bin/bash';
+
+        try {
+            terminalProcess = spawn(shell, [], {
+                env,
+                cwd: app.getPath('home'),
+                shell: false,
+                windowsHide: true
+            });
+
+            terminalProcess.stdout?.on('data', (data: Buffer) => {
+                mainWindow?.webContents.send('terminal:output', data.toString());
+            });
+
+            terminalProcess.stderr?.on('data', (data: Buffer) => {
+                mainWindow?.webContents.send('terminal:output', data.toString());
+            });
+
+            terminalProcess.on('close', () => {
+                terminalProcess = null;
+                mainWindow?.webContents.send('terminal:output', '\n[Terminal closed]\n');
+            });
+
+            terminalProcess.on('error', (err: Error) => {
+                mainWindow?.webContents.send('terminal:output', `\nError: ${err.message}\n`);
+            });
+
+            // Signal ready after a short delay
+            setTimeout(() => {
+                mainWindow?.webContents.send('terminal:ready');
+            }, 100);
+
+            return { success: true };
+        } catch (err: any) {
+            return { success: false, error: err.message };
+        }
+    });
+
+    // Send input to terminal
+    ipcMain.handle('terminal:input', (_event, input: string) => {
+        if (terminalProcess?.stdin) {
+            terminalProcess.stdin.write(input);
+            return { success: true };
+        }
+        return { success: false, error: 'Terminal not running' };
+    });
+
+    // Resize terminal (no-op for simple shell, needed for PTY)
+    ipcMain.handle('terminal:resize', (_event, _cols: number, _rows: number) => {
+        // PTY resize would go here if using node-pty
+        return { success: true };
     });
 
     // Attach files for Codex prompt - copies to working directory
@@ -1831,15 +1963,11 @@ function setupIpcHandlers(): void {
 
         console.log('[Main] Starting Codex CLI login...');
 
-        // Determine Codex CLI path
-        const isWindows = process.platform === 'win32';
-        const codexBinName = isWindows ? 'codex.cmd' : 'codex';
-
-        let codexBin: string;
-        if (app.isPackaged) {
-            codexBin = path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.bin', codexBinName);
-        } else {
-            codexBin = path.join(__dirname, '../../node_modules/.bin', codexBinName);
+        // Determine Codex CLI path using RuntimeManager
+        const codexBin = getRuntimeManager().getCodexPath();
+        if (!codexBin) {
+            console.error('[Main] Codex CLI not found');
+            return { success: false, error: 'Codex CLI not found. Please ensure runtime is installed.' };
         }
 
         console.log('[Main] Using Codex from:', codexBin);
@@ -2301,17 +2429,16 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
             // Combine: tabSelectionContext + modeInstructions + prePrompt + userDataContext + pageContext + user prompt
             const fullPrompt = tabSelectionContext + modeInstructions + (prePrompt ? prePrompt + userDataContext + '\n\n---\n\n' : '') + pageContext + prompt;
 
-            // Determine Codex CLI path - different for packaged vs development
+            // Determine Codex CLI path using RuntimeManager
             const isWindows = process.platform === 'win32';
-            const codexBinName = isWindows ? 'codex.cmd' : 'codex';
-
-            let codexBin: string;
-            if (app.isPackaged) {
-                // Packaged app - use unpacked node_modules
-                codexBin = path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.bin', codexBinName);
-            } else {
-                // Development - use local node_modules
-                codexBin = path.join(__dirname, '../../node_modules/.bin', codexBinName);
+            const codexBin = getRuntimeManager().getCodexPath();
+            if (!codexBin) {
+                console.error('[Main] Codex CLI not found');
+                senderWindow?.webContents.send('codex:output', {
+                    type: 'error',
+                    data: 'Codex CLI not found. Please ensure runtime is installed.'
+                });
+                return;
             }
 
             console.log('[Main] Using Codex from:', codexBin);
