@@ -50,23 +50,23 @@ class RuntimeManager {
 
     /**
      * Get the base directory for runtime files
-     * Windows: resources/node (embedded in app)
+     * Windows: resources/runtime (embedded in app)
      * macOS/Linux: ~/Library/Application Support/GnuNae or ~/.config/GnuNae
      */
     getRuntimeBaseDir(): string {
         if (process.platform === 'win32') {
             // Windows: embedded in app resources
             if (app.isPackaged) {
-                return path.join(process.resourcesPath, 'node');
+                return path.join(process.resourcesPath, 'runtime');
             } else {
-                return path.join(__dirname, '../../resources/node');
+                return path.join(__dirname, '../../resources/runtime');
             }
         } else if (process.platform === 'darwin') {
-            // macOS: ~/Library/Application Support/GnuNae
-            return path.join(app.getPath('userData'), 'node');
+            // macOS: ~/Library/Application Support/GnuNae/runtime
+            return path.join(app.getPath('userData'), 'runtime');
         } else {
-            // Linux: ~/.config/GnuNae
-            return path.join(app.getPath('userData'), 'node');
+            // Linux: ~/.config/GnuNae/runtime
+            return path.join(app.getPath('userData'), 'runtime');
         }
     }
 
@@ -107,11 +107,11 @@ class RuntimeManager {
         let codexDir: string;
 
         if (process.platform === 'win32') {
-            // Windows: check resources/node_modules first, then resources
+            // Windows: check resources/codex first
             if (app.isPackaged) {
-                codexDir = path.join(process.resourcesPath, 'node_modules', '.bin');
+                codexDir = path.join(process.resourcesPath, 'codex', 'node_modules', '.bin');
             } else {
-                codexDir = path.join(__dirname, '../../resources/node_modules/.bin');
+                codexDir = path.join(__dirname, '../../resources/codex/node_modules/.bin');
             }
             const codexPath = path.join(codexDir, 'codex.cmd');
             if (fs.existsSync(codexPath)) return codexPath;
@@ -122,8 +122,8 @@ class RuntimeManager {
                 : path.join(__dirname, '../../node_modules/.bin/codex.cmd');
             return fs.existsSync(fallbackPath) ? fallbackPath : null;
         } else {
-            // macOS/Linux: check userData node_modules
-            codexDir = path.join(app.getPath('userData'), 'node_modules', '.bin');
+            // macOS/Linux: check userData codex
+            codexDir = path.join(app.getPath('userData'), 'codex', 'node_modules', '.bin');
             const codexPath = path.join(codexDir, 'codex');
             if (fs.existsSync(codexPath)) return codexPath;
 

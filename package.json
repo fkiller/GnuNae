@@ -39,15 +39,6 @@
       "dist/**/*",
       "scripts/**/*"
     ],
-    "extraResources": [
-      {
-        "from": "resources/node",
-        "to": "node",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "assets/gnunae.png",
@@ -77,15 +68,15 @@
       "signAndEditExecutable": false,
       "extraResources": [
         {
-          "from": "resources/node",
-          "to": "node",
+          "from": "resources/runtime",
+          "to": "runtime",
           "filter": [
             "**/*"
           ]
         },
         {
-          "from": "resources/node_modules",
-          "to": "node_modules",
+          "from": "resources/codex",
+          "to": "codex",
           "filter": [
             "**/*"
           ]
@@ -113,7 +104,7 @@
     "@vitejs/plugin-react": "^5.1.2",
     "concurrently": "^9.0.0",
     "electron": "^39.2.7",
-    "electron-builder": "^24.13.3",
+    "electron-builder": "^25.1.8",
     "typescript": "^5.9.3",
     "vite": "^7.3.0",
     "wait-on": "^9.0.3"

@@ -6,8 +6,8 @@
  *   node scripts/install-codex.js [--target <dir>] [--node-path <dir>]
  * 
  * Options:
- *   --target     Target directory for node_modules (default: resources)
- *   --node-path  Path to Node.js installation (default: resources/node)
+ *   --target     Target directory for codex module (default: resources/codex)
+ *   --node-path  Path to Node.js installation (default: resources/runtime)
  */
 
 const fs = require('fs');
@@ -37,8 +37,8 @@ function parseArgs() {
 const config = parseArgs();
 const PLATFORM = os.platform();
 const PROJECT_ROOT = path.join(__dirname, '..');
-const DEFAULT_NODE_PATH = path.join(PROJECT_ROOT, 'resources', 'node');
-const DEFAULT_TARGET = path.join(PROJECT_ROOT, 'resources');
+const DEFAULT_NODE_PATH = path.join(PROJECT_ROOT, 'resources', 'runtime');
+const DEFAULT_TARGET = path.join(PROJECT_ROOT, 'resources', 'codex');
 
 const NODE_PATH = config.nodePath ? path.resolve(config.nodePath) : DEFAULT_NODE_PATH;
 const TARGET_DIR = config.target ? path.resolve(config.target) : DEFAULT_TARGET;

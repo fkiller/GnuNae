@@ -7,7 +7,7 @@
  *   node scripts/download-node.js [--target <dir>] [--version <ver>]
  * 
  * Options:
- *   --target   Target directory (default: resources/node)
+ *   --target   Target directory (default: resources/runtime)
  *   --version  Node.js version (default: 22.21.1)
  */
 
@@ -73,7 +73,7 @@ if (!platformConfig) {
 }
 
 const PROJECT_ROOT = path.join(__dirname, '..');
-const DEFAULT_TARGET = path.join(PROJECT_ROOT, 'resources', 'node');
+const DEFAULT_TARGET = path.join(PROJECT_ROOT, 'resources', 'runtime');
 const TARGET_DIR = config.target ? path.resolve(config.target) : DEFAULT_TARGET;
 const RESOURCES_DIR = path.dirname(TARGET_DIR);
 const TEMP_FILE = path.join(RESOURCES_DIR, `node-v${NODE_VERSION}.${platformConfig.ext}`);

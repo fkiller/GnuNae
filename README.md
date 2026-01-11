@@ -298,19 +298,21 @@ docs/                     # GitHub Pages (gnunae.com)
 
 ## Version History
 
-### v0.6.2 (2026-01-07)
-- **Self-Contained Configuration**
-  - GnuNae now configures Codex CLI entirely via `-c` flags at runtime
-  - No longer depends on `~/.codex/config.toml` - works with empty config
-  - Only uses Playwright MCP (removed unused `browser` MCP reference)
-- **UI Improvements**
-  - MCP initialization status: Shows clear messages like "⏳ Starting playwright...", "✓ playwright ready"
-  - Input placeholder changes during initialization: "Initializing MCP servers..."
-  - External browser shortcuts now show browser-specific icons
-  - Shortcut labels display as "GnuNae + Chrome", "GnuNae + Edge"
-- **Browser Naming**: Shortened from "Google Chrome"/"Microsoft Edge" to "Chrome"/"Edge"
+### v0.7.1 (2026-01-11)
+- **Embedded Node.js & Codex CLI**
+  - Windows: Node.js 22 LTS and Codex CLI bundled in package
+  - macOS: Downloads Node.js and Codex to ~/Library/Application Support/GnuNae on first run
+  - Settings UI shows runtime status (Node.js, npm, Codex CLI versions) under Native Mode
+- **Downgraded electron-builder** to 24.13.3 for compatibility
 
-### v0.6.1 (2026-01-05)
+### v0.7.0 (2026-01-10)
+- **Cross-Platform Runtime Scripts**
+  - Added `scripts/download-node.js` for portable Node.js download
+  - Added `scripts/install-codex.js` for local Codex CLI installation
+  - RuntimeManager service for validation and path resolution
+- **GitHub Actions** updated for Windows builds with embedded runtime
+
+### v0.6.1 (2026-01-06)
 - **Chat Mode & External Browsers**
   - **Support for External Browsers**: Use Chrome, Edge, Brave, or Opera with GnuNae.
   - **Chat Mode Window**: Minimized sidebar-only interface when using external browsers.
@@ -319,7 +321,7 @@ docs/                     # GitHub Pages (gnunae.com)
   - **Standalone Settings**: Settings now open in a dedicated window in Chat Mode.
   - **Shortcuts**: Auto-generate shortcuts for your installed browsers with GnuNae integration.
 
-### v0.6.0 (2025-01-04)
+### v0.6.0 (2026-01-04)
 - **Virtual Mode (Docker Sandbox)**
   - Enables isolated execution of Codex CLI and Playwright MCP in a Docker container
   - Requires Docker Desktop installed on your machine
@@ -327,6 +329,9 @@ docs/                     # GitHub Pages (gnunae.com)
   - Mounts working directory so attached files are accessible
   - Foundation for future remote backend support (home server, cloud)
   - Toggle via Settings panel when Docker is detected
+
+### v0.5.3 - v0.5.1 (2025-12-28 - 2025-12-27)
+- Bug fixes and stability improvements for multi-window support
 
 ### v0.5.0 (2025-12-27)
 - **Multi-Window Support**
@@ -338,6 +343,9 @@ docs/                     # GitHub Pages (gnunae.com)
   - Fixed iframe navigation polluting address bar URL
   - Protected application UI from accidental Playwright navigation
   - Improved tab selection guidance in pre-prompt
+
+### v0.4.4 - v0.4.1 (2025-12-24 - 2025-12-21)
+- Bug fixes for task execution and UI improvements
 
 ### v0.4.0 (2025-12-21)
 - **Task Execution System**
