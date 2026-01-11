@@ -76,6 +76,18 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
     const [isCreatingSandbox, setIsCreatingSandbox] = useState(false);
     const [dockerError, setDockerError] = useState<string | null>(null);
 
+    // Native Mode / Runtime status state
+    interface RuntimeStatus {
+        node: { installed: boolean; version?: string; path?: string };
+        npm: { installed: boolean; version?: string };
+        codex: { installed: boolean; version?: string; path?: string };
+        ready: boolean;
+        error?: string;
+        platform: 'win32' | 'darwin' | 'linux';
+    }
+    const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
+    const [isInstallingRuntime, setIsInstallingRuntime] = useState(false);
+
     // External Browser state
     const [detectedBrowsers, setDetectedBrowsers] = useState<DetectedBrowser[]>([]);
     const [createdShortcuts, setCreatedShortcuts] = useState<any[]>([]);
@@ -114,6 +126,11 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
             });
             (window as any).electronAPI?.getSandboxStatus?.().then((status: any) => {
                 setSandboxStatus(status);
+            });
+
+            // Load Native Mode / Runtime status (Node.js, npm, Codex CLI)
+            (window as any).electronAPI?.getRuntimeStatus?.().then((status: RuntimeStatus) => {
+                setRuntimeStatus(status);
             });
 
             // Load External Browsers
@@ -297,25 +314,79 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                                 </button>
                             </div>
 
-                            {/* Docker Status */}
-                            <div className="docker-status">
-                                <div className="status-row">
-                                    <span className="status-label">Docker:</span>
-                                    <span className={`status-value ${dockerAvailable ? 'available' : 'unavailable'}`}>
-                                        {dockerAvailable === null ? 'Checking...' :
-                                            dockerAvailable ? `✓ ${dockerRuntimeInfo?.type || 'Available'} ${dockerRuntimeInfo?.version || ''}` :
-                                                '✗ Not available'}
-                                    </span>
+                            {/* Native Mode Status - Node.js, npm, Codex CLI */}
+                            {!sandboxStatus?.active && (
+                                <div className="docker-status" style={{ marginTop: '12px' }}>
+                                    <div className="status-row">
+                                        <span className="status-label">Node.js:</span>
+                                        <span className={`status-value ${runtimeStatus?.node?.installed ? 'available' : 'unavailable'}`}>
+                                            {runtimeStatus === null ? 'Checking...' :
+                                                runtimeStatus.node.installed ? `✓ ${runtimeStatus.node.version}` :
+                                                    '✗ Not installed'}
+                                        </span>
+                                    </div>
+                                    <div className="status-row">
+                                        <span className="status-label">npm:</span>
+                                        <span className={`status-value ${runtimeStatus?.npm?.installed ? 'available' : 'unavailable'}`}>
+                                            {runtimeStatus === null ? 'Checking...' :
+                                                runtimeStatus.npm.installed ? `✓ ${runtimeStatus.npm.version}` :
+                                                    '✗ Not installed'}
+                                        </span>
+                                    </div>
+                                    <div className="status-row">
+                                        <span className="status-label">Codex CLI:</span>
+                                        <span className={`status-value ${runtimeStatus?.codex?.installed ? 'available' : 'unavailable'}`}>
+                                            {runtimeStatus === null ? 'Checking...' :
+                                                runtimeStatus.codex.installed ? `✓ ${runtimeStatus.codex.version || 'Available'}` :
+                                                    '✗ Not installed'}
+                                        </span>
+                                    </div>
+                                    {/* Install/Repair button for macOS when runtime is incomplete */}
+                                    {runtimeStatus && !runtimeStatus.ready && runtimeStatus.platform !== 'win32' && (
+                                        <button
+                                            className="shortcut-btn create"
+                                            style={{ marginTop: '8px' }}
+                                            disabled={isInstallingRuntime}
+                                            onClick={async () => {
+                                                setIsInstallingRuntime(true);
+                                                try {
+                                                    const result = await (window as any).electronAPI?.ensureRuntime?.();
+                                                    setRuntimeStatus(result);
+                                                } finally {
+                                                    setIsInstallingRuntime(false);
+                                                }
+                                            }}
+                                        >
+                                            {isInstallingRuntime ? 'Installing...' : '⬇️ Install Runtime'}
+                                        </button>
+                                    )}
+                                    {runtimeStatus?.error && (
+                                        <div className="docker-error" style={{ marginTop: '8px' }}>
+                                            ⚠️ {runtimeStatus.error}
+                                        </div>
+                                    )}
                                 </div>
-                                {sandboxStatus?.active && (
+                            )}
+
+                            {/* Virtual Mode Status - Docker */}
+                            {sandboxStatus?.active && (
+                                <div className="docker-status" style={{ marginTop: '12px' }}>
+                                    <div className="status-row">
+                                        <span className="status-label">Docker:</span>
+                                        <span className={`status-value ${dockerAvailable ? 'available' : 'unavailable'}`}>
+                                            {dockerAvailable === null ? 'Checking...' :
+                                                dockerAvailable ? `✓ ${dockerRuntimeInfo?.type || 'Available'} ${dockerRuntimeInfo?.version || ''}` :
+                                                    '✗ Not available'}
+                                        </span>
+                                    </div>
                                     <div className="status-row">
                                         <span className="status-label">Container:</span>
                                         <span className="status-value available">
                                             ✓ Running (Port {sandboxStatus?.sandbox?.apiPort})
                                         </span>
                                     </div>
-                                )}
-                            </div>
+                                </div>
+                            )}
 
                             {dockerError && (
                                 <div className="docker-error">

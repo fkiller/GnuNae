@@ -39,6 +39,15 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Windows-specific: Download portable Node.js and install Codex CLI
+      - name: Download Node.js Portable (Windows)
+        if: matrix.platform == 'win'
+        run: node scripts/download-node.js
+
+      - name: Install Codex CLI (Windows)
+        if: matrix.platform == 'win'
+        run: node scripts/install-codex.js
+
       - name: Package (macOS)
         if: matrix.platform == 'mac'
         run: npx electron-builder --mac --publish never

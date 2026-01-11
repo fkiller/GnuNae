@@ -11,12 +11,23 @@ import { getExternalBrowserManager } from '../core/external-browser-manager';
 import { browserDetector } from '../core/browser-detector';
 import { shortcutManager, ShortcutLocation } from '../core/shortcut-manager';
 import { settingsService } from '../core/settings';
+import { getRuntimeManager } from '../core/runtime-manager';
 
 // Enable Chrome DevTools Protocol for Playwright MCP integration
 // Bound to all interfaces to allow Docker container access via host.docker.internal
 // Security: Only listens on local network, not exposed to internet
 app.commandLine.appendSwitch('remote-debugging-port', '9222');
 app.commandLine.appendSwitch('remote-debugging-address', '0.0.0.0');
+
+/**
+ * Get environment variables configured to use embedded portable Node.js.
+ * Delegates to RuntimeManager for consistent path handling.
+ * @returns Environment object with PATH pointing to embedded Node.js
+ */
+function getEmbeddedNodeEnv(): NodeJS.ProcessEnv {
+    return getRuntimeManager().getEmbeddedNodeEnv();
+}
+
 
 /**
  * Ensure Playwright MCP is configured in the global Codex config.
@@ -1131,6 +1142,28 @@ function setupIpcHandlers(): void {
         return result.filePaths[0];
     });
 
+    // ==========================================
+    // Runtime Manager IPC Handlers
+    // ==========================================
+
+    // Get runtime status (Node.js, npm, Codex CLI)
+    ipcMain.handle('runtime:get-status', async () => {
+        const runtimeManager = getRuntimeManager();
+        return runtimeManager.validateRuntime();
+    });
+
+    // Ensure runtime is installed (for macOS: triggers download/install)
+    ipcMain.handle('runtime:ensure', async () => {
+        const runtimeManager = getRuntimeManager();
+        return runtimeManager.ensureRuntime();
+    });
+
+    // Quick check without re-validation
+    ipcMain.handle('runtime:status', () => {
+        const runtimeManager = getRuntimeManager();
+        return runtimeManager.getStatus();
+    });
+
     // Attach files for Codex prompt - copies to working directory
     ipcMain.handle('files:attach', async (event) => {
         const senderWindow = BrowserWindow.fromWebContents(event.sender);
@@ -1821,7 +1854,7 @@ function setupIpcHandlers(): void {
                 shell: false,
                 windowsHide: true,
                 env: {
-                    ...process.env,
+                    ...getEmbeddedNodeEnv(),
                     PYTHONIOENCODING: 'utf-8',
                     PYTHONUTF8: '1',
                     LANG: 'en_US.UTF-8',
@@ -2327,7 +2360,7 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
                 // Enable windowsHide to prevent console window popup on Windows
                 windowsHide: true,
                 env: {
-                    ...process.env,
+                    ...getEmbeddedNodeEnv(),
                     // GnuNae window identification for future MCP target isolation
                     GNUNAE_WINDOW_ID: String(windowId),
                     GNUNAE_SESSION_ID: activeSession?.sessionId || '',

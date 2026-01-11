@@ -20,8 +20,10 @@
     "dev:electron": "npm run build:electron && electron .",
     "dev": "concurrently \"npm run dev:ui\" \"wait-on http://localhost:5173 && npm run dev:electron\"",
     "start": "electron .",
+    "download-node": "node scripts/download-node.js",
+    "install-codex": "node scripts/install-codex.js",
     "pack:mac": "npm run build && electron-builder --mac",
-    "pack:win": "npm run build && electron-builder --win",
+    "pack:win": "npm run download-node && npm run install-codex && ping 127.0.0.1 -n 4 > nul && npm run build && electron-builder --win",
     "pack:linux": "npm run build && electron-builder --linux",
     "pack:all": "npm run build && electron-builder --mac --win --linux",
     "postversion": "git push && git push --tags"
@@ -36,6 +38,15 @@
     "files": [
       "dist/**/*",
       "scripts/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/node",
+        "to": "node",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity",
@@ -62,6 +73,23 @@
       "target": [
         "nsis",
         "portable"
+      ],
+      "signAndEditExecutable": false,
+      "extraResources": [
+        {
+          "from": "resources/node",
+          "to": "node",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "resources/node_modules",
+          "to": "node_modules",
+          "filter": [
+            "**/*"
+          ]
+        }
       ]
     },
     "linux": {
@@ -85,7 +113,7 @@
     "@vitejs/plugin-react": "^5.1.2",
     "concurrently": "^9.0.0",
     "electron": "^39.2.7",
-    "electron-builder": "^26.0.12",
+    "electron-builder": "^24.13.3",
     "typescript": "^5.9.3",
     "vite": "^7.3.0",
     "wait-on": "^9.0.3"

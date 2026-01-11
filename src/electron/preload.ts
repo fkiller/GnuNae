@@ -325,7 +325,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return () => ipcRenderer.removeListener('docker:status-changed', handler);
     },
 
-    // Event listeners with cleanup
+    // Runtime Manager APIs (Node.js, npm, Codex CLI status)
+    getRuntimeStatus: () => ipcRenderer.invoke('runtime:get-status'),
+    ensureRuntime: () => ipcRenderer.invoke('runtime:ensure'),
+    getQuickRuntimeStatus: () => ipcRenderer.invoke('runtime:status'),
+
     onUrlUpdate: (callback: (url: string) => void) => {
         const handler = (_: IpcRendererEvent, url: string) => callback(url);
         ipcRenderer.on('browser:url-updated', handler);
