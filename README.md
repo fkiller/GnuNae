@@ -88,6 +88,10 @@ graph TB
 
 [![GnuNae Use Case 3](https://img.youtube.com/vi/cvK_fsA4cpk/maxresdefault.jpg)](https://youtu.be/cvK_fsA4cpk)
 
+### Use Case 4: External Browser Support (v0.7.0)
+
+[![New in GnuNae v0.7.0](https://img.youtube.com/vi/1Wq6yL3nQ_w/maxresdefault.jpg)](https://youtube.com/shorts/1Wq6yL3nQ_w)
+
 ## Installation
 
 ### Prerequisites
