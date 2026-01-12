@@ -219,7 +219,8 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
         setDockerError(null);
 
         try {
-            // Create sandbox with electron-cdp mode (connects to Electron's BrowserView)
+            // Create sandbox with electron-cdp mode (connects to Electron's BrowserView via CDP)
+            // Electron runs with --remote-debugging-port=9222
             const result = await (window as any).electronAPI?.createSandbox?.({
                 browserMode: 'electron-cdp',
                 externalCdpEndpoint: 'http://host.docker.internal:9222',
@@ -230,7 +231,8 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                 await (window as any).electronAPI?.setDockerMode?.(true);
                 // Save preference to settings
                 updateSetting('docker.useVirtualMode', true);
-                // Refresh status
+                // Wait a moment for container to be fully ready, then refresh status
+                await new Promise(resolve => setTimeout(resolve, 500));
                 const status = await (window as any).electronAPI?.getSandboxStatus?.();
                 setSandboxStatus(status);
             } else {

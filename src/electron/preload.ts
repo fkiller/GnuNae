@@ -164,6 +164,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     hideBrowser: () => ipcRenderer.invoke('ui:hide-browser'),
     showBrowser: () => ipcRenderer.invoke('ui:show-browser'),
     setSidebarVisible: (visible: boolean) => ipcRenderer.invoke('ui:set-sidebar-visible', visible),
+    setBottomPanelHeight: (height: number) => ipcRenderer.invoke('ui:set-bottom-panel-height', height),
 
     // Tabs
     createTab: (url?: string) => ipcRenderer.invoke('tab:create', url),
@@ -420,6 +421,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('terminal:ready', handler);
         return () => ipcRenderer.removeListener('terminal:ready', handler);
     },
+    onTerminalClosed: (callback: () => void) => {
+        const handler = () => callback();
+        ipcRenderer.on('terminal:closed', handler);
+        return () => ipcRenderer.removeListener('terminal:closed', handler);
+    },
 
     // Menu events for bottom panel
     onMenuShowConsole: (callback: () => void) => {
@@ -432,6 +438,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('menu:show-terminal', handler);
         return () => ipcRenderer.removeListener('menu:show-terminal', handler);
     },
+    onMenuCloseTerminal: (callback: () => void) => {
+        const handler = () => callback();
+        ipcRenderer.on('menu:close-terminal', handler);
+        return () => ipcRenderer.removeListener('menu:close-terminal', handler);
+    },
+    closeTerminal: () => ipcRenderer.invoke('terminal:close'),
 
     // Platform info
     platform: process.platform as 'darwin' | 'win32' | 'linux',

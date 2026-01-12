@@ -137,6 +137,7 @@ interface WindowSession {
     codexProcesses: Map<string, ChildProcess>;
     tabManager: TabManager | null;
     sidebarVisible: boolean;
+    bottomPanelHeight: number; // Height of bottom panel (0 if closed)
     // Docker sandbox support
     sandbox?: {
         instance: SandboxInstance;
@@ -465,11 +466,12 @@ class TabManager {
         // Get sidebar visibility for this window
         const windowSession = windowSessions.get(this.ownerWindow.id);
         const sidebarWidth = (windowSession?.sidebarVisible ?? true) ? SIDEBAR_WIDTH : 0;
+        const bottomPanelHeight = windowSession?.bottomPanelHeight ?? 0;
         tab.browserView.setBounds({
             x: 0,
             y: TOPBAR_HEIGHT + TAB_BAR_HEIGHT,
             width: contentBounds.width - sidebarWidth,
-            height: contentBounds.height - TOPBAR_HEIGHT - TAB_BAR_HEIGHT,
+            height: contentBounds.height - TOPBAR_HEIGHT - TAB_BAR_HEIGHT - bottomPanelHeight,
         });
     }
 
@@ -600,7 +602,7 @@ function createMenu(): void {
                 },
                 { type: 'separator' as const },
                 {
-                    label: 'Show Console',
+                    label: 'Show Output',
                     accelerator: 'Cmd+3',
                     click: () => {
                         mainWindow?.webContents.send('menu:show-console');
@@ -611,6 +613,13 @@ function createMenu(): void {
                     accelerator: 'Cmd+4',
                     click: () => {
                         mainWindow?.webContents.send('menu:show-terminal');
+                    }
+                },
+                {
+                    label: 'Close Terminal',
+                    accelerator: 'Cmd+Shift+4',
+                    click: () => {
+                        mainWindow?.webContents.send('menu:close-terminal');
                     }
                 },
                 { type: 'separator' as const },
@@ -705,6 +714,7 @@ function createWindow(): void {
         codexProcesses: new Map(),
         tabManager: windowTabManager,
         sidebarVisible: true,
+        bottomPanelHeight: 0,
         useDocker: false,  // Docker mode disabled by default, can be enabled per-window
     };
     windowSessions.set(windowId, session);
@@ -841,6 +851,7 @@ function createChatWindow(options: ChatWindowOptions): BrowserWindow {
         codexProcesses: new Map(),
         tabManager: null,  // No tabs in chat mode
         sidebarVisible: true,
+        bottomPanelHeight: 0,
         useDocker: false,
     };
     windowSessions.set(windowId, session);
@@ -1046,6 +1057,16 @@ function setupIpcHandlers(): void {
         return { success: true };
     });
 
+    // Set bottom panel height and update browser layout
+    ipcMain.handle('ui:set-bottom-panel-height', (event, height: number) => {
+        const session = getSessionFromEvent(event);
+        if (session) {
+            session.bottomPanelHeight = height;
+            session.tabManager?.updateLayout();
+        }
+        return { success: true };
+    });
+
     // Tab handlers
     ipcMain.handle('tab:create', (event, url?: string) => {
         const session = getSessionFromEvent(event);
@@ -1230,70 +1251,123 @@ function setupIpcHandlers(): void {
     });
 
     // ============================================
-    // Terminal (for bottom panel)
+    // Terminal (for bottom panel) - using node-pty for proper PTY support
     // ============================================
 
-    // Spawn terminal with embedded Node.js/npm/codex in PATH
-    ipcMain.handle('terminal:spawn', async () => {
-        if (terminalProcess) {
+    // Import node-pty dynamically (native module)
+    let ptyProcess: any = null;
+
+    // Spawn terminal with embedded Node.js/npm/codex in PATH (Native) or docker exec (Virtual)
+    ipcMain.handle('terminal:spawn', async (event) => {
+        if (ptyProcess) {
             return { success: true, message: 'Terminal already running' };
         }
 
-        const runtimeManager = getRuntimeManager();
-        const env = runtimeManager.getEnv();
-        const shell = process.platform === 'win32'
-            ? process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe'
-            : process.env.SHELL || '/bin/bash';
+        // Get the session from the event to check Docker mode
+        const session = getSessionFromEvent(event);
+        const isDockerMode = session?.useDocker && session?.sandbox?.instance;
 
         try {
-            terminalProcess = spawn(shell, [], {
-                env,
-                cwd: app.getPath('home'),
-                shell: false,
-                windowsHide: true
+            // Dynamically require node-pty (native module)
+            const pty = require('node-pty');
+
+            if (isDockerMode) {
+                // Virtual Mode: Spawn docker exec to connect to container
+                // Use containerName (e.g., 'gnunae-window-1') not id ('sandbox-1')
+                const containerName = session.sandbox!.instance.containerName;
+                console.log('[Terminal] Spawning Docker exec for container:', containerName);
+
+                // On Windows, use cmd.exe to run docker exec (winpty can't spawn docker directly)
+                const isWindows = process.platform === 'win32';
+                if (isWindows) {
+                    const cmd = process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
+                    ptyProcess = pty.spawn(cmd, ['/c', 'docker', 'exec', '-it', containerName, '/bin/bash'], {
+                        name: 'xterm-256color',
+                        cols: 80,
+                        rows: 24,
+                        cwd: app.getPath('home'),
+                        useConpty: false
+                    });
+                } else {
+                    ptyProcess = pty.spawn('docker', ['exec', '-it', containerName, '/bin/bash'], {
+                        name: 'xterm-256color',
+                        cols: 80,
+                        rows: 24,
+                        cwd: app.getPath('home'),
+                        useConpty: false
+                    });
+                }
+            } else {
+                // Native Mode: Spawn local shell with embedded Node.js in PATH
+                const runtimeManager = getRuntimeManager();
+                const env = runtimeManager.getEmbeddedNodeEnv();
+                const isWindows = process.platform === 'win32';
+                const shell = isWindows
+                    ? process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe'
+                    : process.env.SHELL || '/bin/bash';
+
+                ptyProcess = pty.spawn(shell, [], {
+                    name: 'xterm-256color',
+                    cols: 80,
+                    rows: 24,
+                    cwd: app.getPath('home'),
+                    env: env as { [key: string]: string },
+                    useConpty: false
+                });
+            }
+
+            ptyProcess.onData((data: string) => {
+                mainWindow?.webContents.send('terminal:output', data);
             });
 
-            terminalProcess.stdout?.on('data', (data: Buffer) => {
-                mainWindow?.webContents.send('terminal:output', data.toString());
+            ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
+                console.log('[Terminal] PTY exited with code:', exitCode);
+                ptyProcess = null;
+                mainWindow?.webContents.send('terminal:closed');
             });
 
-            terminalProcess.stderr?.on('data', (data: Buffer) => {
-                mainWindow?.webContents.send('terminal:output', data.toString());
-            });
+            // Signal ready immediately since PTY is ready
+            mainWindow?.webContents.send('terminal:ready');
 
-            terminalProcess.on('close', () => {
-                terminalProcess = null;
-                mainWindow?.webContents.send('terminal:output', '\n[Terminal closed]\n');
-            });
-
-            terminalProcess.on('error', (err: Error) => {
-                mainWindow?.webContents.send('terminal:output', `\nError: ${err.message}\n`);
-            });
-
-            // Signal ready after a short delay
-            setTimeout(() => {
-                mainWindow?.webContents.send('terminal:ready');
-            }, 100);
-
-            return { success: true };
+            return { success: true, isDocker: isDockerMode };
         } catch (err: any) {
+            console.error('[Terminal] Failed to spawn PTY:', err);
             return { success: false, error: err.message };
         }
     });
 
     // Send input to terminal
     ipcMain.handle('terminal:input', (_event, input: string) => {
-        if (terminalProcess?.stdin) {
-            terminalProcess.stdin.write(input);
+        if (ptyProcess) {
+            ptyProcess.write(input);
             return { success: true };
         }
         return { success: false, error: 'Terminal not running' };
     });
 
-    // Resize terminal (no-op for simple shell, needed for PTY)
-    ipcMain.handle('terminal:resize', (_event, _cols: number, _rows: number) => {
-        // PTY resize would go here if using node-pty
-        return { success: true };
+    // Resize terminal (PTY supports dynamic resizing)
+    ipcMain.handle('terminal:resize', (_event, cols: number, rows: number) => {
+        if (ptyProcess) {
+            ptyProcess.resize(cols, rows);
+            return { success: true };
+        }
+        return { success: false, error: 'Terminal not running' };
+    });
+
+    // Close terminal process
+    ipcMain.handle('terminal:close', () => {
+        if (ptyProcess) {
+            try {
+                ptyProcess.kill();
+            } catch (err) {
+                // ConPTY may throw errors on Windows when closing, ignore them
+                console.log('[Terminal] PTY kill error (expected on Windows):', (err as Error).message);
+            }
+            ptyProcess = null;
+            mainWindow?.webContents.send('terminal:closed');
+            return { success: true };
+        }
+        return { success: false, error: 'Terminal not running' };
     });
 
     // Attach files for Codex prompt - copies to working directory
@@ -1620,12 +1694,15 @@ function setupIpcHandlers(): void {
                 await dockerManager.destroyInstance(session.sandbox.instance.id);
             }
 
-            // For electron-cdp mode (external browser), get the CDP endpoint from the active session
-            // The external browser manager tracks the actual running browser's CDP port and endpoint
+            // Handle different browser modes:
+            // - electron-cdp: Connect to Electron's built-in CDP (port 9222)
+            // - external-cdp: Connect to external browser's CDP (requires active session)
+            // - headless: No CDP needed, runs Chromium inside Docker
             let finalConfig = { ...config };
-            if (config?.browserMode === 'electron-cdp') {
+
+            if (config?.browserMode === 'external-cdp') {
+                // external-cdp mode: Get CDP endpoint from active external browser session
                 try {
-                    // Get the active external browser session which has the actual dynamic CDP port
                     const { getExternalBrowserManager } = require('../core/external-browser-manager');
                     const browserManager = getExternalBrowserManager();
                     const activeSession = browserManager.getActiveSession();
@@ -1659,13 +1736,43 @@ function setupIpcHandlers(): void {
                         }).on('error', reject);
                     });
                     console.log('[Docker] Using CDP WebSocket URL:', wsUrl);
-                    // Pass the WebSocket URL directly instead of HTTP endpoint
                     finalConfig.externalCdpEndpoint = wsUrl;
                 } catch (err) {
                     console.error('[Docker] Failed to fetch CDP WebSocket URL:', err);
-                    // Fall back to original endpoint
+                    return { success: false, error: 'Failed to connect to external browser CDP' };
+                }
+            } else if (config?.browserMode === 'electron-cdp') {
+                // electron-cdp mode: Use Electron's built-in CDP (already provided in config)
+                // The endpoint is passed as http://host.docker.internal:9222
+                // Fetch WebSocket URL from Electron's CDP endpoint
+                try {
+                    const http = require('http');
+                    const wsUrl = await new Promise<string>((resolve, reject) => {
+                        http.get('http://127.0.0.1:9222/json/version', (res: any) => {
+                            let data = '';
+                            res.on('data', (chunk: string) => data += chunk);
+                            res.on('end', () => {
+                                try {
+                                    const json = JSON.parse(data);
+                                    // Rewrite for Docker access
+                                    const wsUrlForDocker = json.webSocketDebuggerUrl
+                                        .replace('127.0.0.1', 'host.docker.internal')
+                                        .replace('localhost', 'host.docker.internal');
+                                    resolve(wsUrlForDocker);
+                                } catch (e) {
+                                    reject(e);
+                                }
+                            });
+                        }).on('error', reject);
+                    });
+                    console.log('[Docker] Using Electron CDP WebSocket URL:', wsUrl);
+                    finalConfig.externalCdpEndpoint = wsUrl;
+                } catch (err) {
+                    console.error('[Docker] Failed to fetch Electron CDP WebSocket URL:', err);
+                    // Fall back to provided endpoint
                 }
             }
+            // For 'headless' mode, no CDP configuration needed
 
             // Mount working directory so attached files are accessible inside container
             // Convert Windows paths (C:\...) to Docker format (/c/...) for Docker Desktop
@@ -1978,8 +2085,10 @@ function setupIpcHandlers(): void {
 
             // Spawn codex login - it will start server on localhost:1455
             // and attempt to open browser (which we can't prevent on macOS)
+            const isWindows = process.platform === 'win32';
             codexLoginProcess = spawn(codexBin, ['login'], {
-                shell: false,
+                // Use shell on Windows for .cmd scripts
+                shell: isWindows ? true : false,
                 windowsHide: true,
                 env: {
                     ...getEmbeddedNodeEnv(),

@@ -205,6 +205,11 @@ const App: React.FC = () => {
             setBottomPanelTab('terminal');
         });
 
+        // Menu event: close terminal (⌘⇧4) - just hide panel, don't kill PTY
+        const unsubMenuCloseTerminal = (window as any).electronAPI?.onMenuCloseTerminal?.(() => {
+            setBottomPanelOpen(false);
+        });
+
         return () => {
             unsubTabs?.();
             unsubAuth?.();
@@ -218,6 +223,7 @@ const App: React.FC = () => {
             unsubTriggerLogin?.();
             unsubMenuShowConsole?.();
             unsubMenuShowTerminal?.();
+            unsubMenuCloseTerminal?.();
         };
     }, [checkAuthStatus]);
 
