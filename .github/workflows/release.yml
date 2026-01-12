@@ -51,7 +51,7 @@ jobs:
       # Python 3.12+ removed distutils, but setuptools provides it
       - name: Install Python setuptools (macOS)
         if: matrix.platform == 'mac'
-        run: pip3 install setuptools
+        run: pip3 install setuptools --break-system-packages
 
       - name: Package (macOS)
         if: matrix.platform == 'mac'
