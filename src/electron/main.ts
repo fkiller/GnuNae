@@ -1256,10 +1256,12 @@ function setupIpcHandlers(): void {
 
     // Import node-pty dynamically (native module)
     let ptyProcess: any = null;
+    let fallbackProcess: any = null;  // Used when node-pty fails
+    let usingFallback = false;
 
     // Spawn terminal with embedded Node.js/npm/codex in PATH (Native) or docker exec (Virtual)
     ipcMain.handle('terminal:spawn', async (event) => {
-        if (ptyProcess) {
+        if (ptyProcess || fallbackProcess) {
             return { success: true, message: 'Terminal already running' };
         }
 
@@ -1267,18 +1269,63 @@ function setupIpcHandlers(): void {
         const session = getSessionFromEvent(event);
         const isDockerMode = session?.useDocker && session?.sandbox?.instance;
 
+        // Determine shell with verification
+        const isWindows = process.platform === 'win32';
+        let shell: string;
+        let shellArgs: string[] = [];
+
+        if (isWindows) {
+            shell = process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
+        } else {
+            // Try multiple shells in order of preference
+            const shellCandidates = [
+                process.env.SHELL,
+                '/bin/zsh',
+                '/bin/bash',
+                '/bin/sh'
+            ].filter((s): s is string => !!s);
+
+            shell = '/bin/sh'; // fallback
+            for (const candidate of shellCandidates) {
+                if (fs.existsSync(candidate)) {
+                    shell = candidate;
+                    break;
+                }
+            }
+            // Use interactive login shell
+            shellArgs = ['-i', '-l'];
+        }
+
+        console.log(`[Terminal] Using shell: ${shell}`);
+        console.log(`[Terminal] HOME: ${app.getPath('home')}`);
+
+        // Get environment
+        const runtimeManager = getRuntimeManager();
+        const embeddedEnv = runtimeManager.getEmbeddedNodeEnv();
+
+        // Merge embedded env with process.env to ensure all required vars are present
+        const mergedEnv: { [key: string]: string } = {};
+        for (const [key, value] of Object.entries(process.env)) {
+            if (value !== undefined) {
+                mergedEnv[key] = value;
+            }
+        }
+        // Override with embedded env (mainly PATH with Node.js prepended)
+        for (const [key, value] of Object.entries(embeddedEnv)) {
+            if (value !== undefined) {
+                mergedEnv[key] = value;
+            }
+        }
+
+        // Try node-pty first
         try {
-            // Dynamically require node-pty (native module)
             const pty = require('node-pty');
 
             if (isDockerMode) {
                 // Virtual Mode: Spawn docker exec to connect to container
-                // Use containerName (e.g., 'gnunae-window-1') not id ('sandbox-1')
                 const containerName = session.sandbox!.instance.containerName;
                 console.log('[Terminal] Spawning Docker exec for container:', containerName);
 
-                // On Windows, use cmd.exe to run docker exec (winpty can't spawn docker directly)
-                const isWindows = process.platform === 'win32';
                 if (isWindows) {
                     const cmd = process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
                     ptyProcess = pty.spawn(cmd, ['/c', 'docker', 'exec', '-it', containerName, '/bin/bash'], {
@@ -1299,22 +1346,17 @@ function setupIpcHandlers(): void {
                 }
             } else {
                 // Native Mode: Spawn local shell with embedded Node.js in PATH
-                const runtimeManager = getRuntimeManager();
-                const env = runtimeManager.getEmbeddedNodeEnv();
-                const isWindows = process.platform === 'win32';
-                const shell = isWindows
-                    ? process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe'
-                    : process.env.SHELL || '/bin/bash';
-
                 ptyProcess = pty.spawn(shell, [], {
                     name: 'xterm-256color',
                     cols: 80,
                     rows: 24,
                     cwd: app.getPath('home'),
-                    env: env as { [key: string]: string },
+                    env: mergedEnv,
                     useConpty: false
                 });
             }
+
+            usingFallback = false;
 
             ptyProcess.onData((data: string) => {
                 mainWindow?.webContents.send('terminal:output', data);
@@ -1329,12 +1371,14 @@ function setupIpcHandlers(): void {
             // Signal ready immediately since PTY is ready
             mainWindow?.webContents.send('terminal:ready');
 
-            return { success: true, isDocker: isDockerMode };
+            return { success: true, isDocker: isDockerMode, pty: true };
         } catch (err: any) {
-            console.error('[Terminal] Failed to spawn PTY:', err);
+            console.error('[Terminal] Failed to spawn PTY:', err.message);
             return { success: false, error: err.message };
         }
     });
+
+
 
     // Send input to terminal
     ipcMain.handle('terminal:input', (_event, input: string) => {
@@ -1342,7 +1386,18 @@ function setupIpcHandlers(): void {
             ptyProcess.write(input);
             return { success: true };
         }
+        if (fallbackProcess && fallbackProcess.stdin) {
+            console.log('[Terminal] Fallback input:', JSON.stringify(input));
+            // In fallback mode, we need to echo input ourselves since there's no TTY
+            // Echo single characters (except for enter which we'll let the shell handle)
+            if (input !== '\r' && input !== '\n' && input.length === 1) {
+                mainWindow?.webContents.send('terminal:output', input);
+            }
+            fallbackProcess.stdin.write(input);
+            return { success: true };
+        }
         return { success: false, error: 'Terminal not running' };
+
     });
 
     // Resize terminal (PTY supports dynamic resizing)
@@ -1350,6 +1405,10 @@ function setupIpcHandlers(): void {
         if (ptyProcess) {
             ptyProcess.resize(cols, rows);
             return { success: true };
+        }
+        // Fallback process doesn't support resize, just return success
+        if (fallbackProcess) {
+            return { success: true, note: 'Resize not supported in fallback mode' };
         }
         return { success: false, error: 'Terminal not running' };
     });
@@ -1367,8 +1426,19 @@ function setupIpcHandlers(): void {
             mainWindow?.webContents.send('terminal:closed');
             return { success: true };
         }
+        if (fallbackProcess) {
+            try {
+                fallbackProcess.kill();
+            } catch (err) {
+                console.log('[Terminal] Fallback process kill error:', (err as Error).message);
+            }
+            fallbackProcess = null;
+            mainWindow?.webContents.send('terminal:closed');
+            return { success: true };
+        }
         return { success: false, error: 'Terminal not running' };
     });
+
 
     // Attach files for Codex prompt - copies to working directory
     ipcMain.handle('files:attach', async (event) => {
@@ -2928,6 +2998,30 @@ app.whenReady().then(async () => {
     // Initialize browser detection
     const externalBrowserMgr = getExternalBrowserManager();
     await externalBrowserMgr.initialize();
+
+    // Automatically install runtime (Node.js + Codex CLI) if not present (macOS/Linux only)
+    // This runs in background and doesn't block app startup
+    if (process.platform !== 'win32') {
+        const runtimeManager = getRuntimeManager();
+        const status = await runtimeManager.validateRuntime();
+        if (!status.ready) {
+            console.log('[Main] Runtime not ready, installing automatically...');
+            runtimeManager.ensureRuntime().then(result => {
+                if (result.ready) {
+                    console.log('[Main] Runtime installed successfully');
+                    // Notify any open Settings windows
+                    mainWindow?.webContents.send('runtime:status-changed', result);
+                } else {
+                    console.error('[Main] Runtime installation failed:', result.error);
+                }
+            }).catch(err => {
+                console.error('[Main] Runtime installation error:', err);
+            });
+        } else {
+            console.log('[Main] Runtime already installed');
+        }
+    }
+
 
     // Initialize tray manager
     trayManager = new TrayManager({

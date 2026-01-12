@@ -265,60 +265,160 @@ class RuntimeManager {
 
     /**
      * Download Node.js for macOS/Linux
+     * Uses built-in https/fs modules instead of spawning external node process
      */
     private async downloadNode(): Promise<void> {
         console.log('[RuntimeManager] Downloading Node.js...');
 
         const targetDir = this.getRuntimeBaseDir();
-        const scriptPath = app.isPackaged
-            ? path.join(process.resourcesPath, 'scripts', 'download-node.js')
-            : path.join(__dirname, '../../scripts/download-node.js');
+        const arch = os.arch() === 'arm64' ? 'arm64' : 'x64';
+        const platform = process.platform === 'darwin' ? 'darwin' : 'linux';
+        const folderName = `node-v${NODE_VERSION}-${platform}-${arch}`;
+        const url = `https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-${platform}-${arch}.tar.gz`;
 
-        if (!fs.existsSync(scriptPath)) {
-            throw new Error(`Download script not found: ${scriptPath}`);
+        // Ensure parent directory exists
+        const parentDir = path.dirname(targetDir);
+        if (!fs.existsSync(parentDir)) {
+            fs.mkdirSync(parentDir, { recursive: true });
         }
 
-        return new Promise((resolve, reject) => {
-            const child = spawn('node', [scriptPath, '--target', targetDir], {
-                stdio: 'inherit'
-            });
+        const tempFile = path.join(parentDir, `node-v${NODE_VERSION}.tar.gz`);
+        const tempExtract = path.join(parentDir, 'node-temp-extract');
 
-            child.on('close', (code) => {
-                if (code === 0) {
-                    console.log('[RuntimeManager] Node.js download complete');
-                    resolve();
-                } else {
-                    reject(new Error(`Node.js download failed with code ${code}`));
-                }
-            });
+        console.log(`[RuntimeManager] Downloading from: ${url}`);
+        console.log(`[RuntimeManager] Target: ${targetDir}`);
 
-            child.on('error', reject);
-        });
+        // Download the file using https
+        await this.downloadFile(url, tempFile);
+
+        console.log('[RuntimeManager] Extracting Node.js...');
+
+        // Clean up temp extract directory if exists
+        if (fs.existsSync(tempExtract)) {
+            fs.rmSync(tempExtract, { recursive: true, force: true });
+        }
+        fs.mkdirSync(tempExtract, { recursive: true });
+
+        // Extract using system tar command (available on macOS/Linux)
+        try {
+            execSync(`tar -xzf "${tempFile}" -C "${tempExtract}"`, { stdio: 'inherit' });
+        } catch (err) {
+            throw new Error(`Failed to extract Node.js: ${err}`);
+        }
+
+        // Move extracted folder to target
+        const extractedFolder = path.join(tempExtract, folderName);
+        if (!fs.existsSync(extractedFolder)) {
+            throw new Error(`Expected folder not found: ${extractedFolder}`);
+        }
+
+        if (fs.existsSync(targetDir)) {
+            fs.rmSync(targetDir, { recursive: true, force: true });
+        }
+        fs.renameSync(extractedFolder, targetDir);
+
+        // Cleanup
+        fs.rmSync(tempExtract, { recursive: true, force: true });
+        fs.unlinkSync(tempFile);
+
+        console.log('[RuntimeManager] Node.js download complete');
     }
 
     /**
-     * Install Codex CLI
+     * Download a file from URL to destination
+     */
+    private downloadFile(url: string, dest: string): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const https = require('https');
+            const file = fs.createWriteStream(dest);
+
+            const request = https.get(url, (response: any) => {
+                // Handle redirects
+                if (response.statusCode === 301 || response.statusCode === 302) {
+                    file.close();
+                    if (fs.existsSync(dest)) fs.unlinkSync(dest);
+                    return this.downloadFile(response.headers.location, dest).then(resolve).catch(reject);
+                }
+
+                if (response.statusCode !== 200) {
+                    file.close();
+                    if (fs.existsSync(dest)) fs.unlinkSync(dest);
+                    reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`));
+                    return;
+                }
+
+                const totalBytes = parseInt(response.headers['content-length'], 10) || 0;
+                let downloadedBytes = 0;
+
+                response.on('data', (chunk: Buffer) => {
+                    downloadedBytes += chunk.length;
+                    if (totalBytes > 0) {
+                        const percent = Math.floor((downloadedBytes / totalBytes) * 100);
+                        if (percent % 20 === 0) {
+                            console.log(`[RuntimeManager] Download progress: ${percent}%`);
+                        }
+                    }
+                });
+
+                response.pipe(file);
+
+                file.on('finish', () => {
+                    file.close();
+                    console.log('[RuntimeManager] Download complete');
+                    resolve();
+                });
+            });
+
+            request.on('error', (err: Error) => {
+                file.close();
+                if (fs.existsSync(dest)) fs.unlinkSync(dest);
+                reject(err);
+            });
+        });
+    }
+
+
+    /**
+     * Install Codex CLI using the downloaded Node.js
      */
     private async installCodex(): Promise<void> {
         console.log('[RuntimeManager] Installing Codex CLI...');
 
         const targetDir = app.getPath('userData');
-        const nodePath = path.dirname(this.getNodePath() || '');
-        const scriptPath = app.isPackaged
-            ? path.join(process.resourcesPath, 'scripts', 'install-codex.js')
-            : path.join(__dirname, '../../scripts/install-codex.js');
+        const nodeExePath = this.getNodePath();
 
-        if (!fs.existsSync(scriptPath)) {
-            throw new Error(`Install script not found: ${scriptPath}`);
+        if (!nodeExePath) {
+            throw new Error('Node.js not found. Please download Node.js first.');
         }
 
+        const nodeBinDir = path.dirname(nodeExePath);
+        const npmPath = this.getNpmPath();
+
+        if (!npmPath) {
+            throw new Error('npm not found in downloaded Node.js.');
+        }
+
+        // Create codex installation directory
+        const codexDir = path.join(targetDir, 'codex');
+        if (!fs.existsSync(codexDir)) {
+            fs.mkdirSync(codexDir, { recursive: true });
+        }
+
+        console.log(`[RuntimeManager] Installing Codex to: ${codexDir}`);
+
+        // Set up environment with downloaded Node.js in PATH
+        const env = this.getEmbeddedNodeEnv();
+
         return new Promise((resolve, reject) => {
-            const child = spawn('node', [
-                scriptPath,
-                '--target', targetDir,
-                '--node-path', nodePath
+            // Use the downloaded npm to install codex-cli
+            const child = spawn(npmPath, [
+                'install',
+                '@openai/codex',
+                '--prefix', codexDir
             ], {
-                stdio: 'inherit'
+                stdio: 'inherit',
+                env: env as { [key: string]: string },
+                cwd: codexDir
             });
 
             child.on('close', (code) => {
@@ -333,6 +433,7 @@ class RuntimeManager {
             child.on('error', reject);
         });
     }
+
 
     /**
      * Get current status
