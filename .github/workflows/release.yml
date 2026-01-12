@@ -48,6 +48,11 @@ jobs:
         if: matrix.platform == 'win'
         run: node scripts/install-codex.js
 
+      # Python 3.12+ removed distutils, but setuptools provides it
+      - name: Install Python setuptools (macOS)
+        if: matrix.platform == 'mac'
+        run: pip3 install setuptools
+
       - name: Package (macOS)
         if: matrix.platform == 'mac'
         run: npx electron-builder --mac --publish never
