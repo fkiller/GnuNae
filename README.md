@@ -25,34 +25,65 @@ graph TB
         Settings["Settings"]
     end
     
-    subgraph Browser["BrowserView / External Browser"]
-        WebPage["Web Content"]
-        CDP["CDP Endpoint<br/>(port 9222)"]
+    subgraph PromptEngine["Prompt Engineering"]
+        ModeInstr["Mode Instructions<br/>(Ask/Agent/Full)"]
+        PrePrompt["Pre-Prompt<br/>(System Instructions)"]
+        UserData["User Data Context<br/>(PDS)"]
+        PageContext["Page Context<br/>(URL, Title, Content)"]
+        UserPrompt["User Prompt"]
     end
     
-    subgraph External["External Services"]
-        Codex["Codex CLI<br/>(runtime -c config)"]
-        OpenAI["OpenAI API"]
-        Playwright["Playwright MCP"]
+    subgraph BrowserView["Browser View"]
+        InternalPage["Web Content"]
+        InternalCDP["CDP Endpoint<br/>(port 9222)"]
     end
     
-    subgraph Terminal["Terminal (node-pty)"]
-        NativePTY["Native Shell<br/>(cmd/bash/zsh)"]
-        DockerExec["Docker Exec<br/>(Virtual Mode)"]
+    subgraph ExternalBrowser["External Browser"]
+        ExternalPage["Web Content<br/>(Chrome/Edge/Brave)"]
+        ExternalCDP["CDP Endpoint<br/>(port 9223+)"]
     end
+    
+    subgraph PIE["PIE - Native Mode"]
+        NativeCodex["Codex CLI"]
+        NativePlaywright["Playwright MCP"]
+        NativeTerminal["Native Shell<br/>(cmd/bash/zsh)"]
+    end
+    
+    subgraph Docker["Docker - Virtual Mode"]
+        DockerCodex["Codex CLI"]
+        DockerPlaywright["Playwright MCP"]
+        DockerTerminal["Docker Exec<br/>(bash)"]
+    end
+    
+    OpenAI["OpenAI API"]
     
     Main --> Preload
-    Main --> Browser
     Preload <--> UI
     UI --> Sidebar
     UI --> BottomPanel
-    BottomPanel --> |xterm.js| Terminal
-    Sidebar --> |IPC| Main
-    Main --> |spawn with -c flags| Codex
-    Codex --> OpenAI
-    Codex --> Playwright
-    Playwright --> |CDP| CDP
-    CDP --> |DOM Control| WebPage
+    
+    Sidebar --> PromptEngine
+    PromptEngine --> |IPC| Main
+    
+    Main --> |spawn| PIE
+    Main --> |container| Docker
+    
+    BottomPanel --> |xterm.js| NativeTerminal
+    BottomPanel --> |xterm.js| DockerTerminal
+    
+    NativeCodex --> OpenAI
+    DockerCodex --> OpenAI
+    
+    NativeCodex --> NativePlaywright
+    DockerCodex --> DockerPlaywright
+    
+    NativePlaywright --> |CDP| InternalCDP
+    NativePlaywright --> |CDP| ExternalCDP
+    DockerPlaywright --> |CDP| InternalCDP
+    DockerPlaywright --> |CDP| ExternalCDP
+    
+    InternalCDP --> InternalPage
+    ExternalCDP --> ExternalPage
 ```
 
 ### Component Overview
