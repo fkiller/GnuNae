@@ -21,6 +21,7 @@ graph TB
         App["App.tsx"]
         Sidebar["CodexSidebar"]
         AddressBar["AddressBar"]
+        BottomPanel["BottomPanel<br/>(Terminal + Output)"]
         Settings["Settings"]
     end
     
@@ -35,10 +36,17 @@ graph TB
         Playwright["Playwright MCP"]
     end
     
+    subgraph Terminal["Terminal (node-pty)"]
+        NativePTY["Native Shell<br/>(cmd/bash/zsh)"]
+        DockerExec["Docker Exec<br/>(Virtual Mode)"]
+    end
+    
     Main --> Preload
     Main --> Browser
     Preload <--> UI
     UI --> Sidebar
+    UI --> BottomPanel
+    BottomPanel --> |xterm.js| Terminal
     Sidebar --> |IPC| Main
     Main --> |spawn with -c flags| Codex
     Codex --> OpenAI
@@ -53,7 +61,8 @@ graph TB
 |-----------|-------------|
 | **Main Process** | Electron main, window management, IPC handlers, Codex spawning with `-c` flags |
 | **BrowserView** | Chromium-based web content rendering with CDP endpoint |
-| **React UI** | Sidebar, address bar, settings overlay |
+| **React UI** | Sidebar, address bar, terminal panel, settings overlay |
+| **Bottom Panel** | xterm.js terminal (Native/Docker) + Output logs |
 | **Codex CLI** | OpenAI's CLI for AI-powered automation (configured at runtime) |
 | **Playwright MCP** | DOM interaction via Chrome DevTools Protocol (CDP) |
 
@@ -66,6 +75,8 @@ graph TB
 - 🔗 **External Browser Support** - Connect Codex to your existing browser with full automation
 - 🤖 **Codex Sidebar** - AI assistant powered by OpenAI's Codex CLI
 - 🐳 **Virtual Mode** - Docker-based sandbox for isolated Codex + Playwright execution
+- 💻 **Interactive Terminal** - Full PTY emulation with xterm.js (native shell or Docker bash)
+- 📋 **Output Panel** - View backend process logs and Codex execution status
 - 📋 **Task Manager** - Save, schedule, and run automated tasks
 - 🔐 **OpenAI Auth** - Sign in with your OpenAI account
 - 🔧 **Page Analysis** - Codex can see and analyze your current page
@@ -248,12 +259,14 @@ src/
 │       ├── RightPanel.tsx      # Chat/Task Manager wrapper
 │       ├── SaveTaskCard.tsx    # Save task prompt card
 │       ├── TabBar.tsx          # Multi-tab bar
+│       ├── BottomPanel.tsx     # Terminal (xterm.js) + Output logs
 │       ├── Settings.tsx        # Settings panel (includes PDS editor)
 │       └── About.tsx           # About dialog
 └── core/                   # Shared utilities
     ├── auth.ts             # OpenAI authentication
     ├── browser-detector.ts # External browser detection (Chrome, Edge, etc.)
     ├── datastore.ts        # Personal Data Store service
+    ├── runtime-manager.ts  # Node.js/npm/Codex runtime management
     ├── tasks.ts            # Task service and scheduler
     ├── settings.ts         # App settings & pre-prompt
     ├── schema.ts           # Type definitions
