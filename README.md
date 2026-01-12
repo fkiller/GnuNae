@@ -302,6 +302,22 @@ docs/                     # GitHub Pages (gnunae.com)
 
 ## Version History
 
+### v0.8.0 (2026-01-12)
+- **Interactive Terminal with xterm.js**
+  - Full PTY emulation via node-pty (arrow keys, tab completion, Ctrl+C)
+  - Terminal persists when hiding/showing panel
+  - Renamed "Console" tab to "Output" for clarity
+- **Docker Terminal Support (Virtual Mode)**
+  - Terminal connects to Docker container bash via `docker exec`
+  - Virtual Mode uses Electron's built-in CDP (no external browser required)
+- **Improved Runtime Manager**
+  - Direct Node.js download using https/fs modules (no external node spawn)
+  - Auto-install runtime on macOS/Linux if not present
+  - Better shell detection (zsh, bash, sh candidates)
+- **Terminal Fallback**
+  - Fallback process when node-pty fails
+  - Spawn debounce prevents infinite restart loop
+
 ### v0.7.1 (2026-01-11)
 - **Embedded Node.js & Codex CLI**
   - Windows: Node.js 22 LTS and Codex CLI bundled in package
