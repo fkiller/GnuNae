@@ -63,9 +63,16 @@
       "icon": "assets/gnunae.ico",
       "target": [
         "nsis",
-        "portable"
+        "portable",
+        "appx"
       ],
-      "signAndEditExecutable": false,
+      "signAndEditExecutable": true,
+      "azureSignOptions": {
+        "endpoint": "https://eus.codesigning.azure.net/",
+        "codeSigningAccountName": "GnuNae",
+        "certificateProfileName": "GnuNae",
+        "publisherName": "CN=Won Dong, O=Won Dong, L=Sharon, S=Massachusetts, C=US"
+      },
       "extraResources": [
         {
           "from": "resources/runtime",
@@ -82,6 +89,13 @@
           ]
         }
       ]
+    },
+    "appx": {
+      "publisher": "CN=Won Dong, O=Won Dong, L=Sharon, S=Massachusetts, C=US",
+      "publisherDisplayName": "Won Dong",
+      "displayName": "GnuNae",
+      "applicationId": "GnuNae",
+      "backgroundColor": "#0a0a0f"
     },
     "linux": {
       "icon": "assets/gnunae.png",

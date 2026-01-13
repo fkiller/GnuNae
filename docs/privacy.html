@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-P8H2RDLJCS"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-P8H2RDLJCS');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - GnuNae</title>
+    <meta name="description" content="GnuNae Privacy Policy - Learn how GnuNae handles your data.">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0a0f;
+            --bg-card: #12121a;
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --text-primary: #ffffff;
+            --text-secondary: #a1a1aa;
+            --border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .bg-gradient {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(99, 102, 241, 0.05) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        header {
+            padding: 24px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 24px;
+            font-weight: 700;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo img {
+            width: 40px;
+            height: 40px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .content {
+            padding: 60px 0 80px;
+        }
+
+        .content h1 {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #fff 0%, #a1a1aa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .last-updated {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 48px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section h2 {
+            font-size: 24px;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+
+        .section p {
+            color: var(--text-secondary);
+            line-height: 1.8;
+            margin-bottom: 16px;
+        }
+
+        .section ul {
+            color: var(--text-secondary);
+            line-height: 1.8;
+            margin-left: 24px;
+            margin-bottom: 16px;
+        }
+
+        .section li {
+            margin-bottom: 8px;
+        }
+
+        .section a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+
+        .section a:hover {
+            text-decoration: underline;
+        }
+
+        .highlight-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            margin: 24px 0;
+        }
+
+        .highlight-box.success {
+            border-color: rgba(34, 197, 94, 0.3);
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .highlight-box h3 {
+            font-size: 18px;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+        }
+
+        .highlight-box p {
+            margin-bottom: 0;
+        }
+
+        footer {
+            padding: 48px 0;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            margin-bottom: 24px;
+        }
+
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .copyright {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .content h1 {
+                font-size: 32px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-gradient"></div>
+
+    <div class="container">
+        <header>
+            <a href="/" class="logo">
+                <img src="assets/gnunae.png" alt="GnuNae">
+                <span>GnuNae</span>
+            </a>
+            <nav class="nav-links">
+                <a href="/">Home</a>
+                <a href="https://github.com/fkiller/GnuNae">GitHub</a>
+                <a href="https://github.com/fkiller/GnuNae/releases">Releases</a>
+            </nav>
+        </header>
+
+        <main class="content">
+            <h1>Privacy Policy</h1>
+            <p class="last-updated">Last Updated: January 13, 2026</p>
+
+            <div class="highlight-box success">
+                <h3>🔒 Your Privacy is Protected</h3>
+                <p>GnuNae does NOT collect, transmit, or store any personal data on external servers. All user data remains locally on your device.</p>
+            </div>
+
+            <div class="section">
+                <h2>Overview</h2>
+                <p>GnuNae is an Electron-based browser application with an AI-powered Codex sidebar for intelligent web automation. This privacy policy describes how GnuNae handles user data.</p>
+            </div>
+
+            <div class="section">
+                <h2>Data Collection and Storage</h2>
+                <p>All user data is stored locally on your device:</p>
+                <ul>
+                    <li><strong>Personal Data Store (PDS):</strong> User-provided information (such as addresses, preferences) is stored locally in <code>~/.gnunae/datastore.json</code>. This data never leaves your device unless you explicitly share it.</li>
+                    <li><strong>Settings and Configuration:</strong> App preferences are stored locally on your device.</li>
+                    <li><strong>OpenAI Authentication:</strong> GnuNae uses OpenAI's authentication flow. Credentials are stored securely on your local machine. GnuNae does not store or have access to your OpenAI password.</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>Third-Party Services</h2>
+                <ul>
+                    <li><strong>OpenAI API:</strong> When you use the Codex sidebar, your prompts and current page context are sent to OpenAI's servers for AI processing. OpenAI's privacy policy governs this data: <a href="https://openai.com/privacy" target="_blank" rel="noopener">openai.com/privacy</a></li>
+                    <li><strong>Web Browsing:</strong> Standard web browsing data (cookies, cache, history) is handled by the embedded Chromium browser and stored locally.</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>No Telemetry</h2>
+                <p>GnuNae does NOT collect usage analytics, crash reports, or any telemetry data. Your browsing activity and usage patterns are never transmitted to us or any third party.</p>
+            </div>
+
+            <div class="section">
+                <h2>Data Sharing</h2>
+                <p>We do not sell, trade, or share your personal information with third parties.</p>
+            </div>
+
+            <div class="section">
+                <h2>Children's Privacy</h2>
+                <p>GnuNae is not intended for children under 13. We do not knowingly collect data from children.</p>
+            </div>
+
+            <div class="section">
+                <h2>Open Source</h2>
+                <p>GnuNae is open source software licensed under MIT. You can review our source code on <a href="https://github.com/fkiller/GnuNae" target="_blank" rel="noopener">GitHub</a> to verify our privacy practices.</p>
+            </div>
+
+            <div class="section">
+                <h2>Contact</h2>
+                <p>For questions about this privacy policy, contact: <a href="mailto:contact@gnunae.com">contact@gnunae.com</a></p>
+            </div>
+        </main>
+
+        <footer>
+            <div class="footer-links">
+                <a href="/">Home</a>
+                <a href="https://github.com/fkiller/GnuNae">GitHub</a>
+                <a href="https://github.com/fkiller/GnuNae/releases">Releases</a>
+                <a href="https://github.com/fkiller/GnuNae/blob/main/LICENSE">License</a>
+            </div>
+            <p class="copyright">© 2024 Won Dong. Open source under MIT License.</p>
+        </footer>
+    </div>
+</body>
+
+</html>

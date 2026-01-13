@@ -62,6 +62,13 @@ jobs:
       - name: Package (Windows)
         if: matrix.platform == 'win'
         run: npx electron-builder --win --publish never
+        env:
+          # Azure Trusted Signing credentials (set these in GitHub Secrets)
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_CODE_SIGNING_NAME: ${{ secrets.AZURE_CODE_SIGNING_NAME }}
+          AZURE_CERT_PROFILE_NAME: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
 
       - name: Package (Linux)
         if: matrix.platform == 'linux'
@@ -75,6 +82,7 @@ jobs:
             release/*.dmg
             release/*.zip
             release/*.exe
+            release/*.appx
             release/*.AppImage
             release/*.deb
           if-no-files-found: ignore

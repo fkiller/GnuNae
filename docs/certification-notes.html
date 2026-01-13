@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-P8H2RDLJCS"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-P8H2RDLJCS');
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certification Notes - GnuNae</title>
+    <meta name="description" content="GnuNae Certification Notes for Microsoft Store testers.">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0a0f;
+            --bg-card: #12121a;
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --text-primary: #ffffff;
+            --text-secondary: #a1a1aa;
+            --border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .bg-gradient {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(99, 102, 241, 0.05) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        header {
+            padding: 24px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 24px;
+            font-weight: 700;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo img {
+            width: 40px;
+            height: 40px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .content {
+            padding: 60px 0 80px;
+        }
+
+        .content h1 {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #fff 0%, #a1a1aa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .version-badge {
+            display: inline-block;
+            background: var(--accent-primary);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 48px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section h2 {
+            font-size: 24px;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+
+        .section h3 {
+            font-size: 18px;
+            margin-bottom: 12px;
+            margin-top: 24px;
+            color: var(--text-primary);
+        }
+
+        .section p {
+            color: var(--text-secondary);
+            line-height: 1.8;
+            margin-bottom: 16px;
+        }
+
+        .section ul,
+        .section ol {
+            color: var(--text-secondary);
+            line-height: 1.8;
+            margin-left: 24px;
+            margin-bottom: 16px;
+        }
+
+        .section li {
+            margin-bottom: 8px;
+        }
+
+        .section code {
+            background: rgba(99, 102, 241, 0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 13px;
+        }
+
+        .info-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            margin: 24px 0;
+        }
+
+        .info-box.warning {
+            border-color: rgba(234, 179, 8, 0.3);
+            background: rgba(234, 179, 8, 0.1);
+        }
+
+        .info-box.info {
+            border-color: rgba(59, 130, 246, 0.3);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .info-box.success {
+            border-color: rgba(34, 197, 94, 0.3);
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .info-box h3 {
+            margin-top: 0;
+            margin-bottom: 12px;
+        }
+
+        .info-box p:last-child {
+            margin-bottom: 0;
+        }
+
+        .steps-list {
+            counter-reset: steps;
+            list-style: none;
+            margin-left: 0;
+            padding-left: 0;
+        }
+
+        .steps-list li {
+            counter-increment: steps;
+            padding-left: 40px;
+            position: relative;
+        }
+
+        .steps-list li::before {
+            content: counter(steps);
+            position: absolute;
+            left: 0;
+            width: 28px;
+            height: 28px;
+            background: var(--accent-primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        footer {
+            padding: 48px 0;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            margin-bottom: 24px;
+        }
+
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .copyright {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .content h1 {
+                font-size: 32px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="bg-gradient"></div>
+
+    <div class="container">
+        <header>
+            <a href="/" class="logo">
+                <img src="assets/gnunae.png" alt="GnuNae">
+                <span>GnuNae</span>
+            </a>
+            <nav class="nav-links">
+                <a href="/">Home</a>
+                <a href="https://github.com/fkiller/GnuNae">GitHub</a>
+                <a href="https://github.com/fkiller/GnuNae/releases">Releases</a>
+            </nav>
+        </header>
+
+        <main class="content">
+            <h1>Certification Notes</h1>
+            <span class="version-badge">v0.8.1</span>
+
+            <div class="section">
+                <h2>Overview</h2>
+                <p>GnuNae is an AI-powered browser that integrates OpenAI's Codex CLI for intelligent web automation. It
+                    provides a sidebar interface for AI-assisted browsing, task automation, and page analysis.</p>
+            </div>
+
+            <div class="info-box warning">
+                <h3>⚠️ Test Account Requirements</h3>
+                <p>Testing AI features requires a <strong>ChatGPT Pro or Plus subscription</strong> from OpenAI. Free
+                    ChatGPT accounts cannot use Codex features. You can upgrade at <a
+                        href="https://chat.openai.com/settings/subscription"
+                        style="color: var(--accent-primary);">chat.openai.com</a>.</p>
+            </div>
+
+            <div class="section">
+                <h2>Authentication Steps</h2>
+                <ol class="steps-list">
+                    <li>Launch GnuNae</li>
+                    <li>Click "Sign in to OpenAI" in the sidebar</li>
+                    <li>Complete the OAuth flow with your OpenAI credentials</li>
+                    <li>After authentication, the sidebar will show "Ready"</li>
+                </ol>
+            </div>
+
+            <div class="section">
+                <h2>Important Dependencies</h2>
+                <ul>
+                    <li><strong>Internet Connection:</strong> Required for AI features (OpenAI API)</li>
+                    <li><strong>Node.js Runtime:</strong> Bundled with the Windows package in
+                        <code>resources/runtime</code></li>
+                    <li><strong>Codex CLI:</strong> Bundled with the Windows package in <code>resources/codex</code>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>Key Features to Test</h2>
+                <ul>
+                    <li><strong>Browser Navigation:</strong> Use the address bar to navigate to websites</li>
+                    <li><strong>AI Chat:</strong> Type prompts in the sidebar (e.g., "Summarize this page")</li>
+                    <li><strong>Task Manager:</strong> Save and schedule automated tasks (Settings → Task Manager)</li>
+                    <li><strong>Personal Data Store:</strong> The app can remember user preferences locally</li>
+                    <li><strong>Multi-Tab Support:</strong> Ctrl+T opens new tabs; Ctrl+W closes tabs</li>
+                    <li><strong>Multi-Window:</strong> Ctrl+N opens a new window</li>
+                </ul>
+            </div>
+
+            <div class="info-box info">
+                <h3>💡 Virtual Mode (Optional)</h3>
+                <p>Virtual Mode requires Docker Desktop installed. If Docker is not available, the app operates in
+                    Native Mode, which is fully functional.</p>
+            </div>
+
+            <div class="section">
+                <h2>No Background Services</h2>
+                <p>GnuNae does not install background services or drivers. The app runs entirely within its own process
+                    space.</p>
+            </div>
+
+            <div class="info-box success">
+                <h3>✅ No Admin Rights Required</h3>
+                <p>Standard user permissions are sufficient for all functionality.</p>
+            </div>
+
+            <div class="section">
+                <h2>Data Storage Locations</h2>
+                <ul>
+                    <li><strong>Settings:</strong> <code>%APPDATA%\GnuNae\</code></li>
+                    <li><strong>Personal Data Store:</strong> <code>%USERPROFILE%\.gnunae\datastore.json</code></li>
+                    <li><strong>OpenAI credentials:</strong> Stored via Codex CLI's secure storage</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>Known Limitations</h2>
+                <ul>
+                    <li>AI features require active internet connection</li>
+                    <li>Full AI functionality requires ChatGPT Pro/Plus subscription</li>
+                    <li>Virtual Mode requires Docker Desktop (optional)</li>
+                </ul>
+            </div>
+        </main>
+
+        <footer>
+            <div class="footer-links">
+                <a href="/">Home</a>
+                <a href="https://github.com/fkiller/GnuNae">GitHub</a>
+                <a href="https://github.com/fkiller/GnuNae/releases">Releases</a>
+                <a href="https://github.com/fkiller/GnuNae/blob/main/LICENSE">License</a>
+            </div>
+            <p class="copyright">© 2024 Won Dong. Open source under MIT License.</p>
+        </footer>
+    </div>
+</body>
+
+</html>
