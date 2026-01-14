@@ -1797,7 +1797,7 @@ function setupIpcHandlers(): void {
                     // Fetch WebSocket URL from external browser's CDP endpoint
                     const http = require('http');
                     const wsUrl = await new Promise<string>((resolve, reject) => {
-                        http.get(`http://127.0.0.1:${externalCdpPort}/json/version`, (res: any) => {
+                        const request = http.get(`http://127.0.0.1:${externalCdpPort}/json/version`, (res: any) => {
                             let data = '';
                             res.on('data', (chunk: string) => data += chunk);
                             res.on('end', () => {
@@ -1812,7 +1812,13 @@ function setupIpcHandlers(): void {
                                     reject(e);
                                 }
                             });
-                        }).on('error', reject);
+                        });
+                        request.on('error', reject);
+                        // Add timeout to prevent hanging on Windows
+                        request.setTimeout(5000, () => {
+                            request.destroy();
+                            reject(new Error('CDP connection timeout after 5 seconds'));
+                        });
                     });
                     console.log('[Docker] Using CDP WebSocket URL:', wsUrl);
                     finalConfig.externalCdpEndpoint = wsUrl;
@@ -1827,7 +1833,7 @@ function setupIpcHandlers(): void {
                 try {
                     const http = require('http');
                     const wsUrl = await new Promise<string>((resolve, reject) => {
-                        http.get('http://127.0.0.1:9222/json/version', (res: any) => {
+                        const request = http.get('http://127.0.0.1:9222/json/version', (res: any) => {
                             let data = '';
                             res.on('data', (chunk: string) => data += chunk);
                             res.on('end', () => {
@@ -1842,7 +1848,13 @@ function setupIpcHandlers(): void {
                                     reject(e);
                                 }
                             });
-                        }).on('error', reject);
+                        });
+                        request.on('error', reject);
+                        // Add timeout to prevent hanging on Windows
+                        request.setTimeout(5000, () => {
+                            request.destroy();
+                            reject(new Error('Electron CDP connection timeout after 5 seconds'));
+                        });
                     });
                     console.log('[Docker] Using Electron CDP WebSocket URL:', wsUrl);
                     finalConfig.externalCdpEndpoint = wsUrl;
