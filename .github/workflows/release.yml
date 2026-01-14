@@ -61,7 +61,7 @@ jobs:
 
       - name: Package (Windows)
         if: matrix.platform == 'win'
-        run: npx electron-builder --win --publish never
+        run: npx electron-builder --win --publish never --config.win.signAndEditExecutable=true
         env:
           # Azure Trusted Signing credentials (set these in GitHub Secrets)
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}

@@ -23,7 +23,7 @@
     "download-node": "node scripts/download-node.js",
     "install-codex": "node scripts/install-codex.js",
     "pack:mac": "npm run build && electron-builder --mac",
-    "pack:win": "npm run download-node && npm run install-codex && ping 127.0.0.1 -n 4 > nul && npm run build && electron-builder --win",
+    "pack:win": "npm run download-node && npm run install-codex && ping 127.0.0.1 -n 4 > nul && npm run build && node scripts/load-env.js --win",
     "pack:linux": "npm run build && electron-builder --linux",
     "pack:all": "npm run build && electron-builder --mac --win --linux",
     "postversion": "git push && git push --tags"
@@ -66,7 +66,7 @@
         "portable",
         "appx"
       ],
-      "signAndEditExecutable": true,
+      "signAndEditExecutable": false,
       "azureSignOptions": {
         "endpoint": "https://eus.codesigning.azure.net/",
         "codeSigningAccountName": "GnuNae",

@@ -1303,6 +1303,12 @@ function setupIpcHandlers(): void {
         const runtimeManager = getRuntimeManager();
         const embeddedEnv = runtimeManager.getEmbeddedNodeEnv();
 
+        // Log the Node.js path being used
+        const nodePath = runtimeManager.getNodePath();
+        console.log(`[Terminal] Node.js path: ${nodePath || 'NOT FOUND'}`);
+        console.log(`[Terminal] Node.js exists: ${nodePath && fs.existsSync(nodePath)}`);
+        console.log(`[Terminal] Runtime base dir: ${runtimeManager.getRuntimeBaseDir()}`);
+
         // Merge embedded env with process.env to ensure all required vars are present
         const mergedEnv: { [key: string]: string } = {};
         for (const [key, value] of Object.entries(process.env)) {
@@ -1316,6 +1322,9 @@ function setupIpcHandlers(): void {
                 mergedEnv[key] = value;
             }
         }
+
+        // Log the PATH being used (first 200 chars)
+        console.log(`[Terminal] PATH (first 200): ${mergedEnv.PATH?.substring(0, 200)}`);
 
         // Try node-pty first
         try {
