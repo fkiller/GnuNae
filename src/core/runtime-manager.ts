@@ -136,7 +136,7 @@ class RuntimeManager {
     }
 
     /**
-     * Get environment variables with embedded Node.js in PATH
+     * Get environment variables with embedded Node.js and Codex CLI in PATH
      */
     getEmbeddedNodeEnv(): NodeJS.ProcessEnv {
         const nodePath = this.getNodePath();
@@ -146,11 +146,24 @@ class RuntimeManager {
 
         const nodeDir = path.dirname(nodePath);
         const binDir = process.platform === 'win32' ? nodeDir : path.dirname(nodeDir);
-        const pathToAdd = process.platform === 'win32' ? nodeDir : path.join(binDir, 'bin');
+        const nodeBinPath = process.platform === 'win32' ? nodeDir : path.join(binDir, 'bin');
+
+        // Also add Codex CLI bin directory
+        const codexPath = this.getCodexPath();
+        const codexBinPath = codexPath ? path.dirname(codexPath) : null;
 
         const currentPath = process.env.PATH || '';
         const separator = process.platform === 'win32' ? ';' : ':';
-        const newPath = `${pathToAdd}${separator}${currentPath}`;
+
+        // Build PATH: Codex bin (if available) + Node.js bin + existing PATH
+        const pathParts = [nodeBinPath];
+        if (codexBinPath) {
+            pathParts.unshift(codexBinPath);
+        }
+        const newPath = pathParts.join(separator) + separator + currentPath;
+
+        console.log('[RuntimeManager] getEmbeddedNodeEnv - nodeBinPath:', nodeBinPath);
+        console.log('[RuntimeManager] getEmbeddedNodeEnv - codexBinPath:', codexBinPath);
 
         return {
             ...process.env,

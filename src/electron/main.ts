@@ -1355,14 +1355,55 @@ function setupIpcHandlers(): void {
                 }
             } else {
                 // Native Mode: Spawn local shell with embedded Node.js in PATH
-                ptyProcess = pty.spawn(shell, [], {
-                    name: 'xterm-256color',
-                    cols: 80,
-                    rows: 24,
-                    cwd: app.getPath('home'),
-                    env: mergedEnv,
-                    useConpty: false
-                });
+                // On Windows, use PowerShell for better environment handling
+                if (isWindows) {
+                    // Use PowerShell which handles env better than cmd.exe
+                    const pwsh = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
+                    const legacyPwsh = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+                    const shellToUse = fs.existsSync(pwsh) ? pwsh : legacyPwsh;
+
+                    // Get the paths to prepend
+                    const nodeBinPath = runtimeManager.getRuntimeBaseDir();
+                    const codexPath = runtimeManager.getCodexPath();
+                    const codexBinPath = codexPath ? path.dirname(codexPath) : null;
+
+                    // Get session workdir (temp session dir)
+                    const workDir = session?.workDir || getLLMWorkingDir();
+
+                    console.log('[Terminal] Using PowerShell:', shellToUse);
+                    console.log('[Terminal] Work directory:', workDir);
+                    console.log('[Terminal] Node bin path:', nodeBinPath);
+                    console.log('[Terminal] Codex bin path:', codexBinPath);
+
+                    ptyProcess = pty.spawn(shellToUse, ['-NoLogo', '-NoExit'], {
+                        name: 'xterm-256color',
+                        cols: 80,
+                        rows: 24,
+                        cwd: workDir,
+                        env: mergedEnv,
+                        useConpty: true  // Use ConPTY for PowerShell
+                    });
+
+                    // Send init script to set PATH after a small delay
+                    setTimeout(() => {
+                        if (ptyProcess) {
+                            const pathsToAdd = [nodeBinPath];
+                            if (codexBinPath) pathsToAdd.push(codexBinPath);
+                            const initScript = `$env:PATH = "${pathsToAdd.join(';')};$env:PATH"\r\n`;
+                            ptyProcess.write(initScript);
+                            ptyProcess.write('cls\r\n');  // Clear the init commands
+                        }
+                    }, 500);
+                } else {
+                    ptyProcess = pty.spawn(shell, shellArgs, {
+                        name: 'xterm-256color',
+                        cols: 80,
+                        rows: 24,
+                        cwd: session?.workDir || app.getPath('home'),
+                        env: mergedEnv,
+                        useConpty: false
+                    });
+                }
             }
 
             usingFallback = false;

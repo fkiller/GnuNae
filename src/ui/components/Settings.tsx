@@ -294,17 +294,19 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                                 <button
                                     className={`mode-option ${!sandboxStatus?.active ? 'active' : ''}`}
                                     onClick={disableVirtualMode}
-                                    disabled={!sandboxStatus?.active}
+                                    disabled={isCreatingSandbox || !sandboxStatus?.active}
                                 >
                                     <span className="mode-icon">🖥️</span>
                                     <span className="mode-label">Native Mode</span>
-                                    <span className="mode-desc">Runs directly on your system</span>
+                                    <span className="mode-desc">
+                                        {isCreatingSandbox ? 'Switching modes...' : 'Runs directly on your system'}
+                                    </span>
                                 </button>
 
                                 <button
                                     className={`mode-option ${sandboxStatus?.active ? 'active' : ''} ${!dockerAvailable ? 'disabled' : ''}`}
                                     onClick={enableVirtualMode}
-                                    disabled={!dockerAvailable || isCreatingSandbox || sandboxStatus?.active}
+                                    disabled={!dockerAvailable || isCreatingSandbox || !!sandboxStatus?.active}
                                 >
                                     <span className="mode-icon">🐳</span>
                                     <span className="mode-label">Virtual Mode</span>
