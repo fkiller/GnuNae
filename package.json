@@ -67,12 +67,6 @@
         "appx"
       ],
       "signAndEditExecutable": false,
-      "azureSignOptions": {
-        "endpoint": "https://eus.codesigning.azure.net/",
-        "codeSigningAccountName": "GnuNae",
-        "certificateProfileName": "GnuNae",
-        "publisherName": "CN=Won Dong, O=Won Dong, L=Sharon, S=Massachusetts, C=US"
-      },
       "extraResources": [
         {
           "from": "resources/runtime",
