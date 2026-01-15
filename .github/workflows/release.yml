@@ -82,6 +82,10 @@ jobs:
       - name: Package Windows (APPX - Unsigned for MS Store)
         if: matrix.platform == 'win'
         run: npx electron-builder --win appx --publish never --config.win.signAndEditExecutable=false --config.appx.publisher="${{ secrets.MSSTORE_PUBLISHER_CN }}"
+        env:
+          # Completely disable code signing for MS Store APPX
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          CSC_LINK: ""
 
       - name: Package (Linux)
         if: matrix.platform == 'linux'
