@@ -2,16 +2,14 @@
  * inject-build-config.js
  * 
  * Pre-build script that injects personal information into package.json
- * from either environment variables (CI) or a local config file.
+ * from either environment variables (CI) or a local .env.local file.
  * 
  * Usage: node scripts/inject-build-config.js
  * 
- * Environment variables (for CI):
+ * Environment variables (for CI or from .env.local):
  *   - BUILD_AUTHOR_NAME
  *   - BUILD_AUTHOR_EMAIL
  *   - BUILD_PUBLISHER_NAME
- * 
- * Local config file: build-config.local.json (git-ignored)
  */
 
 const fs = require('fs');
@@ -19,27 +17,41 @@ const path = require('path');
 
 const ROOT_DIR = path.join(__dirname, '..');
 const PACKAGE_JSON_PATH = path.join(ROOT_DIR, 'package.json');
-const LOCAL_CONFIG_PATH = path.join(ROOT_DIR, 'build-config.local.json');
+const ENV_LOCAL_PATH = path.join(ROOT_DIR, '.env.local');
+
+function loadEnvLocal() {
+    if (!fs.existsSync(ENV_LOCAL_PATH)) return false;
+
+    const content = fs.readFileSync(ENV_LOCAL_PATH, 'utf8');
+    for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+
+        const eqIndex = trimmed.indexOf('=');
+        if (eqIndex === -1) continue;
+
+        const key = trimmed.substring(0, eqIndex);
+        const value = trimmed.substring(eqIndex + 1);
+
+        // Only set if not already in environment (env vars take priority)
+        if (!process.env[key]) {
+            process.env[key] = value;
+        }
+    }
+    return true;
+}
 
 function getConfig() {
-    // Priority 1: Environment variables (CI mode)
+    // Try to load .env.local for local builds
+    const hasEnvLocal = loadEnvLocal();
+
+    // Check for required env vars (from CI or .env.local)
     if (process.env.BUILD_AUTHOR_NAME && process.env.BUILD_PUBLISHER_NAME) {
-        console.log('[inject-build-config] Using environment variables');
+        console.log(`[inject-build-config] Using ${hasEnvLocal ? '.env.local' : 'environment variables'}`);
         return {
             authorName: process.env.BUILD_AUTHOR_NAME,
             authorEmail: process.env.BUILD_AUTHOR_EMAIL || '',
             publisherName: process.env.BUILD_PUBLISHER_NAME,
-        };
-    }
-
-    // Priority 2: Local config file
-    if (fs.existsSync(LOCAL_CONFIG_PATH)) {
-        console.log('[inject-build-config] Using build-config.local.json');
-        const config = JSON.parse(fs.readFileSync(LOCAL_CONFIG_PATH, 'utf8'));
-        return {
-            authorName: config.authorName,
-            authorEmail: config.authorEmail || '',
-            publisherName: config.publisherName,
         };
     }
 
@@ -48,7 +60,7 @@ function getConfig() {
     if (pkg.author?.name?.includes('__')) {
         console.error('[inject-build-config] ERROR: No config found!');
         console.error('  Either set BUILD_AUTHOR_NAME/BUILD_PUBLISHER_NAME env vars');
-        console.error('  or create build-config.local.json from build-config.example.json');
+        console.error('  or create .env.local with these values');
         process.exit(1);
     }
 
