@@ -69,13 +69,7 @@ jobs:
       # Windows: Build NSIS and portable with Azure signing (for GitHub release)
       - name: Package Windows (NSIS + Portable - Signed)
         if: matrix.platform == 'win'
-        run: |
-          npx electron-builder --win nsis portable --publish never \
-            --config.win.signAndEditExecutable=true \
-            --config.win.azureSignOptions.endpoint="https://eus.codesigning.azure.net/" \
-            --config.win.azureSignOptions.codeSigningAccountName="${{ secrets.AZURE_CODE_SIGNING_NAME }}" \
-            --config.win.azureSignOptions.certificateProfileName="${{ secrets.AZURE_CERT_PROFILE_NAME }}" \
-            --config.win.azureSignOptions.publisherName="${{ secrets.BUILD_PUBLISHER_NAME }}"
+        run: npx electron-builder --win nsis portable --publish never --config.win.signAndEditExecutable=true --config.win.azureSignOptions.endpoint="https://eus.codesigning.azure.net/" --config.win.azureSignOptions.codeSigningAccountName="${{ secrets.AZURE_CODE_SIGNING_NAME }}" --config.win.azureSignOptions.certificateProfileName="${{ secrets.AZURE_CERT_PROFILE_NAME }}" --config.win.azureSignOptions.publisherName="${{ secrets.BUILD_PUBLISHER_NAME }}"
         env:
           # Azure Trusted Signing credentials for NSIS installer
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
