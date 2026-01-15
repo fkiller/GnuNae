@@ -66,16 +66,22 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - name: Package (Windows)
+      # Windows: Build NSIS and portable with Azure signing (for GitHub release)
+      - name: Package Windows (NSIS + Portable - Signed)
         if: matrix.platform == 'win'
-        run: npx electron-builder --win --publish never --config.win.signAndEditExecutable=true --config.appx.publisher="${{ secrets.MSSTORE_PUBLISHER_CN }}"
+        run: npx electron-builder --win nsis portable --publish never --config.win.signAndEditExecutable=true
         env:
-          # Azure Trusted Signing credentials for NSIS installer (set these in GitHub Secrets)
+          # Azure Trusted Signing credentials for NSIS installer
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_CODE_SIGNING_NAME: ${{ secrets.AZURE_CODE_SIGNING_NAME }}
           AZURE_CERT_PROFILE_NAME: ${{ secrets.AZURE_CERT_PROFILE_NAME }}
+
+      # Windows: Build APPX without signing (MS Store will sign it)
+      - name: Package Windows (APPX - Unsigned for MS Store)
+        if: matrix.platform == 'win'
+        run: npx electron-builder --win appx --publish never --config.win.signAndEditExecutable=false --config.appx.publisher="${{ secrets.MSSTORE_PUBLISHER_CN }}"
 
       - name: Package (Linux)
         if: matrix.platform == 'linux'
