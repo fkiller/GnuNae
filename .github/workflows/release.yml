@@ -36,6 +36,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Inject build config
+        run: node scripts/inject-build-config.js
+        env:
+          BUILD_AUTHOR_NAME: ${{ secrets.BUILD_AUTHOR_NAME }}
+          BUILD_AUTHOR_EMAIL: ${{ secrets.BUILD_AUTHOR_EMAIL }}
+          BUILD_PUBLISHER_NAME: ${{ secrets.BUILD_PUBLISHER_NAME }}
+
       - name: Build
         run: npm run build
 

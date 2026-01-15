@@ -22,6 +22,9 @@ Thumbs.db
 *.pem
 *.p12
 
+# Build config (local secrets)
+build-config.local.json
+
 # IDE
 .vscode
 .idea

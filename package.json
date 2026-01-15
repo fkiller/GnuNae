@@ -4,8 +4,8 @@
   "productName": "GnuNae",
   "main": "dist/electron/main.js",
   "author": {
-    "name": "Won Dong",
-    "email": "contact@example.com"
+    "name": "__AUTHOR_NAME__",
+    "email": "__AUTHOR_EMAIL__"
   },
   "description": "AI-powered browser with Codex sidebar for intelligent web automation",
   "license": "MIT",
@@ -71,7 +71,7 @@
         "endpoint": "https://eus.codesigning.azure.net/",
         "codeSigningAccountName": "GnuNae",
         "certificateProfileName": "GnuNae",
-        "publisherName": "CN=Won Dong, O=Won Dong, L=Sharon, S=Massachusetts, C=US"
+        "publisherName": "__PUBLISHER_NAME__"
       },
       "extraResources": [
         {
@@ -91,7 +91,8 @@
       ]
     },
     "appx": {
-      "publisher": "CN=Won Dong, O=Won Dong, L=Sharon, S=Massachusetts, C=US",
+      "identityName": "BigDad.GnuNae",
+      "publisher": "__PUBLISHER_NAME__",
       "publisherDisplayName": "BigDad",
       "displayName": "GnuNae",
       "applicationId": "GnuNae",
