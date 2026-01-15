@@ -68,10 +68,8 @@ jobs:
 
       - name: Package (Windows)
         if: matrix.platform == 'win'
-        run: npx electron-builder --win --publish never --config.win.signAndEditExecutable=true
+        run: npx electron-builder --win --publish never --config.win.signAndEditExecutable=true --config.appx.publisher="${{ secrets.MSSTORE_PUBLISHER_CN }}"
         env:
-          # MS Store APPX publisher identity (no signing needed - MS Store signs it)
-          MSSTORE_PUBLISHER_CN: ${{ secrets.MSSTORE_PUBLISHER_CN }}
           # Azure Trusted Signing credentials for NSIS installer (set these in GitHub Secrets)
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
