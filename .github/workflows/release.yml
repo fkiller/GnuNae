@@ -60,11 +60,46 @@ jobs:
         if: matrix.platform == 'mac'
         run: pip3 install setuptools --break-system-packages
 
-      - name: Package (macOS)
+      # macOS: Build DMG and ZIP for GitHub release (unsigned)
+      - name: Package macOS (DMG + ZIP)
         if: matrix.platform == 'mac'
-        run: npx electron-builder --mac --publish never
+        run: npx electron-builder --mac dmg zip --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      # macOS: Build MAS package for App Store (signed)
+      - name: Setup Apple Certificates (macOS)
+        if: matrix.platform == 'mac'
+        run: |
+          # Create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+          # Decode and import Application certificate (for signing the app)
+          echo "$APPLE_CERTIFICATE_APPLICATION_P12" | base64 --decode > app_cert.p12
+          security import app_cert.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
+          # Decode and import Installer certificate (for signing the pkg)
+          echo "$APPLE_CERTIFICATE_INSTALLER_P12" | base64 --decode > installer_cert.p12
+          security import installer_cert.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          # Decode provisioning profile
+          echo "$APPLE_PROVISIONING_PROFILE" | base64 --decode > embedded.provisionprofile
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp embedded.provisionprofile ~/Library/MobileDevice/Provisioning\ Profiles/
+          rm app_cert.p12 installer_cert.p12 embedded.provisionprofile
+        env:
+          APPLE_CERTIFICATE_APPLICATION_P12: ${{ secrets.APPLE_CERTIFICATE_APPLICATION_P12 }}
+          APPLE_CERTIFICATE_INSTALLER_P12: ${{ secrets.APPLE_CERTIFICATE_INSTALLER_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}
+
+      - name: Package macOS (App Store)
+        if: matrix.platform == 'mac'
+        run: npx electron-builder --mac mas --publish never
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       # Windows: Build NSIS and portable with Azure signing (for GitHub release)
       - name: Package Windows (NSIS + Portable - Signed)
@@ -96,6 +131,7 @@ jobs:
           path: |
             release/*.dmg
             release/*.zip
+            release/*.pkg
             release/*.exe
             release/*.appx
             release/*.AppImage

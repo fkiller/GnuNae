@@ -1044,6 +1044,37 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                             </div>
                         </div>
                     )}
+
+                    {/* About & Support Section */}
+                    {filterBySearch('about support report ai content help') && (
+                        <div className="settings-section">
+                            <h3>About & Support</h3>
+                            <div className="settings-item">
+                                <span className="setting-hint">
+                                    GnuNae uses OpenAI Codex for AI-powered features.
+                                </span>
+                                <a
+                                    href="#"
+                                    className="report-ai-link"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        (window as any).electronAPI?.openExternal?.('https://help.openai.com/en/articles/6825453-reporting-inappropriate-content');
+                                    }}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        marginTop: '8px',
+                                        fontSize: '12px',
+                                        color: '#888',
+                                        textDecoration: 'none',
+                                    }}
+                                >
+                                    🚩 Report inappropriate AI-generated content
+                                </a>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

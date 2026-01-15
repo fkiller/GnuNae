@@ -22,7 +22,8 @@
     "start": "electron .",
     "download-node": "node scripts/download-node.js",
     "install-codex": "node scripts/install-codex.js",
-    "pack:mac": "npm run build && electron-builder --mac",
+    "pack:mac": "npm run build && node scripts/load-env.js --mac dmg zip",
+    "pack:mac-mas": "npm run build && node scripts/load-env.js --mac mas",
     "pack:win": "npm run download-node && npm run install-codex && ping 127.0.0.1 -n 4 > nul && npm run build && node scripts/load-env.js --win",
     "pack:linux": "npm run build && electron-builder --linux",
     "pack:all": "npm run build && electron-builder --mac --win --linux",
@@ -56,8 +57,25 @@
             "x64",
             "arm64"
           ]
+        },
+        {
+          "target": "mas",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
-      ]
+      ],
+      "entitlementsInherit": "build/entitlements.mas.inherit.plist"
+    },
+    "mas": {
+      "entitlements": "build/entitlements.mas.plist",
+      "entitlementsInherit": "build/entitlements.mas.inherit.plist",
+      "hardenedRuntime": false,
+      "provisioningProfile": "certs/GnuNae.provisionprofile",
+      "extendInfo": {
+        "ElectronTeamID": "56XUV6V5AF"
+      }
     },
     "win": {
       "icon": "assets/gnunae.ico",
