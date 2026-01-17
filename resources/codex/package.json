@@ -4,6 +4,6 @@
   "private": true,
   "description": "GnuNae embedded runtime dependencies",
   "dependencies": {
-    "@openai/codex": "^0.80.0"
+    "@openai/codex": "^0.87.0"
   }
 }

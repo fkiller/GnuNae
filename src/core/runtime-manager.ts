@@ -106,6 +106,9 @@ class RuntimeManager {
     getCodexPath(): string | null {
         let codexDir: string;
 
+        console.log('[RuntimeManager] getCodexPath - isPackaged:', app.isPackaged);
+        console.log('[RuntimeManager] getCodexPath - resourcesPath:', process.resourcesPath);
+
         if (process.platform === 'win32') {
             // Windows: check resources/codex first
             if (app.isPackaged) {
@@ -114,12 +117,16 @@ class RuntimeManager {
                 codexDir = path.join(__dirname, '../../resources/codex/node_modules/.bin');
             }
             const codexPath = path.join(codexDir, 'codex.cmd');
+            console.log('[RuntimeManager] getCodexPath - Checking:', codexPath);
+            console.log('[RuntimeManager] getCodexPath - Exists:', fs.existsSync(codexPath));
             if (fs.existsSync(codexPath)) return codexPath;
 
             // Fallback: check project node_modules
             const fallbackPath = app.isPackaged
                 ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.bin', 'codex.cmd')
                 : path.join(__dirname, '../../node_modules/.bin/codex.cmd');
+            console.log('[RuntimeManager] getCodexPath - Fallback:', fallbackPath);
+            console.log('[RuntimeManager] getCodexPath - Fallback exists:', fs.existsSync(fallbackPath));
             return fs.existsSync(fallbackPath) ? fallbackPath : null;
         } else {
             // macOS/Linux: check userData codex
@@ -205,11 +212,13 @@ class RuntimeManager {
         if (npmPath && status.node.installed) {
             try {
                 const env = this.getEmbeddedNodeEnv();
+                console.log('[RuntimeManager] Testing npm at:', npmPath);
                 const version = execSync(`"${npmPath}" --version`, { encoding: 'utf8', env }).trim();
                 status.npm = { installed: true, version: `v${version}` };
                 console.log(`[RuntimeManager] npm: v${version}`);
-            } catch (e) {
+            } catch (e: any) {
                 console.log('[RuntimeManager] npm found but failed to get version');
+                console.log('[RuntimeManager] npm error:', e.message || e);
             }
         }
 

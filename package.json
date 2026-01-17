@@ -40,6 +40,7 @@
       "dist/**/*",
       "scripts/**/*"
     ],
+    "afterPack": "./scripts/afterPack.js",
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "assets/gnunae.png",
@@ -88,7 +89,7 @@
         "portable",
         "appx"
       ],
-      "signAndEditExecutable": false,
+      "signAndEditExecutable": true,
       "extraResources": [
         {
           "from": "resources/runtime",

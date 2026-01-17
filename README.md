@@ -262,6 +262,9 @@ npm run pack:win
 npm run pack:linux
 ```
 
+For detailed CI/CD pipeline documentation, code signing setup, and environment configuration, see:
+- 📖 **[CI/CD Packaging Documentation](docs/CI_CD_PACKAGING.md)**
+
 ## Configuration
 
 GnuNae configures Codex CLI automatically at runtime via `-c` flags. **No manual configuration needed** - GnuNae works out of the box without modifying `~/.codex/config.toml`.
