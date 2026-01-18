@@ -303,11 +303,11 @@ npx electron-builder --win appx --publish never \
 
 ---
 
-### 5. Linux Binary (Future)
+### 5. Linux Binary
 
 **Purpose:** Distribution via GitHub releases, package managers.
 
-**Signing:** GPG signing (to be implemented)
+**Signing:** GPG signature
 
 **Output:** `GnuNae-linux-x64.AppImage`, `GnuNae-linux-x64.deb`
 
@@ -331,12 +331,23 @@ npx electron-builder --win appx --publish never \
 npm run pack:linux
 ```
 
-#### Future: GPG Signing
+#### GPG Signing
 
 | Variable | Description | GitHub Secret |
 |----------|-------------|---------------|
-| `GPG_PRIVATE_KEY` | Base64-encoded GPG private key | ✅ (planned) |
-| `GPG_PASSPHRASE` | Passphrase for GPG key | ✅ (planned) |
+| `GPG_PRIVATE_KEY` | Base64-encoded GPG private key | ✅ |
+| `GPG_KEY` | GPG key ID (e.g., `C90FF75C007E7301`) | Hardcoded in workflow |
+| `APPLE_CERTIFICATE_PASSWORD` | Passphrase for GPG key (reused) | ✅ |
+
+#### Creating/Exporting GPG Key
+
+```bash
+# Create key (4096-bit RSA, no expiration)
+gpg --full-generate-key
+
+# Export for GitHub Secret
+gpg --pinentry-mode loopback --armor --export-secret-keys YOUR_KEY_ID | base64 | pbcopy
+```
 
 ---
 

@@ -138,9 +138,21 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
           CSC_LINK: ""
 
+      # Linux: Setup GPG for signing
+      - name: Setup GPG (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          echo "$GPG_PRIVATE_KEY" | base64 --decode | gpg --batch --import
+          echo "GPG key imported"
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+
       - name: Package (Linux)
         if: matrix.platform == 'linux'
         run: npx electron-builder --linux --publish never
+        env:
+          GPG_KEY: C90FF75C007E7301
+          GPG_PASSPHRASE: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -150,6 +162,7 @@ jobs:
             release/*.dmg
             release/*.zip
             release/*.pkg
+            release/mas-*/*.pkg
             release/*.exe
             release/*.appx
             release/*.AppImage
