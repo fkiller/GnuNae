@@ -63,6 +63,7 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
     const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);  // Attached files for prompt
     const [isLoggingIn, setIsLoggingIn] = useState(false);  // Track if Codex CLI login is in progress
     const [isInitializing, setIsInitializing] = useState(false);  // Track MCP initialization phase
+    const [isRuntimeReady, setIsRuntimeReady] = useState(true);  // Track if Codex CLI is available (default true for dev mode)
 
     // Keep taskModeRef in sync
     useEffect(() => { taskModeRef.current = taskMode; }, [taskMode]);
@@ -85,8 +86,22 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
             }
         });
 
+        // Check runtime status (for native mode on macOS)
+        (window as any).electronAPI?.getQuickRuntimeStatus?.().then((status: { ready: boolean }) => {
+            if (status) {
+                setIsRuntimeReady(status.ready);
+            }
+        });
+
+        // Subscribe to runtime status changes
+        const unsubRuntimeStatus = (window as any).electronAPI?.onRuntimeStatusChanged?.((status: { ready: boolean }) => {
+            console.log('[CodexSidebar] Runtime status changed:', status.ready);
+            setIsRuntimeReady(status.ready);
+        });
+
         return () => {
             unsubSettings?.();
+            unsubRuntimeStatus?.();
         };
     }, []);
 
@@ -528,7 +543,14 @@ You can read, process, or reference these files as needed.
                             <span className="user-email">{userEmail || 'Signed in'}</span>
                         </div>
                     ) : (
-                        <button className="sign-in-btn" onClick={onRequestLogin}>Sign in</button>
+                        <button
+                            className="sign-in-btn"
+                            onClick={onRequestLogin}
+                            disabled={!isRuntimeReady}
+                            title={isRuntimeReady ? 'Sign in with OpenAI' : 'Preparing environment...'}
+                        >
+                            {isRuntimeReady ? 'Sign in' : 'Loading...'}
+                        </button>
                     )}
                 </div>
             </div>

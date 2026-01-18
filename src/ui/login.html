@@ -225,14 +225,56 @@
                 GnuNae uses OpenAI Codex for AI features. Sign in with your ChatGPT account.
             </p>
             <div class="auth-buttons">
-                <a href="gnunae://login" class="btn btn-primary">
-                    🔐 Sign in with OpenAI
+                <a href="gnunae://login" id="sign-in-btn" class="btn btn-primary btn-disabled">
+                    ⏳ Preparing...
                 </a>
                 <a href="https://chatgpt.com/#pricing" target="_blank" class="btn btn-secondary">
                     📝 Create Account
                 </a>
             </div>
+            <p id="status-message" class="description"
+                style="margin-top: 12px; font-size: 12px; color: var(--text-muted);"></p>
         </section>
+
+        <script>
+            // Check runtime status via custom message from main process
+            window.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'runtime-status') {
+                    updateLoginButton(event.data.ready);
+                }
+            });
+
+            // Also listen for a custom event dispatched by parent
+            window.addEventListener('gnunae-runtime-status', (event) => {
+                updateLoginButton(event.detail?.ready);
+            });
+
+            function updateLoginButton(ready) {
+                const btn = document.getElementById('sign-in-btn');
+                const statusMsg = document.getElementById('status-message');
+                if (ready) {
+                    btn.innerHTML = '🔐 Sign in with OpenAI';
+                    btn.classList.remove('btn-disabled');
+                    btn.style.pointerEvents = 'auto';
+                    btn.style.opacity = '1';
+                    if (statusMsg) statusMsg.textContent = '';
+                } else {
+                    btn.innerHTML = '⏳ Preparing...';
+                    btn.classList.add('btn-disabled');
+                    btn.style.pointerEvents = 'none';
+                    btn.style.opacity = '0.6';
+                    if (statusMsg) statusMsg.textContent = 'Installing Codex CLI, please wait...';
+                }
+            }
+
+            // Try to get initial status after a short delay (for embedded environments)
+            setTimeout(() => {
+                // Check if parent can send us status
+                if (window.parent !== window) {
+                    window.parent.postMessage({ type: 'request-runtime-status' }, '*');
+                }
+            }, 100);
+        </script>
 
         <h2 class="section-title">What You Can Do</h2>
         <section class="features">

@@ -330,6 +330,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getRuntimeStatus: () => ipcRenderer.invoke('runtime:get-status'),
     ensureRuntime: () => ipcRenderer.invoke('runtime:ensure'),
     getQuickRuntimeStatus: () => ipcRenderer.invoke('runtime:status'),
+    onRuntimeStatusChanged: (callback: (status: { ready: boolean }) => void) => {
+        const handler = (_: IpcRendererEvent, status: { ready: boolean }) => callback(status);
+        ipcRenderer.on('runtime:status-changed', handler);
+        return () => ipcRenderer.removeListener('runtime:status-changed', handler);
+    },
 
     onUrlUpdate: (callback: (url: string) => void) => {
         const handler = (_: IpcRendererEvent, url: string) => callback(url);

@@ -3066,12 +3066,28 @@ app.whenReady().then(async () => {
     if (process.platform !== 'win32') {
         const runtimeManager = getRuntimeManager();
         const status = await runtimeManager.validateRuntime();
+
+        // Helper to notify all BrowserViews about runtime status
+        const notifyBrowserViews = (ready: boolean) => {
+            // Send to all windows and their BrowserViews
+            BrowserWindow.getAllWindows().forEach(win => {
+                win.webContents.send('runtime:status-changed', { ready });
+                // Also send to BrowserViews via executeJavaScript
+                win.getBrowserViews().forEach(view => {
+                    view.webContents.executeJavaScript(`
+                        window.postMessage({ type: 'runtime-status', ready: ${ready} }, '*');
+                    `).catch(() => { });
+                });
+            });
+        };
+
         if (!status.ready) {
             console.log('[Main] Runtime not ready, installing automatically...');
             runtimeManager.ensureRuntime().then(result => {
                 if (result.ready) {
                     console.log('[Main] Runtime installed successfully');
-                    // Notify any open Settings windows
+                    // Notify any open Settings windows and BrowserViews
+                    notifyBrowserViews(true);
                     mainWindow?.webContents.send('runtime:status-changed', result);
                 } else {
                     console.error('[Main] Runtime installation failed:', result.error);
@@ -3081,6 +3097,8 @@ app.whenReady().then(async () => {
             });
         } else {
             console.log('[Main] Runtime already installed');
+            // Notify that runtime is ready
+            setTimeout(() => notifyBrowserViews(true), 500);
         }
     }
 
