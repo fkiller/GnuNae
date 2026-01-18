@@ -129,6 +129,7 @@
     }
   },
   "devDependencies": {
+    "@openai/codex": "^0.80.0",
     "@types/node": "^25.0.6",
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",
@@ -143,7 +144,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
-    "@openai/codex": "^0.80.0",
     "@playwright/mcp": "^0.0.55",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",

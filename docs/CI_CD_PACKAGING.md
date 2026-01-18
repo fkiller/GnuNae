@@ -474,7 +474,31 @@ cat certificate.p12.base64
 - Ensure `hardenedRuntime: true` in build config
 - Check notarization completed successfully
 
-### macOS: App Store rejection
+### macOS: App Store rejection - Non-public APIs (PCRE2)
+
+**Error:** `Your app uses or references the following non-public or deprecated APIs: rg` with PCRE2 symbols
+
+**Cause:** If `@openai/codex` is in `dependencies`, it gets bundled into the app's `node_modules/`. The package includes `rg` (ripgrep) binary which statically links PCRE2 library - Apple considers these non-public APIs.
+
+**Solution:** `@openai/codex` is in `devDependencies` (not `dependencies`), so it's NOT bundled in the app.
+- macOS installs Codex CLI at runtime to `~/Library/Application Support/GnuNae/codex/`
+- Windows uses `resources/codex/` via `extraResources`
+- The app only spawns Codex as an external CLI, never imports it as a module
+
+If you see this error, ensure `@openai/codex` is NOT in `dependencies` in package.json.
+
+### macOS: App Store rejection - China Legal (ChatGPT/OpenAI)
+
+**Error:** `Your app appears to be associated with ChatGPT, which does not have requisite permits to operate in China`
+
+**Cause:** Chinese regulations require DST (Deep Synthesis Technologies) permits for ChatGPT/OpenAI services.
+
+**Solution:** Exclude China from App Store availability:
+- In App Store Connect → Pricing and Availability → Deselect "China mainland"
+
+This is the standard approach for ChatGPT-integrated apps.
+
+### macOS: General App Store sandbox issues
 - Verify sandbox entitlements in `entitlements.mas.plist`
 - Ensure no hardened runtime entitlements in MAS build
 
