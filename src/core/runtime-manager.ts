@@ -148,24 +148,24 @@ class RuntimeManager {
             } else {
                 codexDir = path.join(__dirname, '../../resources/codex');
             }
-            const localMcp = path.join(codexDir, 'node_modules', '@playwright/mcp', 'index.js');
+            const localMcp = path.join(codexDir, 'node_modules', '@playwright/mcp', 'cli.js');
             if (fs.existsSync(localMcp)) return localMcp;
 
             // Fallback: check project node_modules (unpacked)
             const fallbackPath = app.isPackaged
-                ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '@playwright/mcp', 'index.js')
-                : path.join(__dirname, '../../node_modules/@playwright/mcp/index.js');
+                ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '@playwright/mcp', 'cli.js')
+                : path.join(__dirname, '../../node_modules/@playwright/mcp/cli.js');
             return fs.existsSync(fallbackPath) ? fallbackPath : null;
         } else {
             // macOS/Linux: check userData codex
             codexDir = path.join(app.getPath('userData'), 'codex');
-            const localMcp = path.join(codexDir, 'node_modules', '@playwright/mcp', 'index.js');
+            const localMcp = path.join(codexDir, 'node_modules', '@playwright/mcp', 'cli.js');
             if (fs.existsSync(localMcp)) return localMcp;
 
             // Fallback: check project node_modules
             const fallbackPath = app.isPackaged
-                ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '@playwright/mcp', 'index.js')
-                : path.join(__dirname, '../../node_modules/@playwright/mcp/index.js');
+                ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '@playwright/mcp', 'cli.js')
+                : path.join(__dirname, '../../node_modules/@playwright/mcp/cli.js');
             return fs.existsSync(fallbackPath) ? fallbackPath : null;
         }
     }
