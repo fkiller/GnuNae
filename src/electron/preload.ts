@@ -60,13 +60,13 @@ export interface ElectronAPI {
     onTaskBlocked: (callback: (data: { type: string; message: string; detail: string }) => void) => () => void;
 
     // Codex CLI Authentication
-    startCodexLogin: () => Promise<{ success: boolean; error?: string }>;
+    startCodexLogin: (isSignup?: boolean) => Promise<{ success: boolean; error?: string }>;
     cancelCodexLogin: () => Promise<{ success: boolean }>;
     isCodexCliAuthenticated: () => Promise<boolean>;
     onCodexLoginUrl: (callback: (url: string) => void) => () => void;
     onCodexLoginComplete: (callback: (data: { success: boolean; error?: string }) => void) => () => void;
     onCodexDeviceCode: (callback: (code: string) => void) => () => void;
-    onTriggerCodexLogin: (callback: () => void) => () => void;
+    onTriggerCodexLogin: (callback: (isSignup: boolean) => void) => () => void;
 
     // Docker/Sandbox
     isDockerAvailable: () => Promise<{ available: boolean }>;
@@ -281,7 +281,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
 
     // Codex CLI Authentication
-    startCodexLogin: () => ipcRenderer.invoke('codex:start-login'),
+    startCodexLogin: (isSignup?: boolean) => ipcRenderer.invoke('codex:start-login', isSignup),
     cancelCodexLogin: () => ipcRenderer.invoke('codex:cancel-login'),
     isCodexCliAuthenticated: () => ipcRenderer.invoke('codex:is-cli-authenticated'),
     onCodexLoginUrl: (callback: (url: string) => void) => {
@@ -299,8 +299,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('codex:device-code', handler);
         return () => ipcRenderer.removeListener('codex:device-code', handler);
     },
-    onTriggerCodexLogin: (callback: () => void) => {
-        const handler = () => callback();
+    onTriggerCodexLogin: (callback: (isSignup: boolean) => void) => {
+        const handler = (_: IpcRendererEvent, isSignup: boolean) => callback(isSignup);
         ipcRenderer.on('trigger-codex-login', handler);
         return () => ipcRenderer.removeListener('trigger-codex-login', handler);
     },

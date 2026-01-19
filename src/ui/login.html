@@ -56,6 +56,7 @@
             margin-bottom: 12px;
             background: linear-gradient(135deg, var(--accent) 0%, var(--accent-secondary) 100%);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
@@ -228,12 +229,16 @@
                 <a href="gnunae://login" id="sign-in-btn" class="btn btn-primary btn-disabled">
                     ⏳ Preparing...
                 </a>
-                <a href="https://chatgpt.com/#pricing" target="_blank" class="btn btn-secondary">
+                <a href="gnunae://signup" id="sign-up-btn" class="btn btn-secondary btn-disabled">
                     📝 Create Account
                 </a>
             </div>
             <p id="status-message" class="description"
                 style="margin-top: 12px; font-size: 12px; color: var(--text-muted);"></p>
+            <p id="help-message" class="description" style="margin-top: 8px; font-size: 11px; display: none;">
+                Hint: If the page doesn't load, you can also sign in directly using the <b>Sign In</b> button in the
+                right sidebar.
+            </p>
         </section>
 
         <script>
@@ -250,20 +255,39 @@
             });
 
             function updateLoginButton(ready) {
-                const btn = document.getElementById('sign-in-btn');
+                const signInBtn = document.getElementById('sign-in-btn');
+                const signUpBtn = document.getElementById('sign-up-btn');
                 const statusMsg = document.getElementById('status-message');
+                const helpMsg = document.getElementById('help-message');
+
                 if (ready) {
-                    btn.innerHTML = '🔐 Sign in with OpenAI';
-                    btn.classList.remove('btn-disabled');
-                    btn.style.pointerEvents = 'auto';
-                    btn.style.opacity = '1';
+                    signInBtn.innerHTML = '🔐 Sign in with OpenAI';
+                    signInBtn.classList.remove('btn-disabled');
+                    signInBtn.style.pointerEvents = 'auto';
+                    signInBtn.style.opacity = '1';
+
+                    if (signUpBtn) {
+                        signUpBtn.classList.remove('btn-disabled');
+                        signUpBtn.style.pointerEvents = 'auto';
+                        signUpBtn.style.opacity = '1';
+                    }
+
                     if (statusMsg) statusMsg.textContent = '';
+                    if (helpMsg) helpMsg.style.display = 'block';
                 } else {
-                    btn.innerHTML = '⏳ Preparing...';
-                    btn.classList.add('btn-disabled');
-                    btn.style.pointerEvents = 'none';
-                    btn.style.opacity = '0.6';
+                    signInBtn.innerHTML = '⏳ Preparing...';
+                    signInBtn.classList.add('btn-disabled');
+                    signInBtn.style.pointerEvents = 'none';
+                    signInBtn.style.opacity = '0.6';
+
+                    if (signUpBtn) {
+                        signUpBtn.classList.add('btn-disabled');
+                        signUpBtn.style.pointerEvents = 'none';
+                        signUpBtn.style.opacity = '0.6';
+                    }
+
                     if (statusMsg) statusMsg.textContent = 'Installing Codex CLI, please wait...';
+                    if (helpMsg) helpMsg.style.display = 'none';
                 }
             }
 

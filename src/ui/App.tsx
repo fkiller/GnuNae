@@ -22,7 +22,7 @@ declare global {
             isAuthenticated: () => Promise<boolean>;
             getUser: () => Promise<string | null>;
             startGoogleLogin: () => Promise<{ success: boolean }>;
-            startCodexLogin: () => Promise<{ success: boolean; error?: string }>;
+            startCodexLogin: (isSignup?: boolean) => Promise<{ success: boolean; error?: string }>;
             logout: () => Promise<{ success: boolean }>;
             showLogin: () => Promise<{ success: boolean }>;
             checkNow: () => Promise<{ authenticated: boolean }>;
@@ -187,10 +187,10 @@ const App: React.FC = () => {
             (window as any).electronAPI?.setSidebarVisible?.(panel !== null);
         });
 
-        // Listen for login triggers from internal pages (gnunae://login)
-        const unsubTriggerLogin = (window as any).electronAPI?.onTriggerCodexLogin?.(() => {
-            console.log('[App] Login triggered from internal page');
-            window.electronAPI?.startCodexLogin?.();
+        // Listen for login triggers from internal pages (gnunae://login or gnunae://signup)
+        const unsubTriggerLogin = (window as any).electronAPI?.onTriggerCodexLogin?.((isSignup: boolean) => {
+            console.log('[App] Login triggered from internal page, signup:', isSignup);
+            window.electronAPI?.startCodexLogin?.(isSignup);
         });
 
         // Menu event: show console (⌘3)

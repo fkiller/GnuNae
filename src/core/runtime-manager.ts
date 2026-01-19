@@ -106,9 +106,6 @@ class RuntimeManager {
     getCodexPath(): string | null {
         let codexDir: string;
 
-        console.log('[RuntimeManager] getCodexPath - isPackaged:', app.isPackaged);
-        console.log('[RuntimeManager] getCodexPath - resourcesPath:', process.resourcesPath);
-
         if (process.platform === 'win32') {
             // Windows: check resources/codex first
             if (app.isPackaged) {
@@ -117,16 +114,12 @@ class RuntimeManager {
                 codexDir = path.join(__dirname, '../../resources/codex/node_modules/.bin');
             }
             const codexPath = path.join(codexDir, 'codex.cmd');
-            console.log('[RuntimeManager] getCodexPath - Checking:', codexPath);
-            console.log('[RuntimeManager] getCodexPath - Exists:', fs.existsSync(codexPath));
             if (fs.existsSync(codexPath)) return codexPath;
 
             // Fallback: check project node_modules
             const fallbackPath = app.isPackaged
                 ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.bin', 'codex.cmd')
                 : path.join(__dirname, '../../node_modules/.bin/codex.cmd');
-            console.log('[RuntimeManager] getCodexPath - Fallback:', fallbackPath);
-            console.log('[RuntimeManager] getCodexPath - Fallback exists:', fs.existsSync(fallbackPath));
             return fs.existsSync(fallbackPath) ? fallbackPath : null;
         } else {
             // macOS/Linux: check userData codex
@@ -138,6 +131,41 @@ class RuntimeManager {
             const fallbackPath = app.isPackaged
                 ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.bin', 'codex')
                 : path.join(__dirname, '../../node_modules/.bin/codex');
+            return fs.existsSync(fallbackPath) ? fallbackPath : null;
+        }
+    }
+
+    /**
+     * Get path to Playwright MCP script
+     */
+    getPlaywrightMcpPath(): string | null {
+        let codexDir: string;
+
+        if (process.platform === 'win32') {
+            // Windows: check resources/codex first
+            if (app.isPackaged) {
+                codexDir = path.join(process.resourcesPath, 'codex');
+            } else {
+                codexDir = path.join(__dirname, '../../resources/codex');
+            }
+            const localMcp = path.join(codexDir, 'node_modules', '@playwright/mcp', 'index.js');
+            if (fs.existsSync(localMcp)) return localMcp;
+
+            // Fallback: check project node_modules (unpacked)
+            const fallbackPath = app.isPackaged
+                ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '@playwright/mcp', 'index.js')
+                : path.join(__dirname, '../../node_modules/@playwright/mcp/index.js');
+            return fs.existsSync(fallbackPath) ? fallbackPath : null;
+        } else {
+            // macOS/Linux: check userData codex
+            codexDir = path.join(app.getPath('userData'), 'codex');
+            const localMcp = path.join(codexDir, 'node_modules', '@playwright/mcp', 'index.js');
+            if (fs.existsSync(localMcp)) return localMcp;
+
+            // Fallback: check project node_modules
+            const fallbackPath = app.isPackaged
+                ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '@playwright/mcp', 'index.js')
+                : path.join(__dirname, '../../node_modules/@playwright/mcp/index.js');
             return fs.existsSync(fallbackPath) ? fallbackPath : null;
         }
     }
@@ -432,10 +460,11 @@ class RuntimeManager {
         const env = this.getEmbeddedNodeEnv();
 
         return new Promise((resolve, reject) => {
-            // Use the downloaded npm to install codex-cli
+            // Use the downloaded npm to install codex-cli and playwright-mcp
             const child = spawn(npmPath, [
                 'install',
-                '@openai/codex',
+                '@openai/codex@latest',
+                '@playwright/mcp@latest',
                 '--prefix', codexDir
             ], {
                 stdio: 'inherit',

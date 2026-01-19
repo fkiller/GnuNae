@@ -14,10 +14,29 @@ import { settingsService } from '../core/settings';
 import { getRuntimeManager } from '../core/runtime-manager';
 
 // Enable Chrome DevTools Protocol for Playwright MCP integration
-// Bound to all interfaces to allow Docker container access via host.docker.internal
-// Security: Only listens on local network, not exposed to internet
+// Windows: Default to 127.0.0.1 to avoid Firewall prompts and ECONNREFUSED on clean installs.
+// Mac/Linux: Keep 0.0.0.0 for maximum compatibility with external tools/containers.
+let debuggingAddress = process.platform === 'win32' ? '127.0.0.1' : '0.0.0.0';
+
+// On Windows, only switch to 0.0.0.0 if Virtual Mode (Docker) is explicitly enabled
+if (process.platform === 'win32') {
+    try {
+        const userDataPath = app.getPath('userData');
+        const settingsPath = path.join(userDataPath, 'settings.json');
+        if (fs.existsSync(settingsPath)) {
+            const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+            if (settings?.docker?.useVirtualMode) {
+                debuggingAddress = '0.0.0.0';
+                console.log('[Main] Windows Virtual Mode detected, using 0.0.0.0 for CDP');
+            }
+        }
+    } catch (e) {
+        // Fallback to 127.0.0.1 on error
+    }
+}
+
 app.commandLine.appendSwitch('remote-debugging-port', '9222');
-app.commandLine.appendSwitch('remote-debugging-address', '0.0.0.0');
+app.commandLine.appendSwitch('remote-debugging-address', debuggingAddress);
 
 /**
  * Get environment variables configured to use embedded portable Node.js.
@@ -29,80 +48,6 @@ function getEmbeddedNodeEnv(): NodeJS.ProcessEnv {
 }
 
 
-/**
- * Ensure Playwright MCP is configured in the global Codex config.
- * - Adds the playwright MCP server entry if not present
- * - Updates CDP endpoint to native localhost (127.0.0.1) if currently set to Docker endpoint
- * - Adds startup_timeout_sec if missing from existing playwright config
- * Does NOT remove other MCPs - we use the prompt to guide Codex to use Playwright.
- */
-function ensurePlaywrightMcpConfig(): void {
-    const codexConfigDir = path.join(os.homedir(), '.codex');
-    const codexConfigPath = path.join(codexConfigDir, 'config.toml');
-
-    // Ensure .codex directory exists
-    if (!fs.existsSync(codexConfigDir)) {
-        fs.mkdirSync(codexConfigDir, { recursive: true });
-    }
-
-    // Read existing config or start with empty
-    let configContent = '';
-    if (fs.existsSync(codexConfigPath)) {
-        configContent = fs.readFileSync(codexConfigPath, 'utf-8');
-    }
-
-    let modified = false;
-
-    // Check if playwright MCP is already configured
-    if (configContent.includes('[mcp_servers.playwright]')) {
-        // Extract the playwright section to check for issues
-        const playwrightSectionMatch = configContent.match(
-            /\[mcp_servers\.playwright\][\s\S]*?(?=\n\[|$)/
-        );
-        const playwrightSection = playwrightSectionMatch ? playwrightSectionMatch[0] : '';
-
-        // IMPORTANT: Fix CDP endpoint if it's set to Docker's host.docker.internal
-        // Native mode needs 127.0.0.1, Docker mode uses its own entrypoint.sh config
-        if (playwrightSection.includes('host.docker.internal')) {
-            configContent = configContent.replace(
-                /host\.docker\.internal:(\d+)/g,
-                '127.0.0.1:$1'
-            );
-            modified = true;
-            console.log('[Config] Updated Playwright CDP endpoint from Docker to native (127.0.0.1)');
-        }
-
-        if (!playwrightSection.includes('startup_timeout_sec')) {
-            // Add timeout after the playwright section's args line
-            configContent = configContent.replace(
-                /(\[mcp_servers\.playwright\][\s\S]*?args\s*=\s*\[.*?\])/,
-                '$1\nstartup_timeout_sec = 60'
-            );
-            modified = true;
-            console.log('[Config] Added startup_timeout_sec to existing Playwright config');
-        } else {
-            console.log('[Config] Playwright MCP already configured with timeout');
-        }
-    } else {
-        // Add Playwright MCP configuration with extended timeout
-        const playwrightConfig = `
-
-# GnuNae Playwright MCP - Auto-configured
-[mcp_servers.playwright]
-command = "npx"
-args = ["@playwright/mcp@latest", "--cdp-endpoint", "http://127.0.0.1:9222"]
-startup_timeout_sec = 60
-`;
-        configContent = configContent.trimEnd() + playwrightConfig;
-        modified = true;
-        console.log('[Config] Added Playwright MCP to Codex config');
-    }
-
-    if (modified) {
-        fs.writeFileSync(codexConfigPath, configContent, 'utf-8');
-        console.log('[Config] Updated Codex config:', codexConfigPath);
-    }
-}
 
 // Read package.json for app info
 const packageJson = require('../../package.json');
@@ -367,7 +312,11 @@ class TabManager {
                 if (navUrl === 'gnunae://login') {
                     // Trigger the Codex login flow
                     console.log('[Main] Login triggered from internal page');
-                    this.ownerWindow?.webContents.send('trigger-codex-login');
+                    this.ownerWindow?.webContents.send('trigger-codex-login', false);
+                } else if (navUrl === 'gnunae://signup') {
+                    // Trigger the Codex signup flow
+                    console.log('[Main] Signup triggered from internal page');
+                    this.ownerWindow?.webContents.send('trigger-codex-login', true);
                 }
             }
         });
@@ -2189,7 +2138,7 @@ function setupIpcHandlers(): void {
     // 4. User completes login in app browser (can close external browser)
     // 5. App browser redirects to localhost:1455, CLI receives callback
     // 6. CLI saves auth token automatically
-    ipcMain.handle('codex:start-login', async (event) => {
+    ipcMain.handle('codex:start-login', async (event, isSignup?: boolean) => {
         const senderWindow = BrowserWindow.fromWebContents(event.sender);
         const senderSession = senderWindow ? windowSessions.get(senderWindow.id) : getActiveSession();
         const browserView = senderSession?.tabManager?.getActiveTab()?.browserView || getActiveView();
@@ -2218,6 +2167,8 @@ function setupIpcHandlers(): void {
             // Spawn codex login - it will start server on localhost:1455
             // and attempt to open browser (which we can't prevent on macOS)
             const isWindows = process.platform === 'win32';
+            const screenHint = isSignup ? '&screen_hint=signup' : '';
+
             codexLoginProcess = spawn(codexBin, ['login'], {
                 // Use shell on Windows for .cmd scripts
                 shell: isWindows ? true : false,
@@ -2236,14 +2187,32 @@ function setupIpcHandlers(): void {
                 // Pattern: https://auth.openai.com/oauth/authorize?...
                 const urlMatch = data.match(/https:\/\/auth\.openai\.com\/oauth\/authorize\?[^\s]+/);
                 if (urlMatch && !urlNavigated) {
-                    const url = urlMatch[0];
-                    console.log('[Main] Found OAuth URL in CLI output:', url);
+                    let url = urlMatch[0];
+                    if (isSignup && !url.includes('screen_hint=')) {
+                        url += screenHint;
+                    }
+                    console.log('[Main] Found OAuth URL in CLI output (signup:', isSignup, '):', url);
 
                     if (browserView) {
                         console.log('[Main] Navigating app browser to OAuth URL');
                         browserView.webContents.loadURL(url);
                         senderWindow?.webContents.send('codex:login-url', url);
                         urlNavigated = true;
+
+                        // Start monitoring cookies for this session to see if they log in early or manually
+                        const cookieListener = async () => {
+                            const currentUrl = browserView.webContents.getURL();
+                            if (currentUrl.includes('chatgpt.com') || currentUrl.includes('openai.com')) {
+                                const success = await authService.extractTokenFromCookies(browserView.webContents.session);
+                                if (success) {
+                                    console.log('[Main] Detected early login via cookies');
+                                    // We don't stop the CLI process here, let it finish or exit naturally
+                                    // but we notify UI that we might be good
+                                }
+                            }
+                        };
+                        browserView.webContents.on('did-navigate', cookieListener);
+                        browserView.webContents.on('did-frame-navigate', cookieListener);
                     }
                 }
 
@@ -2716,10 +2685,20 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
 
             // Configure mcp_servers.playwright completely via -c flags
             // This is the only MCP server we need - the "browser" MCP is not used
-            codexArgs.push('-c', 'mcp_servers.playwright.command=npx');
-            const playwrightArgsValue = `['@playwright/mcp@latest','--cdp-endpoint','${cdpEndpoint}']`;
-            codexArgs.push('-c', `mcp_servers.playwright.args=${playwrightArgsValue}`);
-            codexArgs.push('-c', 'mcp_servers.playwright.startup_timeout_sec=30');
+            const playwrightMcpPath = getRuntimeManager().getPlaywrightMcpPath();
+            if (playwrightMcpPath) {
+                console.log('[Main] Using local Playwright MCP:', playwrightMcpPath);
+                // Use 'node' to run the local script directly
+                codexArgs.push('-c', 'mcp_servers.playwright.command=node');
+                const playwrightArgsValue = `['${playwrightMcpPath.replace(/\\/g, '/')}','--cdp-endpoint','${cdpEndpoint}']`;
+                codexArgs.push('-c', `mcp_servers.playwright.args=${playwrightArgsValue}`);
+            } else {
+                console.log('[Main] Local Playwright MCP not found, falling back to npx');
+                codexArgs.push('-c', 'mcp_servers.playwright.command=npx');
+                const playwrightArgsValue = `['@playwright/mcp@latest','--cdp-endpoint','${cdpEndpoint}']`;
+                codexArgs.push('-c', `mcp_servers.playwright.args=${playwrightArgsValue}`);
+            }
+            codexArgs.push('-c', 'mcp_servers.playwright.startup_timeout_sec=60');
 
             const chatProcess = spawn(codexBin, codexArgs, {
                 // Use shell on Windows for .cmd scripts
@@ -3048,9 +3027,6 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
 }
 
 app.whenReady().then(async () => {
-    // Ensure Codex is configured with Playwright MCP
-    ensurePlaywrightMcpConfig();
-
     createMenu();
 
     // Register IPC handlers first (before any windows are created)

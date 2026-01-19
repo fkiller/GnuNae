@@ -133,8 +133,8 @@ try {
         env.PATH = `${path.join(NODE_PATH, 'bin')}:${env.PATH}`;
     }
 
-    // Use the embedded npm to install codex
-    const npmArgs = ['install', '@openai/codex@latest', '--save'];
+    // Use the embedded npm to install codex and playwright-mcp
+    const npmArgs = ['install', '@openai/codex@latest', '@playwright/mcp@latest', '--save'];
 
     console.log(`Running: npm ${npmArgs.join(' ')}`);
 
