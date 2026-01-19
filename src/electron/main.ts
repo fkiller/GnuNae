@@ -304,6 +304,14 @@ class TabManager {
             }
         });
 
+        // Send runtime status when page finished loading (solves race condition for login.html)
+        browserView.webContents.on('did-finish-load', () => {
+            const ready = getRuntimeManager().getStatus().ready;
+            browserView.webContents.executeJavaScript(`
+                window.postMessage({ type: 'runtime-status', ready: ${ready} }, '*');
+            `).catch(() => { });
+        });
+
         // Intercept gnunae:// protocol URLs for internal actions
         browserView.webContents.on('will-navigate', (event, navUrl) => {
             if (navUrl.startsWith('gnunae://')) {
@@ -3037,45 +3045,43 @@ app.whenReady().then(async () => {
     const externalBrowserMgr = getExternalBrowserManager();
     await externalBrowserMgr.initialize();
 
-    // Automatically install runtime (Node.js + Codex CLI) if not present (macOS/Linux only)
+    // Automatically install runtime (Node.js + Codex CLI) if not present
     // This runs in background and doesn't block app startup
-    if (process.platform !== 'win32') {
-        const runtimeManager = getRuntimeManager();
-        const status = await runtimeManager.validateRuntime();
+    const runtimeManager = getRuntimeManager();
+    const status = await runtimeManager.validateRuntime();
 
-        // Helper to notify all BrowserViews about runtime status
-        const notifyBrowserViews = (ready: boolean) => {
-            // Send to all windows and their BrowserViews
-            BrowserWindow.getAllWindows().forEach(win => {
-                win.webContents.send('runtime:status-changed', { ready });
-                // Also send to BrowserViews via executeJavaScript
-                win.getBrowserViews().forEach(view => {
-                    view.webContents.executeJavaScript(`
-                        window.postMessage({ type: 'runtime-status', ready: ${ready} }, '*');
-                    `).catch(() => { });
-                });
+    // Helper to notify all BrowserViews about runtime status
+    const notifyBrowserViews = (ready: boolean) => {
+        // Send to all windows and their BrowserViews
+        BrowserWindow.getAllWindows().forEach(win => {
+            win.webContents.send('runtime:status-changed', { ready });
+            // Also send to BrowserViews via executeJavaScript
+            win.getBrowserViews().forEach(view => {
+                view.webContents.executeJavaScript(`
+                    window.postMessage({ type: 'runtime-status', ready: ${ready} }, '*');
+                `).catch(() => { });
             });
-        };
+        });
+    };
 
-        if (!status.ready) {
-            console.log('[Main] Runtime not ready, installing automatically...');
-            runtimeManager.ensureRuntime().then(result => {
-                if (result.ready) {
-                    console.log('[Main] Runtime installed successfully');
-                    // Notify any open Settings windows and BrowserViews
-                    notifyBrowserViews(true);
-                    mainWindow?.webContents.send('runtime:status-changed', result);
-                } else {
-                    console.error('[Main] Runtime installation failed:', result.error);
-                }
-            }).catch(err => {
-                console.error('[Main] Runtime installation error:', err);
-            });
-        } else {
-            console.log('[Main] Runtime already installed');
-            // Notify that runtime is ready
-            setTimeout(() => notifyBrowserViews(true), 500);
-        }
+    if (!status.ready) {
+        console.log('[Main] Runtime not ready, ensuring it is installed...');
+        runtimeManager.ensureRuntime().then(result => {
+            if (result.ready) {
+                console.log('[Main] Runtime ready');
+                // Notify any open Settings windows and BrowserViews
+                notifyBrowserViews(true);
+                mainWindow?.webContents.send('runtime:status-changed', result);
+            } else {
+                console.error('[Main] Runtime installation failed:', result.error);
+            }
+        }).catch(err => {
+            console.error('[Main] Runtime installation error:', err);
+        });
+    } else {
+        console.log('[Main] Runtime already installed and ready');
+        // Notify that runtime is ready
+        setTimeout(() => notifyBrowserViews(true), 500);
     }
 
 

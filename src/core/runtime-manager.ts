@@ -223,13 +223,29 @@ class RuntimeManager {
 
         // Check Node.js
         const nodePath = this.getNodePath();
+        const isWindows = process.platform === 'win32';
+
         if (nodePath) {
+            // On Windows, if the file exists, we consider it installed initially
+            // to avoid blocking on slow version checks or AV blocks
+            if (isWindows) {
+                status.node = { installed: true, version: 'checking...', path: nodePath };
+            }
+
             try {
-                const version = execSync(`"${nodePath}" --version`, { encoding: 'utf8' }).trim();
+                // Use a short timeout to prevent hanging
+                const version = execSync(`"${nodePath}" --version`, {
+                    encoding: 'utf8',
+                    timeout: 5000
+                }).trim();
                 status.node = { installed: true, version, path: nodePath };
                 console.log(`[RuntimeManager] Node.js: ${version}`);
-            } catch (e) {
-                console.log('[RuntimeManager] Node.js found but failed to get version');
+            } catch (e: any) {
+                console.log(`[RuntimeManager] Node.js version check failed: ${e.message || e}`);
+                // If on Windows and file exists, we keep it as installed even if version check fails
+                if (!isWindows) {
+                    status.node.installed = false;
+                }
             }
         } else {
             console.log('[RuntimeManager] Node.js not found');
@@ -238,35 +254,62 @@ class RuntimeManager {
         // Check npm
         const npmPath = this.getNpmPath();
         if (npmPath && status.node.installed) {
+            if (isWindows) {
+                status.npm = { installed: true, version: 'checking...' };
+            }
+
             try {
                 const env = this.getEmbeddedNodeEnv();
                 console.log('[RuntimeManager] Testing npm at:', npmPath);
-                const version = execSync(`"${npmPath}" --version`, { encoding: 'utf8', env }).trim();
+                // npm version check is notoriously slow on Windows
+                const version = execSync(`"${npmPath}" --version`, {
+                    encoding: 'utf8',
+                    env,
+                    timeout: 10000
+                }).trim();
                 status.npm = { installed: true, version: `v${version}` };
                 console.log(`[RuntimeManager] npm: v${version}`);
             } catch (e: any) {
-                console.log('[RuntimeManager] npm found but failed to get version');
-                console.log('[RuntimeManager] npm error:', e.message || e);
+                console.log(`[RuntimeManager] npm version check failed: ${e.message || e}`);
+                if (!isWindows) {
+                    status.npm.installed = false;
+                }
             }
         }
 
         // Check Codex
         const codexPath = this.getCodexPath();
         if (codexPath) {
+            if (isWindows) {
+                status.codex = { installed: true, version: 'checking...', path: codexPath };
+            }
+
             try {
                 const env = this.getEmbeddedNodeEnv();
-                const version = execSync(`"${codexPath}" --version`, { encoding: 'utf8', env }).trim();
+                const version = execSync(`"${codexPath}" --version`, {
+                    encoding: 'utf8',
+                    env,
+                    timeout: 5000
+                }).trim();
                 status.codex = { installed: true, version, path: codexPath };
                 console.log(`[RuntimeManager] Codex: ${version}`);
-            } catch (e) {
-                console.log('[RuntimeManager] Codex found but failed to get version');
-                status.codex = { installed: true, version: 'unknown', path: codexPath };
+            } catch (e: any) {
+                console.log(`[RuntimeManager] Codex version check failed: ${e.message || e}`);
+                if (!isWindows) {
+                    status.codex.installed = false;
+                } else {
+                    // Still consider it installed if file exists
+                    status.codex.installed = true;
+                    status.codex.path = codexPath;
+                }
             }
         } else {
             console.log('[RuntimeManager] Codex not found');
         }
 
         status.ready = status.node.installed && status.npm.installed && status.codex.installed;
+
+        // If we are ready but versions are missing, try to fill them in background
         this.status = status;
         this.notifyListeners();
 
