@@ -14,14 +14,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS ARM64 (Apple Silicon) - uses latest runner (Apple Silicon)
+          # macOS builds both ARM64 and x64 via cross-compilation on Apple Silicon runner
           - os: macos-latest
             platform: mac
-            arch: arm64
-          # macOS x64 (Intel) - uses macos-13 (last Intel runner)
-          - os: macos-13
-            platform: mac
-            arch: x64
           - os: windows-latest
             platform: win
           - os: ubuntu-latest
@@ -86,9 +81,19 @@ jobs:
           KEYCHAIN_PASSWORD: ${{ github.run_id }}
 
       # macOS: Build DMG and ZIP for GitHub release (signed with Developer ID + notarized)
-      - name: Package macOS (DMG + ZIP)
+      # Build ARM64 (native on Apple Silicon runner)
+      - name: Package macOS ARM64 (DMG + ZIP)
         if: matrix.platform == 'mac'
-        run: npx electron-builder --mac dmg zip --${{ matrix.arch }} --publish never
+        run: npx electron-builder --mac dmg zip --arm64 --publish never
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+
+      # Build x64 (cross-compilation on Apple Silicon runner)
+      - name: Package macOS x64 (DMG + ZIP)
+        if: matrix.platform == 'mac'
+        run: npx electron-builder --mac dmg zip --x64 --publish never
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -119,9 +124,17 @@ jobs:
           APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
           KEYCHAIN_PASSWORD: ${{ github.run_id }}
 
-      - name: Package macOS (App Store)
+      # Build MAS for ARM64 (native)
+      - name: Package macOS ARM64 (App Store)
         if: matrix.platform == 'mac'
-        run: npx electron-builder --mac mas --${{ matrix.arch }} --publish never --config.mas.provisioningProfile=/tmp/GnuNae.provisionprofile
+        run: npx electron-builder --mac mas --arm64 --publish never --config.mas.provisioningProfile=/tmp/GnuNae.provisionprofile
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      # Build MAS for x64 (cross-compilation)
+      - name: Package macOS x64 (App Store)
+        if: matrix.platform == 'mac'
+        run: npx electron-builder --mac mas --x64 --publish never --config.mas.provisioningProfile=/tmp/GnuNae.provisionprofile
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
@@ -163,7 +176,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.platform }}${{ matrix.arch && format('-{0}', matrix.arch) || '' }}
+          name: release-${{ matrix.platform }}
           path: |
             release/*.dmg
             release/*.zip
