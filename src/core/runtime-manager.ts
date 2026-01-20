@@ -54,19 +54,19 @@ class RuntimeManager {
      * macOS/Linux: ~/Library/Application Support/GnuNae or ~/.config/GnuNae
      */
     getRuntimeBaseDir(): string {
+        const userDataDir = path.join(app.getPath('userData'), 'runtime');
+        const resourcesDir = app.isPackaged
+            ? path.join(process.resourcesPath, 'runtime')
+            : path.join(__dirname, '../../resources/runtime');
+
         if (process.platform === 'win32') {
-            // Windows: embedded in app resources
-            if (app.isPackaged) {
-                return path.join(process.resourcesPath, 'runtime');
-            } else {
-                return path.join(__dirname, '../../resources/runtime');
-            }
-        } else if (process.platform === 'darwin') {
-            // macOS: ~/Library/Application Support/GnuNae/runtime
-            return path.join(app.getPath('userData'), 'runtime');
+            // Check if stable userData copy exists, otherwise use resources
+            const stableNode = path.join(userDataDir, 'node.exe');
+            if (fs.existsSync(stableNode)) return userDataDir;
+            return resourcesDir;
         } else {
-            // Linux: ~/.config/GnuNae/runtime
-            return path.join(app.getPath('userData'), 'runtime');
+            // macOS/Linux: always use userData as it's downloaded there
+            return userDataDir;
         }
     }
 
@@ -104,70 +104,72 @@ class RuntimeManager {
      * Get path to Codex CLI
      */
     getCodexPath(): string | null {
-        let codexDir: string;
+        const isWindows = process.platform === 'win32';
+        const binName = isWindows ? 'codex.cmd' : 'codex';
 
-        if (process.platform === 'win32') {
-            // Windows: check resources/codex first
+        const searchPaths = [];
+
+        if (isWindows) {
+            // 1. Check stable userData location first
+            searchPaths.push(path.join(app.getPath('userData'), 'codex', 'node_modules', '.bin', binName));
+            // 2. Check packaged resources
             if (app.isPackaged) {
-                codexDir = path.join(process.resourcesPath, 'codex', 'node_modules', '.bin');
-            } else {
-                codexDir = path.join(__dirname, '../../resources/codex/node_modules/.bin');
+                searchPaths.push(path.join(process.resourcesPath, 'codex', 'node_modules', '.bin', binName));
+                searchPaths.push(path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.bin', binName));
             }
-            const codexPath = path.join(codexDir, 'codex.cmd');
-            if (fs.existsSync(codexPath)) return codexPath;
-
-            // Fallback: check project node_modules
-            const fallbackPath = app.isPackaged
-                ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.bin', 'codex.cmd')
-                : path.join(__dirname, '../../node_modules/.bin/codex.cmd');
-            return fs.existsSync(fallbackPath) ? fallbackPath : null;
+            // 3. Check development resources
+            searchPaths.push(path.join(__dirname, '../../resources/codex/node_modules/.bin', binName));
+            searchPaths.push(path.join(__dirname, '../../node_modules/.bin', binName));
         } else {
-            // macOS/Linux: check userData codex
-            codexDir = path.join(app.getPath('userData'), 'codex', 'node_modules', '.bin');
-            const codexPath = path.join(codexDir, 'codex');
-            if (fs.existsSync(codexPath)) return codexPath;
-
-            // Fallback: check project node_modules
-            const fallbackPath = app.isPackaged
-                ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.bin', 'codex')
-                : path.join(__dirname, '../../node_modules/.bin/codex');
-            return fs.existsSync(fallbackPath) ? fallbackPath : null;
+            // macOS/Linux
+            searchPaths.push(path.join(app.getPath('userData'), 'codex', 'node_modules', '.bin', binName));
+            if (app.isPackaged) {
+                searchPaths.push(path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.bin', binName));
+            }
+            searchPaths.push(path.join(__dirname, '../../node_modules/.bin', binName));
         }
+
+        for (const p of searchPaths) {
+            if (fs.existsSync(p)) return p;
+        }
+
+        return null;
     }
 
     /**
      * Get path to Playwright MCP script
      */
     getPlaywrightMcpPath(): string | null {
-        let codexDir: string;
+        const isWindows = process.platform === 'win32';
+        const searchPaths = [];
 
-        if (process.platform === 'win32') {
-            // Windows: check resources/codex first
+        // Base relative paths within the codex/root installation
+        const relativeMcpPath = path.join('node_modules', '@playwright/mcp', 'cli.js');
+
+        if (isWindows) {
+            // 1. Stable location in userData
+            searchPaths.push(path.join(app.getPath('userData'), 'codex', relativeMcpPath));
+            // 2. Resources folder
             if (app.isPackaged) {
-                codexDir = path.join(process.resourcesPath, 'codex');
-            } else {
-                codexDir = path.join(__dirname, '../../resources/codex');
+                searchPaths.push(path.join(process.resourcesPath, 'codex', relativeMcpPath));
+                searchPaths.push(path.join(process.resourcesPath, 'app.asar.unpacked', relativeMcpPath));
             }
-            const localMcp = path.join(codexDir, 'node_modules', '@playwright/mcp', 'cli.js');
-            if (fs.existsSync(localMcp)) return localMcp;
-
-            // Fallback: check project node_modules (unpacked)
-            const fallbackPath = app.isPackaged
-                ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '@playwright/mcp', 'cli.js')
-                : path.join(__dirname, '../../node_modules/@playwright/mcp/cli.js');
-            return fs.existsSync(fallbackPath) ? fallbackPath : null;
+            // 3. Dev location
+            searchPaths.push(path.join(__dirname, '../../resources/codex', relativeMcpPath));
+            searchPaths.push(path.join(__dirname, '../../', relativeMcpPath));
         } else {
-            // macOS/Linux: check userData codex
-            codexDir = path.join(app.getPath('userData'), 'codex');
-            const localMcp = path.join(codexDir, 'node_modules', '@playwright/mcp', 'cli.js');
-            if (fs.existsSync(localMcp)) return localMcp;
-
-            // Fallback: check project node_modules
-            const fallbackPath = app.isPackaged
-                ? path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '@playwright/mcp', 'cli.js')
-                : path.join(__dirname, '../../node_modules/@playwright/mcp/cli.js');
-            return fs.existsSync(fallbackPath) ? fallbackPath : null;
+            searchPaths.push(path.join(app.getPath('userData'), 'codex', relativeMcpPath));
+            if (app.isPackaged) {
+                searchPaths.push(path.join(process.resourcesPath, 'app.asar.unpacked', relativeMcpPath));
+            }
+            searchPaths.push(path.join(__dirname, '../../', relativeMcpPath));
         }
+
+        for (const p of searchPaths) {
+            if (fs.existsSync(p)) return p;
+        }
+
+        return null;
     }
 
     /**
@@ -313,7 +315,55 @@ class RuntimeManager {
         this.status = status;
         this.notifyListeners();
 
+        // Blocking migration for Windows portable apps to prevent temp-deletion race
+        if (status.ready && isWindows && app.isPackaged) {
+            await this.migrateToStableStorage();
+        }
+
         return status;
+    }
+
+    /**
+     * Migrate runtime from resources to userData on Windows
+     * This ensures the runtime stays available even if the temp extraction folder is deleted
+     */
+    private async migrateToStableStorage(): Promise<void> {
+        const userDataDist = app.getPath('userData');
+        const stableNodeDir = path.join(userDataDist, 'runtime');
+        const stableCodexDir = path.join(userDataDist, 'codex');
+
+        // Check if we are currently running from resources
+        const currentNodePath = this.getNodePath();
+        if (currentNodePath && currentNodePath.includes(process.resourcesPath)) {
+            console.log('[RuntimeManager] Runtime detected in resources, checking stable storage...');
+
+            // Copy runtime (Node.js) if not already there
+            const resourceNodeDir = path.join(process.resourcesPath, 'runtime');
+            if (fs.existsSync(resourceNodeDir) && !fs.existsSync(path.join(stableNodeDir, 'node.exe'))) {
+                console.log('[RuntimeManager] Migrating Node.js to stable storage...');
+                try {
+                    fs.mkdirSync(stableNodeDir, { recursive: true });
+                    fs.cpSync(resourceNodeDir, stableNodeDir, { recursive: true });
+                    console.log('[RuntimeManager] Node.js migrated to stable storage');
+                } catch (e) {
+                    console.error('[RuntimeManager] Failed to migrate Node.js:', e);
+                }
+            }
+
+            // Copy codex if not already there
+            const resourceCodexDir = path.join(process.resourcesPath, 'codex');
+            const binName = process.platform === 'win32' ? 'codex.cmd' : 'codex';
+            if (fs.existsSync(resourceCodexDir) && !fs.existsSync(path.join(stableCodexDir, 'node_modules', '.bin', binName))) {
+                console.log('[RuntimeManager] Migrating Codex to stable storage...');
+                try {
+                    fs.mkdirSync(stableCodexDir, { recursive: true });
+                    fs.cpSync(resourceCodexDir, stableCodexDir, { recursive: true });
+                    console.log('[RuntimeManager] Codex migrated to stable storage');
+                } catch (e) {
+                    console.error('[RuntimeManager] Failed to migrate Codex:', e);
+                }
+            }
+        }
     }
 
     /**
