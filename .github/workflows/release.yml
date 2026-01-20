@@ -14,8 +14,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # macOS ARM64 (Apple Silicon) - uses latest runner (Apple Silicon)
           - os: macos-latest
             platform: mac
+            arch: arm64
+          # macOS x64 (Intel) - uses macos-13 (last Intel runner)
+          - os: macos-13
+            platform: mac
+            arch: x64
           - os: windows-latest
             platform: win
           - os: ubuntu-latest
@@ -82,7 +88,7 @@ jobs:
       # macOS: Build DMG and ZIP for GitHub release (signed with Developer ID + notarized)
       - name: Package macOS (DMG + ZIP)
         if: matrix.platform == 'mac'
-        run: npx electron-builder --mac dmg zip --publish never
+        run: npx electron-builder --mac dmg zip --arch ${{ matrix.arch }} --publish never
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -115,7 +121,7 @@ jobs:
 
       - name: Package macOS (App Store)
         if: matrix.platform == 'mac'
-        run: npx electron-builder --mac mas --publish never --config.mas.provisioningProfile=/tmp/GnuNae.provisionprofile
+        run: npx electron-builder --mac mas --arch ${{ matrix.arch }} --publish never --config.mas.provisioningProfile=/tmp/GnuNae.provisionprofile
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
@@ -157,7 +163,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.platform }}
+          name: release-${{ matrix.platform }}${{ matrix.arch && format('-{0}', matrix.arch) || '' }}
           path: |
             release/*.dmg
             release/*.zip
