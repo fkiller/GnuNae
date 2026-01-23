@@ -44,6 +44,7 @@ GnuNae requires Node.js, npm, and Codex CLI to function. Runtime provisioning di
 |--------|-------------|-------------------|---------------|-----------|
 | **GitHub Actions** | `pack:win` | `pack:mac` | `pack:mac-mas` | `pack:linux` |
 | **Output Format** | `.exe` `.appx` | `.dmg` `.zip` (contains `.app`) | `.pkg` (contains `.app`) | `.AppImage` `.deb` |
+| **Code Signing** | Azure Trusted Signing | Developer ID Application + Notarization | 3rd Party Mac Developer (App + Installer) | GPG |
 | **Node.js** | ✅ Embedded | ⬇️ Auto-download | ⬇️ Auto-download | ⬇️ Auto-download |
 | **npm** | ✅ Bundled | ⬇️ Bundled with Node | ⬇️ Bundled with Node | ⬇️ Bundled with Node |
 | **Codex CLI** | ✅ Pre-installed | ⬇️ `npm install` | ⬇️ `npm install` | ⬇️ `npm install` |

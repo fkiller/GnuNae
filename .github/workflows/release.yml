@@ -112,6 +112,11 @@ jobs:
           echo "$APPLE_CERTIFICATE_INSTALLER_P12" | base64 --decode > installer_cert.p12
           security import installer_cert.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          # Verify certificates were imported
+          echo "=== Imported Certificates ==="
+          security find-identity -v -p codesigning build.keychain
+          echo "=== Looking for 3rd Party Mac Developer Installer ==="
+          security find-identity -v build.keychain | grep -i "3rd Party Mac Developer Installer" || echo "WARNING: Installer certificate not found!"
           # Decode provisioning profile to temp location
           echo "$APPLE_PROVISIONING_PROFILE" | base64 --decode > /tmp/GnuNae.provisionprofile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
@@ -130,8 +135,6 @@ jobs:
         run: npx electron-builder --mac mas --arm64 --publish never --config.mas.provisioningProfile=/tmp/GnuNae.provisionprofile
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Prevent Developer ID certificate from being auto-detected
-          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       # Build MAS for x64 (cross-compilation)
       - name: Package macOS x64 (App Store)
@@ -139,8 +142,6 @@ jobs:
         run: npx electron-builder --mac mas --x64 --publish never --config.mas.provisioningProfile=/tmp/GnuNae.provisionprofile
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Prevent Developer ID certificate from being auto-detected
-          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       # Windows: Build NSIS and portable with Azure signing (for GitHub release)
       - name: Package Windows (NSIS + Portable - Signed)
