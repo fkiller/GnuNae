@@ -84,9 +84,11 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
         ready: boolean;
         error?: string;
         platform: 'win32' | 'darwin' | 'linux';
+        /** True if running in Mac App Store (sandboxed) build */
+        isMAS?: boolean;
     }
     const [runtimeStatus, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
-    const [isInstallingRuntime, setIsInstallingRuntime] = useState(false);
+
 
     // External Browser state
     const [detectedBrowsers, setDetectedBrowsers] = useState<DetectedBrowser[]>([]);
@@ -345,25 +347,6 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                                                     '✗ Not installed'}
                                         </span>
                                     </div>
-                                    {/* Install/Repair button for macOS when runtime is incomplete */}
-                                    {runtimeStatus && !runtimeStatus.ready && runtimeStatus.platform !== 'win32' && (
-                                        <button
-                                            className="shortcut-btn create"
-                                            style={{ marginTop: '8px' }}
-                                            disabled={isInstallingRuntime}
-                                            onClick={async () => {
-                                                setIsInstallingRuntime(true);
-                                                try {
-                                                    const result = await (window as any).electronAPI?.ensureRuntime?.();
-                                                    setRuntimeStatus(result);
-                                                } finally {
-                                                    setIsInstallingRuntime(false);
-                                                }
-                                            }}
-                                        >
-                                            {isInstallingRuntime ? 'Installing...' : '⬇️ Install Runtime'}
-                                        </button>
-                                    )}
                                     {runtimeStatus?.error && (
                                         <div className="docker-error" style={{ marginTop: '8px' }}>
                                             ⚠️ {runtimeStatus.error}

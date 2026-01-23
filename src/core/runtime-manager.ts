@@ -29,6 +29,8 @@ export interface RuntimeStatus {
     ready: boolean;
     error?: string;
     platform: 'win32' | 'darwin' | 'linux';
+    /** True if running in Mac App Store (sandboxed) build */
+    isMAS?: boolean;
 }
 
 // Expected Node.js version
@@ -39,12 +41,16 @@ class RuntimeManager {
     private listeners: Array<(status: RuntimeStatus) => void> = [];
 
     constructor() {
+        // Detect Mac App Store build - process.mas is set to true in MAS builds
+        const isMAS = !!(process as any).mas;
+
         this.status = {
             node: { installed: false },
             npm: { installed: false },
             codex: { installed: false },
             ready: false,
-            platform: process.platform as 'win32' | 'darwin' | 'linux'
+            platform: process.platform as 'win32' | 'darwin' | 'linux',
+            isMAS
         };
     }
 
@@ -215,12 +221,16 @@ class RuntimeManager {
     async validateRuntime(): Promise<RuntimeStatus> {
         console.log('[RuntimeManager] Validating runtime...');
 
+        // Detect Mac App Store build - process.mas is set to true in MAS builds
+        const isMAS = !!(process as any).mas;
+
         const status: RuntimeStatus = {
             node: { installed: false },
             npm: { installed: false },
             codex: { installed: false },
             ready: false,
-            platform: process.platform as 'win32' | 'darwin' | 'linux'
+            platform: process.platform as 'win32' | 'darwin' | 'linux',
+            isMAS
         };
 
         // Check Node.js
