@@ -130,6 +130,8 @@ jobs:
         run: npx electron-builder --mac mas --arm64 --publish never --config.mas.provisioningProfile=/tmp/GnuNae.provisionprofile
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Prevent Developer ID certificate from being auto-detected
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       # Build MAS for x64 (cross-compilation)
       - name: Package macOS x64 (App Store)
@@ -137,6 +139,8 @@ jobs:
         run: npx electron-builder --mac mas --x64 --publish never --config.mas.provisioningProfile=/tmp/GnuNae.provisionprofile
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Prevent Developer ID certificate from being auto-detected
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       # Windows: Build NSIS and portable with Azure signing (for GitHub release)
       - name: Package Windows (NSIS + Portable - Signed)
