@@ -99,49 +99,10 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
 
-      # macOS: Build MAS package for App Store (signed)
-      - name: Setup MAS Certificates (macOS)
-        if: matrix.platform == 'mac'
-        run: |
-          # Unlock existing keychain (already created by Developer ID step)
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          # Decode and import Application certificate (for signing the app)
-          echo "$APPLE_CERTIFICATE_APPLICATION_P12" | base64 --decode > app_cert.p12
-          security import app_cert.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
-          # Decode and import Installer certificate (for signing the pkg)
-          echo "$APPLE_CERTIFICATE_INSTALLER_P12" | base64 --decode > installer_cert.p12
-          security import installer_cert.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
-          # Verify certificates were imported
-          echo "=== Imported Certificates ==="
-          security find-identity -v -p codesigning build.keychain
-          echo "=== Looking for 3rd Party Mac Developer Installer ==="
-          security find-identity -v build.keychain | grep -i "3rd Party Mac Developer Installer" || echo "WARNING: Installer certificate not found!"
-          # Decode provisioning profile to temp location
-          echo "$APPLE_PROVISIONING_PROFILE" | base64 --decode > /tmp/GnuNae.provisionprofile
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp /tmp/GnuNae.provisionprofile ~/Library/MobileDevice/Provisioning\ Profiles/
-          rm app_cert.p12 installer_cert.p12
-        env:
-          APPLE_CERTIFICATE_APPLICATION_P12: ${{ secrets.APPLE_CERTIFICATE_APPLICATION_P12 }}
-          APPLE_CERTIFICATE_INSTALLER_P12: ${{ secrets.APPLE_CERTIFICATE_INSTALLER_P12 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
-          KEYCHAIN_PASSWORD: ${{ github.run_id }}
-
-      # Build MAS for ARM64 (native)
-      - name: Package macOS ARM64 (App Store)
-        if: matrix.platform == 'mac'
-        run: npx electron-builder --mac mas --arm64 --publish never --config.mas.provisioningProfile=/tmp/GnuNae.provisionprofile
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
-      # Build MAS for x64 (cross-compilation)
-      - name: Package macOS x64 (App Store)
-        if: matrix.platform == 'mac'
-        run: npx electron-builder --mac mas --x64 --publish never --config.mas.provisioningProfile=/tmp/GnuNae.provisionprofile
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      # NOTE: MAS (Mac App Store) builds are NOT included in GitHub releases.
+      # MAS builds should be done locally via `npm run pack:mac-mas` and uploaded
+      # to App Store Connect via Transporter. MAS .pkg files use 3rd Party Mac
+      # Developer certificates which are only valid for App Store distribution.
 
       # Windows: Build NSIS and portable with Azure signing (for GitHub release)
       - name: Package Windows (NSIS + Portable - Signed)
@@ -185,8 +146,6 @@ jobs:
           path: |
             release/*.dmg
             release/*.zip
-            release/*.pkg
-            release/mas-*/*.pkg
             release/*.exe
             release/*.appx
             release/*.AppImage

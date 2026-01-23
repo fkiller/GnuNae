@@ -42,7 +42,8 @@ GnuNae requires Node.js, npm, and Codex CLI to function. Runtime provisioning di
 
 | Aspect | **Windows** | **macOS DMG/ZIP** | **macOS MAS** | **Linux** |
 |--------|-------------|-------------------|---------------|-----------|
-| **GitHub Actions** | `pack:win` | `pack:mac` | `pack:mac-mas` | `pack:linux` |
+| **npm Build** | `pack:win` | `pack:mac` | `pack:mac-mas` | `pack:linux` |
+| **GitHub Actions** | ✅ Yes | ✅ Yes | ❌ Local only | ✅ Yes |
 | **Output Format** | `.exe` `.appx` | `.dmg` `.zip` (contains `.app`) | `.pkg` (contains `.app`) | `.AppImage` `.deb` |
 | **Code Signing** | Azure Trusted Signing | Developer ID Application + Notarization | 3rd Party Mac Developer (App + Installer) | GPG |
 | **Node.js** | ✅ Embedded | ⬇️ Auto-download | ⬇️ Auto-download | ⬇️ Auto-download |
@@ -50,12 +51,10 @@ GnuNae requires Node.js, npm, and Codex CLI to function. Runtime provisioning di
 | **Codex CLI** | ✅ Pre-installed | ⬇️ `npm install` | ⬇️ `npm install` | ⬇️ `npm install` |
 | **Storage** | `%LOCALAPPDATA%/GnuNae/` | `~/Library/Application Support/GnuNae/` | `~/Library/Application Support/GnuNae/` | `~/.config/GnuNae/` |
 
-**Legend:** ✅ = Included in package at build time, ⬇️ = Downloaded automatically on first run
+**Legend:** ✅ = Included/Yes, ⬇️ = Downloaded automatically on first run, ❌ = Not included
 
 > [!IMPORTANT]
-> macOS DMG/ZIP and MAS builds both create `.app` bundles but use **different certificates** and **must not be mixed**:
-> - **DMG/ZIP**: Signed with Developer ID Application certificate (for direct distribution)
-> - **MAS**: Signed with 3rd Party Mac Developer Application certificate (for App Store)
+> **MAS is NOT built via GitHub Actions.** Build locally via `npm run pack:mac-mas` and upload to App Store Connect via Transporter. MAS `.pkg` uses 3rd Party Mac Developer certificates which are only valid for App Store distribution.
 
 ### How Auto-Install Works
 
