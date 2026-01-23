@@ -36,6 +36,30 @@ git push --tags
 
 ---
 
+## Runtime Installation
+
+GnuNae requires Node.js, npm, and Codex CLI to function. Runtime provisioning differs by platform:
+
+| Aspect | **Windows** | **macOS DMG/ZIP** | **macOS MAS** | **Linux** |
+|--------|-------------|-------------------|---------------|-----------|
+| **GitHub Actions** | `pack:win` | `pack:mac` | `pack:mac-mas` | `pack:linux` |
+| **Node.js** | ✅ Embedded | ⬇️ Auto-download | ⬇️ Auto-download | ⬇️ Auto-download |
+| **npm** | ✅ Bundled | ⬇️ Bundled with Node | ⬇️ Bundled with Node | ⬇️ Bundled with Node |
+| **Codex CLI** | ✅ Pre-installed | ⬇️ `npm install` | ⬇️ `npm install` | ⬇️ `npm install` |
+| **Storage** | `%LOCALAPPDATA%/GnuNae/` | `~/Library/Application Support/GnuNae/` | `~/Library/Application Support/GnuNae/` | `~/.config/GnuNae/` |
+
+**Legend:** ✅ = Included in package at build time, ⬇️ = Downloaded automatically on first run
+
+### How Auto-Install Works
+
+On app startup, `RuntimeManager.ensureRuntime()` checks if runtime is ready:
+- **Windows**: Runtime is embedded, no download needed
+- **macOS/MAS/Linux**: If not ready, downloads Node.js from nodejs.org and runs `npm install @openai/codex`
+
+The runtime is stored in the user's app data directory (Application Support/AppData), which is accessible in all sandbox environments including MAS.
+
+---
+
 ## Architecture
 
 ```
@@ -191,6 +215,15 @@ npm run pack:mac-mas
 </plist>
 ```
 
+#### Runtime Installation (MAS)
+
+MAS builds do **not** embed the runtime. Instead, Node.js and Codex CLI are automatically downloaded to `~/Library/Application Support/GnuNae/` on first run, just like regular macOS builds.
+
+This works because MAS sandbox allows:
+- Network access (for downloading Node.js)
+- Writing to Application Support (for storing runtime)
+- Spawning child processes (for running Codex CLI)
+
 ---
 
 ### 3. Windows Binary (EXE)
@@ -230,9 +263,17 @@ npm run pack:win
 
 #### Special: Embedded Portable Runtime
 
-Windows packages include embedded Node.js and Codex CLI for isolated terminal:
-- `resources/runtime/` - Portable Node.js with npm
-- `resources/codex/` - Codex CLI installation
+Windows packages include **embedded Node.js and Codex CLI** so users don't need to download anything:
+
+| Component | Build Step | Package Location |
+|-----------|------------|------------------|
+| Node.js + npm | `npm run download-node` | `resources/runtime/` |
+| Codex CLI | `npm run install-codex` | `resources/codex/` |
+
+The `pack:win` script runs both before packaging:
+```bash
+npm run download-node && npm run install-codex && npm run build && electron-builder
+```
 
 The `afterPack.js` hook copies `node_modules` directories (which electron-builder excludes by default):
 ```javascript
@@ -241,6 +282,8 @@ exports.default = async function(context) {
     // Copies resources/{runtime,codex}/node_modules to packaged app
 };
 ```
+
+At runtime, the embedded runtime is migrated to `%LOCALAPPDATA%/GnuNae/` for stability (avoids temp folder deletion issues with portable apps).
 
 #### Environment Variables
 
