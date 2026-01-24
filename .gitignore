@@ -60,4 +60,7 @@ electron-builder.env
 docker/*.log
 docker/node_modules
 
-resources
+# Windows embedded runtime (generated binaries, not config files)
+resources/runtime/node.exe
+resources/runtime/node_modules/
+resources/codex/node_modules/
