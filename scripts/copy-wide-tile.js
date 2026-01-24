@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const srcPath = '/Users/wondong/.gemini/antigravity/brain/0c2ea9e0-eb4f-4ab9-907a-0f5902d43fa9/wide310x150logo_1769187136569.png';
+const srcPath = path.join(__dirname, '..', 'assets', 'Wide310x150Logo.png');
 const destDir = path.join(__dirname, '..', 'build', 'appx');
 const destPath = path.join(destDir, 'Wide310x150Logo.png');
 

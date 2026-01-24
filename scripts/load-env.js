@@ -20,18 +20,34 @@ if (fs.existsSync(envPath)) {
         const eqIndex = trimmed.indexOf('=');
         if (eqIndex > 0) {
             const key = trimmed.substring(0, eqIndex).trim();
-            const value = trimmed.substring(eqIndex + 1).trim();
+            let value = trimmed.substring(eqIndex + 1).trim();
+            // Strip surrounding quotes if present (single or double)
+            if ((value.startsWith('"') && value.endsWith('"')) ||
+                (value.startsWith("'") && value.endsWith("'"))) {
+                value = value.slice(1, -1);
+            }
             process.env[key] = value;
             console.log(`  Loaded: ${key}`);
         }
     }
-    console.log('Environment variables loaded from .env.local\n');
+    console.log('Environment variables loaded from .env.local');
+    // Debug: show the publisher CN value
+    if (process.env.MSSTORE_PUBLISHER_CN) {
+        console.log(`  DEBUG MSSTORE_PUBLISHER_CN = "${process.env.MSSTORE_PUBLISHER_CN}"\n`);
+    }
 } else {
     console.log('No .env.local file found, skipping...\n');
 }
 
 // Run electron-builder with the loaded environment
 const args = process.argv.slice(2);
+
+// Add config override for appx.publisher if env var is set
+// (electron-builder's ${env.X} substitution doesn't work properly for appx.publisher)
+if (process.env.MSSTORE_PUBLISHER_CN) {
+    args.push(`--config.appx.publisher=${process.env.MSSTORE_PUBLISHER_CN}`);
+}
+
 const child = spawn('npx', ['electron-builder', ...args], {
     stdio: 'inherit',
     shell: true,
