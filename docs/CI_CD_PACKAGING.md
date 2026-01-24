@@ -40,21 +40,23 @@ git push --tags
 
 GnuNae requires Node.js, npm, and Codex CLI to function. Runtime provisioning differs by platform:
 
-| Aspect | **Windows** | **macOS DMG/ZIP** | **macOS MAS** | **Linux** |
-|--------|-------------|-------------------|---------------|-----------|
-| **npm Build** | `pack:win` | `pack:mac` | `pack:mac-mas` | `pack:linux` |
-| **GitHub Actions** | ✅ Yes | ✅ Yes | ❌ Local only | ✅ Yes |
-| **Output Format** | `.exe` `.appx` | `.dmg` `.zip` (contains `.app`) | `.pkg` (contains `.app`) | `.AppImage` `.deb` |
-| **Code Signing** | Azure Trusted Signing | Developer ID Application + Notarization | 3rd Party Mac Developer (App + Installer) | GPG |
-| **Node.js** | ✅ Embedded | ⬇️ Auto-download | ⬇️ Auto-download | ⬇️ Auto-download |
-| **npm** | ✅ Bundled | ⬇️ Bundled with Node | ⬇️ Bundled with Node | ⬇️ Bundled with Node |
-| **Codex CLI** | ✅ Pre-installed | ⬇️ `npm install` | ⬇️ `npm install` | ⬇️ `npm install` |
-| **Storage** | `%LOCALAPPDATA%/GnuNae/` | `~/Library/Application Support/GnuNae/` | `~/Library/Application Support/GnuNae/` | `~/.config/GnuNae/` |
+| Aspect | **Windows EXE** | **Windows APPX** | **macOS DMG/ZIP** | **macOS MAS** | **Linux** |
+|--------|-----------------|------------------|-------------------|---------------|-----------|
+| **npm Build** | `pack:win` | `pack:win` | `pack:mac` | `pack:mac-mas` | `pack:linux` |
+| **GitHub Actions** | ✅ Yes | ❌ Local only | ✅ Yes | ❌ Local only | ✅ Yes |
+| **Output Format** | `.exe` (NSIS) | `.appx` | `.dmg` `.zip` | `.pkg` | `.AppImage` `.deb` |
+| **Code Signing** | Azure Trusted Signing | Unsigned (MS Store signs) | Developer ID + Notarization | 3rd Party Mac Developer | GPG |
+| **Node.js** | ✅ Embedded | ✅ Embedded | ⬇️ Auto-download | ⬇️ Auto-download | ⬇️ Auto-download |
+| **npm** | ✅ Bundled | ✅ Bundled | ⬇️ Bundled with Node | ⬇️ Bundled with Node | ⬇️ Bundled with Node |
+| **Codex CLI** | ✅ Pre-installed | ✅ Pre-installed | ⬇️ `npm install` | ⬇️ `npm install` | ⬇️ `npm install` |
+| **Storage** | `%LOCALAPPDATA%/GnuNae/` | `%LOCALAPPDATA%/GnuNae/` | `~/Library/Application Support/GnuNae/` | `~/Library/Application Support/GnuNae/` | `~/.config/GnuNae/` |
 
 **Legend:** ✅ = Included/Yes, ⬇️ = Downloaded automatically on first run, ❌ = Not included
 
 > [!IMPORTANT]
-> **MAS is NOT built via GitHub Actions.** Build locally via `npm run pack:mac-mas` and upload to App Store Connect via Transporter. MAS `.pkg` uses 3rd Party Mac Developer certificates which are only valid for App Store distribution.
+> **MAS and APPX are NOT built via GitHub Actions.** Build locally and upload manually:
+> - **MAS**: `npm run pack:mac-mas` → Upload to App Store Connect via Transporter
+> - **APPX**: `npm run pack:win` → Upload to Microsoft Store Partner Center
 
 ### How Auto-Install Works
 
@@ -79,14 +81,14 @@ The runtime is stored in the user's app data directory (Application Support/AppD
 │  ├──────────────┤    ├──────────────┤    ├──────────────┤                   │
 │  │ DMG + ZIP    │    │ NSIS         │    │ AppImage     │                   │
 │  │ (Developer   │    │ (Azure       │    │ DEB          │                   │
-│  │  ID signed + │    │  Trust       │    │ (unsigned)   │                   │
+│  │  ID signed + │    │  Trust       │    │ (GPG signed) │                   │
 │  │  notarized)  │    │  Signing)    │    │              │                   │
-│  ├──────────────┤    ├──────────────┤    └──────────────┘                   │
-│  │ MAS/PKG      │    │ APPX         │                                       │
-│  │ (App Store   │    │ (unsigned,   │                                       │
-│  │  Distribution│    │  MS Store    │                                       │
-│  │  signed)     │    │  signs)      │                                       │
-│  └──────────────┘    └──────────────┘                                       │
+│  └──────────────┘    └──────────────┘    └──────────────┘                   │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                    LOCAL BUILDS ONLY (not in CI/CD)                 │    │
+│  │   • MAS/PKG → App Store Connect    • APPX → MS Store Partner Center │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                              │
 │                         ↓ Upload Artifacts ↓                                 │
 │                                                                              │
@@ -330,11 +332,11 @@ At runtime, the embedded runtime is migrated to `%LOCALAPPDATA%/GnuNae/` for sta
 }
 ```
 
-#### GitHub Actions Command
+#### Local Build Command
 ```bash
-npx electron-builder --win appx --publish never \
-  --config.win.signAndEditExecutable=false \
-  --config.appx.publisher="$MSSTORE_PUBLISHER_CN"
+npm run pack:win
+# This builds NSIS, Portable, and APPX targets
+# Upload the .appx file to MS Store Partner Center
 ```
 
 #### Environment Variables

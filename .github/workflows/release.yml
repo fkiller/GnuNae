@@ -114,14 +114,10 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
-      # Windows: Build APPX without signing (MS Store will sign it)
-      - name: Package Windows (APPX - Unsigned for MS Store)
-        if: matrix.platform == 'win'
-        run: npx electron-builder --win appx --publish never --config.win.signAndEditExecutable=false --config.appx.publisher="${{ secrets.MSSTORE_PUBLISHER_CN }}"
-        env:
-          # Completely disable code signing for MS Store APPX
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-          CSC_LINK: ""
+      # NOTE: APPX (Microsoft Store) builds are NOT included in GitHub releases.
+      # APPX builds should be done locally via `npm run pack:win` and uploaded
+      # to Microsoft Store Partner Center. APPX packages are unsigned as the
+      # MS Store signs them during submission.
 
       # Linux: Setup GPG for signing
       - name: Setup GPG (Linux)

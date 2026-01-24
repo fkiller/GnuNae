@@ -1,9 +1,0 @@
-{
-  "name": "gnunae-runtime",
-  "version": "1.0.0",
-  "private": true,
-  "description": "GnuNae embedded runtime dependencies",
-  "dependencies": {
-    "@openai/codex": "^0.80.0"
-  }
-}
