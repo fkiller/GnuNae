@@ -134,14 +134,14 @@
     }
   },
   "devDependencies": {
-    "@openai/codex": "^0.80.0",
-    "@types/node": "^25.0.6",
-    "@types/react": "^19.2.8",
+    "@openai/codex": "^0.89.0",
+    "@types/node": "^25.0.10",
+    "@types/react": "^19.2.9",
     "@types/react-dom": "^19.2.3",
     "@types/uuid": "^11.0.0",
     "@vitejs/plugin-react": "^5.1.2",
     "concurrently": "^9.0.0",
-    "electron": "^39.2.7",
+    "electron": "^40.0.0",
     "electron-builder": "^26.4.0",
     "sharp": "^0.34.5",
     "typescript": "^5.9.3",
