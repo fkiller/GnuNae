@@ -4,6 +4,7 @@ import App from './App';
 import ChatModeApp from './ChatModeApp';
 import Settings from './components/Settings';
 import './App.css';
+import './globals.css';
 
 // Parse URL parameters to detect modes
 const urlParams = new URLSearchParams(window.location.search);
