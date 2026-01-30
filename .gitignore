@@ -60,8 +60,27 @@ electron-builder.env
 docker/*.log
 docker/node_modules
 
-# Windows embedded runtime (generated binaries, not config files)
-resources/runtime/*/
-resources/runtime/**/
+# Embedded runtime (Windows - binaries and node_modules)
+resources/runtime/bin/
+resources/runtime/lib/
+resources/runtime/include/
+resources/runtime/share/
 resources/runtime/node_modules/
+resources/runtime/*.exe
+resources/runtime/node.exe
+resources/runtime/npm
+resources/runtime/npm.cmd
+resources/runtime/npx
+resources/runtime/npx.cmd
+
+# macOS MAS embedded runtime (all generated files)
+resources/runtime-darwin-arm64/
+resources/runtime-darwin-x64/
+
+# Node download temp files
+resources/.node-download-temp/
+resources/*.tar.gz
+resources/*.zip
+
+# Codex node_modules
 resources/codex/node_modules/

@@ -41,15 +41,15 @@ git push --tags
 GnuNae requires Node.js, npm, and Codex CLI to function. Runtime provisioning differs by platform:
 
 | Aspect | **Windows EXE** | **Windows APPX** | **macOS DMG/ZIP** | **macOS MAS** | **Linux** |
-|--------|-----------------|------------------|-------------------|---------------|-----------|
+|--------|-----------------|------------------|-------------------|---------------|-----------
 | **npm Build** | `pack:win` | `pack:win` | `pack:mac` | `pack:mac-mas` | `pack:linux` |
 | **GitHub Actions** | ✅ Yes | ❌ Local only | ✅ Yes | ❌ Local only | ✅ Yes |
 | **Output Format** | `.exe` (NSIS) | `.appx` | `.dmg` `.zip` | `.pkg` | `.AppImage` `.deb` |
 | **Code Signing** | Azure Trusted Signing | Unsigned (MS Store signs) | Developer ID + Notarization | 3rd Party Mac Developer | GPG |
-| **Node.js** | ✅ Embedded | ✅ Embedded | ⬇️ Auto-download | ⬇️ Auto-download | ⬇️ Auto-download |
-| **npm** | ✅ Bundled | ✅ Bundled | ⬇️ Bundled with Node | ⬇️ Bundled with Node | ⬇️ Bundled with Node |
-| **Codex CLI** | ✅ Pre-installed | ✅ Pre-installed | ⬇️ `npm install` | ⬇️ `npm install` | ⬇️ `npm install` |
-| **Storage** | `%LOCALAPPDATA%/GnuNae/` | `%LOCALAPPDATA%/GnuNae/` | `~/Library/Application Support/GnuNae/` | `~/Library/Application Support/GnuNae/` | `~/.config/GnuNae/` |
+| **Node.js** | ✅ Embedded | ✅ Embedded | ✅ Embedded | ✅ Embedded | ⬇️ Auto-download |
+| **npm** | ✅ Bundled | ✅ Bundled | ✅ Bundled | ✅ Bundled | ⬇️ Bundled with Node |
+| **Codex CLI** | ✅ Pre-installed | ✅ Pre-installed | ✅ Pre-installed | ✅ Pre-installed | ⬇️ `npm install` |
+| **Storage** | `%LOCALAPPDATA%/GnuNae/` | `%LOCALAPPDATA%/GnuNae/` | App Resources | App Resources | `~/.config/GnuNae/` |
 
 **Legend:** ✅ = Included/Yes, ⬇️ = Downloaded automatically on first run, ❌ = Not included
 
@@ -150,6 +150,21 @@ npm run pack:mac
 | `APPLE_ID` | Apple ID email (for notarization) | ✅ |
 | `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password for notarization | ✅ |
 
+#### Special: Embedded Portable Runtime
+
+macOS DMG/ZIP packages include **embedded Node.js and Codex CLI** so users don't need to download anything:
+
+| Component | Build Step | Package Location |
+|-----------|------------|------------------|
+| Node.js + npm | `npm run download-node-darwin-{arch}` | `resources/runtime-darwin-{arch}/` |
+| Codex CLI | `npm run install-codex` | `resources/codex/` |
+
+The `pack:mac` script runs both before packaging:
+```bash
+npm run download-node-darwin-arm64 && npm run download-node-darwin-x64 && \
+npm run install-codex && npm run build && electron-builder --mac dmg zip
+```
+
 ---
 
 ### 2. Mac App Store (PKG)
@@ -223,14 +238,30 @@ npm run pack:mac-mas
 </plist>
 ```
 
-#### Runtime Installation (MAS)
+#### Special: Embedded Portable Runtime
 
-MAS builds do **not** embed the runtime. Instead, Node.js and Codex CLI are automatically downloaded to `~/Library/Application Support/GnuNae/` on first run, just like regular macOS builds.
+MAS packages include **embedded Node.js and Codex CLI** so users don't need to download anything:
 
-This works because MAS sandbox allows:
-- Network access (for downloading Node.js)
-- Writing to Application Support (for storing runtime)
-- Spawning child processes (for running Codex CLI)
+| Component | Build Step | Package Location |
+|-----------|------------|------------------|
+| Node.js + npm | `npm run download-node-darwin-{arch}` | `resources/runtime-darwin-{arch}/` |
+| Codex CLI | `npm run install-codex` | `resources/codex/` |
+
+The `pack:mac-mas` script runs both before packaging:
+```bash
+npm run download-node-darwin-arm64 && npm run download-node-darwin-x64 && \
+npm run install-codex && npm run build && electron-builder --mac mas
+```
+
+The `afterPack.js` hook copies `node_modules` directories (which electron-builder excludes by default):
+```javascript
+// scripts/afterPack.js
+exports.default = async function(context) {
+    // Copies resources/{runtime,codex}/node_modules to packaged app
+};
+```
+
+At runtime, the app detects MAS builds via `process.mas` and uses embedded resources.
 
 ---
 

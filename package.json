@@ -21,9 +21,11 @@
     "dev": "concurrently \"npm run dev:ui\" \"wait-on http://localhost:5173 && npm run dev:electron\"",
     "start": "electron .",
     "download-node": "node scripts/download-node.js",
+    "download-node-darwin-arm64": "node scripts/download-node.js --platform darwin --arch arm64",
+    "download-node-darwin-x64": "node scripts/download-node.js --platform darwin --arch x64",
     "install-codex": "node scripts/install-codex.js",
-    "pack:mac": "npm run build && node scripts/load-env.js --mac dmg zip",
-    "pack:mac-mas": "npm run build && node scripts/load-env.js --mac mas",
+    "pack:mac": "npm run download-node-darwin-arm64 && npm run download-node-darwin-x64 && npm run install-codex && npm run build && node scripts/load-env.js --mac dmg zip",
+    "pack:mac-mas": "npm run download-node-darwin-arm64 && npm run download-node-darwin-x64 && npm run install-codex && npm run build && node scripts/load-env.js --mac mas",
     "pack:win": "npm run download-node && npm run install-codex && ping 127.0.0.1 -n 4 > nul && npm run build && node scripts/load-env.js --win",
     "pack:linux": "npm run build && electron-builder --linux",
     "pack:all": "npm run build && electron-builder --mac --win --linux",
@@ -64,7 +66,23 @@
         }
       ],
       "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist"
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extraResources": [
+        {
+          "from": "resources/runtime-darwin-${arch}",
+          "to": "runtime",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "resources/codex",
+          "to": "codex",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     },
     "mas": {
       "category": "public.app-category.productivity",
@@ -85,7 +103,23 @@
       "provisioningProfile": "certs/GnuNae.provisionprofile",
       "extendInfo": {
         "ElectronTeamID": "${env.APPLE_TEAM_ID}"
-      }
+      },
+      "extraResources": [
+        {
+          "from": "resources/runtime-darwin-${arch}",
+          "to": "runtime",
+          "filter": [
+            "**/*"
+          ]
+        },
+        {
+          "from": "resources/codex",
+          "to": "codex",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
     },
     "win": {
       "icon": "assets/gnunae.ico",
