@@ -349,7 +349,7 @@ docs/                     # GitHub Pages (gnunae.com)
 
 ## Version History
 
-### v0.8.31 (2026-02-07)
+### v0.8.32 (2026-02-07)
 - **Dependency Upgrades**
   - Codex CLI: 0.80.0 → 0.98.0 (GPT-5.3-Codex support, steer mode stable)
   - Playwright MCP: 0.0.55 → 0.0.64 (session management improvements)
@@ -358,6 +358,11 @@ docs/                     # GitHub Pages (gnunae.com)
 - **New AI Model: GPT-5.3-Codex**
   - Added to model selector (25% faster, improved agentic capabilities)
   - Released by OpenAI on Feb 5, 2026
+- **macOS Runtime Bundling**
+  - Node.js and Codex CLI now bundled for macOS builds (arm64 + x64)
+- **Docker Version Sync**
+  - Docker images now version-tagged to match app version
+  - Created periodic maintenance documentation
 
 ### v0.8.0 (2026-01-12)
 - **Interactive Terminal with xterm.js**
