@@ -6,16 +6,17 @@ This document describes the complete CI/CD pipeline for building, signing, and d
 
 1. [Overview](#overview)
 2. [Architecture](#architecture)
-3. [Platform-Specific Packaging](#platform-specific-packaging)
+3. [Docker Image Versioning](#docker-image-versioning)
+4. [Platform-Specific Packaging](#platform-specific-packaging)
    - [macOS Binary (DMG/ZIP)](#1-macos-binary-dmgzip)
    - [Mac App Store (PKG)](#2-mac-app-store-pkg)
    - [Windows Binary (EXE)](#3-windows-binary-exe)
    - [Microsoft Store (APPX)](#4-microsoft-store-appx)
    - [Linux Binary](#5-linux-binary-future)
-4. [Environment Variables](#environment-variables)
-5. [Local Development Setup](#local-development-setup)
-6. [GitHub Actions Workflow](#github-actions-workflow)
-7. [Troubleshooting](#troubleshooting)
+5. [Environment Variables](#environment-variables)
+6. [Local Development Setup](#local-development-setup)
+7. [GitHub Actions Workflow](#github-actions-workflow)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -98,6 +99,53 @@ The runtime is stored in the user's app data directory (Application Support/AppD
 │                    └──────────────────────┘                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Docker Image Versioning
+
+The sandbox Docker image is versioned to match the app version automatically.
+
+### Workflow Trigger
+
+The `docker.yml` workflow triggers on:
+- Push to `main` with changes in `docker/**`
+- **Version tags** (`v*`) - triggered by `npm version`
+
+```yaml
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on npm version tags
+```
+
+### Tags Created
+
+When you run `npm version patch` (pushes `v0.8.33`):
+
+| Docker Tag | Value |
+|------------|-------|
+| `ghcr.io/fkiller/gnunae/sandbox:0.8.33` | Exact version |
+| `ghcr.io/fkiller/gnunae/sandbox:0.8` | Major.minor |
+| `ghcr.io/fkiller/gnunae/sandbox:latest` | Latest stable |
+
+### App-Side Integration
+
+`docker-manager.ts` reads the app version from `package.json` and requests the matching Docker image:
+
+```typescript
+function getDockerImageName(): string {
+    const version = require('../../package.json').version;
+    return `ghcr.io/fkiller/gnunae/sandbox:${version}`;
+}
+```
+
+### Release Workflow
+
+1. Make changes to app and/or `docker/Dockerfile`
+2. Run `npm version patch`
+3. GitHub Actions builds app releases AND Docker image with matching version
+4. App v0.8.33 automatically requests Docker image `0.8.33`
 
 ---
 
