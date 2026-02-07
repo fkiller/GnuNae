@@ -2,6 +2,7 @@
 // Both Settings.tsx and CodexSidebar.tsx should import from here
 
 export type CodexModel =
+    | 'gpt-5.3-codex'
     | 'o4-mini'
     | 'o3-mini'
     | 'gpt-5.2-codex'
@@ -17,6 +18,7 @@ export const DEFAULT_MODEL: CodexModel = 'gpt-5.1-codex-mini';
 export const DEFAULT_MODE: CodexMode = 'agent';
 
 export const CODEX_MODELS: { value: CodexModel; label: string }[] = [
+    { value: 'gpt-5.3-codex', label: 'GPT-5.3-Codex' },
     { value: 'o4-mini', label: 'o4-mini' },
     { value: 'o3-mini', label: 'o3-mini' },
     { value: 'gpt-5.2-codex', label: 'GPT-5.2-Codex' },

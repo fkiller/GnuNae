@@ -270,7 +270,7 @@ For detailed CI/CD pipeline documentation, code signing setup, and environment c
 GnuNae configures Codex CLI automatically at runtime via `-c` flags. **No manual configuration needed** - GnuNae works out of the box without modifying `~/.codex/config.toml`.
 
 If you have custom settings in `~/.codex/config.toml`, GnuNae will override them with:
-- Model: `gpt-5.1-codex-max`
+- Model: `gpt-5.1-codex-max` (or select GPT-5.3-Codex in the model dropdown)
 - Reasoning: `xhigh`
 - Playwright MCP with dynamic CDP endpoint
 
@@ -348,6 +348,16 @@ docs/                     # GitHub Pages (gnunae.com)
 | 🔜 Planned | More LLM options including local LLM support |
 
 ## Version History
+
+### v0.8.31 (2026-02-07)
+- **Dependency Upgrades**
+  - Codex CLI: 0.80.0 → 0.98.0 (GPT-5.3-Codex support, steer mode stable)
+  - Playwright MCP: 0.0.55 → 0.0.64 (session management improvements)
+  - Electron: 39.2.7 → 39.5.1 (staying within v39 for stability)
+  - MCP SDK, React, Playwright, Zod, and other packages updated
+- **New AI Model: GPT-5.3-Codex**
+  - Added to model selector (25% faster, improved agentic capabilities)
+  - Released by OpenAI on Feb 5, 2026
 
 ### v0.8.0 (2026-01-12)
 - **Interactive Terminal with xterm.js**

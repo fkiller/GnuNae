@@ -143,12 +143,28 @@ export interface DockerManagerEvents {
 }
 
 /**
+ * Get Docker image name with version matching the app
+ * Uses ghcr.io registry for production, falls back to local for development
+ */
+function getDockerImageName(): string {
+    try {
+        const packageJson = require('../../package.json');
+        const version = packageJson.version;
+        // Use versioned image from GHCR (matches app version)
+        return `ghcr.io/fkiller/gnunae/sandbox:${version}`;
+    } catch {
+        // Fallback to latest if package.json not available
+        return 'ghcr.io/fkiller/gnunae/sandbox:latest';
+    }
+}
+
+/**
  * Default configuration values
  */
 const DEFAULT_CONFIG: DockerManagerConfig = {
-    // Local image name for development
-    // After CI runs, this can be changed to: ghcr.io/fkiller/gnunae/sandbox:latest
-    imageName: 'gnunae/sandbox:latest',
+    // Docker image from GHCR, version-matched to app
+    // For local development, use: 'gnunae/sandbox:latest'
+    imageName: getDockerImageName(),
     preferredRuntime: 'auto',
     portRangeStart: 10000,
     portRangeEnd: 10999,
