@@ -57,7 +57,8 @@ class RuntimeManager {
     /**
      * Get the base directory for runtime files
      * Windows: resources/runtime (embedded in app)
-     * macOS/Linux: ~/Library/Application Support/GnuNae or ~/.config/GnuNae
+     * macOS (all packaged builds): resources/runtime (embedded in app)
+     * Linux: ~/.config/GnuNae (downloaded at runtime)
      */
     getRuntimeBaseDir(): string {
         const userDataDir = path.join(app.getPath('userData'), 'runtime');
@@ -70,8 +71,19 @@ class RuntimeManager {
             const stableNode = path.join(userDataDir, 'node.exe');
             if (fs.existsSync(stableNode)) return userDataDir;
             return resourcesDir;
+        } else if (process.platform === 'darwin') {
+            // All packaged macOS builds have embedded runtime in resources
+            if (app.isPackaged) {
+                const embeddedNode = path.join(resourcesDir, 'bin', 'node');
+                if (fs.existsSync(embeddedNode)) {
+                    console.log('[RuntimeManager] macOS: Using embedded runtime from resources');
+                    return resourcesDir;
+                }
+            }
+            // Development or embedded not found: use userData (downloaded)
+            return userDataDir;
         } else {
-            // macOS/Linux: always use userData as it's downloaded there
+            // Linux: always use userData as it's downloaded there
             return userDataDir;
         }
     }
@@ -128,6 +140,12 @@ class RuntimeManager {
             searchPaths.push(path.join(__dirname, '../../node_modules/.bin', binName));
         } else {
             // macOS/Linux
+
+            // For macOS: Check embedded resources first (all packaged builds have embedded codex)
+            if (process.platform === 'darwin' && app.isPackaged) {
+                searchPaths.push(path.join(process.resourcesPath, 'codex', 'node_modules', '.bin', binName));
+            }
+
             searchPaths.push(path.join(app.getPath('userData'), 'codex', 'node_modules', '.bin', binName));
             if (app.isPackaged) {
                 searchPaths.push(path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.bin', binName));

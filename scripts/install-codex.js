@@ -36,8 +36,37 @@ function parseArgs() {
 
 const config = parseArgs();
 const PLATFORM = os.platform();
+const ARCH = os.arch() === 'arm64' ? 'arm64' : 'x64';
 const PROJECT_ROOT = path.join(__dirname, '..');
-const DEFAULT_NODE_PATH = path.join(PROJECT_ROOT, 'resources', 'runtime');
+
+// Find Node.js runtime in order of preference:
+// 1. Platform-specific directory (for MAS builds on macOS)
+// 2. Generic runtime directory (for Windows/direct builds)
+function findNodePath() {
+    const candidates = [];
+
+    if (PLATFORM === 'darwin') {
+        // macOS: Check platform-specific first (for MAS builds)
+        candidates.push(path.join(PROJECT_ROOT, 'resources', `runtime-darwin-${ARCH}`));
+    }
+
+    // Generic runtime directory
+    candidates.push(path.join(PROJECT_ROOT, 'resources', 'runtime'));
+
+    for (const dir of candidates) {
+        const nodeExe = PLATFORM === 'win32'
+            ? path.join(dir, 'node.exe')
+            : path.join(dir, 'bin', 'node');
+        if (fs.existsSync(nodeExe)) {
+            return dir;
+        }
+    }
+
+    // Return first candidate (will fail with appropriate error message)
+    return candidates[0];
+}
+
+const DEFAULT_NODE_PATH = findNodePath();
 const DEFAULT_TARGET = path.join(PROJECT_ROOT, 'resources', 'codex');
 
 const NODE_PATH = config.nodePath ? path.resolve(config.nodePath) : DEFAULT_NODE_PATH;

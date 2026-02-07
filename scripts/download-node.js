@@ -22,7 +22,9 @@ function parseArgs() {
     const args = process.argv.slice(2);
     const result = {
         target: null,
-        version: '22.21.1'
+        version: '22.21.1',
+        platform: null,  // Override platform (darwin, win32, linux)
+        arch: null       // Override arch (x64, arm64)
     };
 
     for (let i = 0; i < args.length; i++) {
@@ -30,6 +32,10 @@ function parseArgs() {
             result.target = args[++i];
         } else if (args[i] === '--version' && args[i + 1]) {
             result.version = args[++i];
+        } else if (args[i] === '--platform' && args[i + 1]) {
+            result.platform = args[++i];
+        } else if (args[i] === '--arch' && args[i + 1]) {
+            result.arch = args[++i];
         }
     }
 
@@ -38,42 +44,49 @@ function parseArgs() {
 
 const config = parseArgs();
 const NODE_VERSION = config.version;
-const PLATFORM = os.platform(); // 'win32', 'darwin', 'linux'
-const ARCH = os.arch() === 'arm64' ? 'arm64' : 'x64';
+// Allow overriding platform/arch for cross-platform downloads
+const PLATFORM = config.platform || os.platform(); // 'win32', 'darwin', 'linux'
+const ARCH = config.arch || (os.arch() === 'arm64' ? 'arm64' : 'x64');
 
-// Platform-specific settings
-const PLATFORM_CONFIG = {
-    win32: {
-        ext: 'zip',
-        folder: `node-v${NODE_VERSION}-win-x64`,
-        url: `https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-win-x64.zip`,
-        nodeExe: 'node.exe',
-        npmCmd: 'npm.cmd'
-    },
-    darwin: {
-        ext: 'tar.gz',
-        folder: `node-v${NODE_VERSION}-darwin-${ARCH}`,
-        url: `https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-darwin-${ARCH}.tar.gz`,
-        nodeExe: 'bin/node',
-        npmCmd: 'bin/npm'
-    },
-    linux: {
-        ext: 'tar.gz',
-        folder: `node-v${NODE_VERSION}-linux-${ARCH}`,
-        url: `https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${ARCH}.tar.gz`,
-        nodeExe: 'bin/node',
-        npmCmd: 'bin/npm'
-    }
-};
+// Platform-specific settings (generated dynamically based on ARCH)
+function getPlatformConfig(platform, arch) {
+    const configs = {
+        win32: {
+            ext: 'zip',
+            folder: `node-v${NODE_VERSION}-win-${arch}`,
+            url: `https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-win-${arch}.zip`,
+            nodeExe: 'node.exe',
+            npmCmd: 'npm.cmd'
+        },
+        darwin: {
+            ext: 'tar.gz',
+            folder: `node-v${NODE_VERSION}-darwin-${arch}`,
+            url: `https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-darwin-${arch}.tar.gz`,
+            nodeExe: 'bin/node',
+            npmCmd: 'bin/npm'
+        },
+        linux: {
+            ext: 'tar.gz',
+            folder: `node-v${NODE_VERSION}-linux-${arch}`,
+            url: `https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${arch}.tar.gz`,
+            nodeExe: 'bin/node',
+            npmCmd: 'bin/npm'
+        }
+    };
+    return configs[platform];
+}
 
-const platformConfig = PLATFORM_CONFIG[PLATFORM];
+const platformConfig = getPlatformConfig(PLATFORM, ARCH);
 if (!platformConfig) {
     console.error(`Unsupported platform: ${PLATFORM}`);
     process.exit(1);
 }
 
 const PROJECT_ROOT = path.join(__dirname, '..');
-const DEFAULT_TARGET = path.join(PROJECT_ROOT, 'resources', 'runtime');
+// If platform/arch override is specified, use a platform-specific target dir
+const DEFAULT_TARGET = (config.platform || config.arch)
+    ? path.join(PROJECT_ROOT, 'resources', `runtime-${PLATFORM}-${ARCH}`)
+    : path.join(PROJECT_ROOT, 'resources', 'runtime');
 const TARGET_DIR = config.target ? path.resolve(config.target) : DEFAULT_TARGET;
 const RESOURCES_DIR = path.dirname(TARGET_DIR);
 const TEMP_FILE = path.join(RESOURCES_DIR, `node-v${NODE_VERSION}.${platformConfig.ext}`);
