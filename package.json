@@ -66,23 +66,7 @@
         }
       ],
       "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist",
-      "extraResources": [
-        {
-          "from": "resources/runtime-darwin-${arch}",
-          "to": "runtime",
-          "filter": [
-            "**/*"
-          ]
-        },
-        {
-          "from": "resources/codex",
-          "to": "codex",
-          "filter": [
-            "**/*"
-          ]
-        }
-      ]
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "mas": {
       "category": "public.app-category.productivity",
@@ -103,23 +87,7 @@
       "provisioningProfile": "certs/GnuNae.provisionprofile",
       "extendInfo": {
         "ElectronTeamID": "${env.APPLE_TEAM_ID}"
-      },
-      "extraResources": [
-        {
-          "from": "resources/runtime-darwin-${arch}",
-          "to": "runtime",
-          "filter": [
-            "**/*"
-          ]
-        },
-        {
-          "from": "resources/codex",
-          "to": "codex",
-          "filter": [
-            "**/*"
-          ]
-        }
-      ]
+      }
     },
     "win": {
       "icon": "assets/gnunae.ico",
