@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { CODEX_MODELS, CODEX_MODES, DEFAULT_MODEL, DEFAULT_MODE, getModelLabel } from '../constants/codex';
 
+// Validate a saved model is still available; fall back to DEFAULT_MODEL if retired
+function validModel(saved: string | undefined): string {
+    if (!saved) return DEFAULT_MODEL;
+    return CODEX_MODELS.some(m => m.value === saved) ? saved : DEFAULT_MODEL;
+}
+
 interface Settings {
     debug: { enabled: boolean };
     browser: { startPage: string; userAgent: string };
@@ -922,12 +928,12 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                             <div className="settings-item">
                                 <label>Default Model</label>
                                 <select
-                                    value={settings?.codex?.model ?? DEFAULT_MODEL}
+                                    value={validModel(settings?.codex?.model)}
                                     onChange={(e) => updateSetting('codex.model', e.target.value)}
                                 >
                                     {CODEX_MODELS.map(m => (
                                         <option key={m.value} value={m.value}>
-                                            {getModelLabel(m.value, (settings?.codex?.model ?? DEFAULT_MODEL) as any)}
+                                            {getModelLabel(m.value, validModel(settings?.codex?.model) as any)}
                                         </option>
                                     ))}
                                 </select>

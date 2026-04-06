@@ -41,16 +41,26 @@ Sync versions with main package.json:
 #### C. docker/Dockerfile
 ```dockerfile
 # Line 9: Match Playwright version
-FROM mcr.microsoft.com/playwright:v1.58.2-jammy
+FROM mcr.microsoft.com/playwright:v1.59.1-jammy
 
 # Lines 57-58: Pin versions
 RUN npm install -g \
-    @openai/codex@0.98.0 \
-    @playwright/mcp@0.0.64 \
+    @openai/codex@0.118.0 \
+    @playwright/mcp@0.0.70 \
 ```
 
 #### D. src/ui/constants/codex.ts
 Add new AI models as OpenAI releases them.
+- Update `CodexModel` type union
+- Update `CODEX_MODELS` array (newest first)
+- Update `DEFAULT_MODEL` if a new default is appropriate
+- Remove retired models (e.g., o3-mini, o4-mini → retired Feb 2026)
+
+#### D2. src/electron/main.ts
+Update the hardcoded model in Codex args:
+```typescript
+codexArgs.push('-c', 'model=gpt-5.4');  // Keep current flagship
+```
 
 #### E. README.md
 Add version history entry.

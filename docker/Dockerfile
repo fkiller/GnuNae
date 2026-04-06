@@ -6,7 +6,7 @@
 # - noVNC for optional browser streaming
 # - Python environment with custom tools
 
-FROM mcr.microsoft.com/playwright:v1.58.2-jammy
+FROM mcr.microsoft.com/playwright:v1.59.1-jammy
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -55,8 +55,8 @@ RUN useradd -m -s /bin/bash sandbox \
 
 # Install global Node.js packages (pinned versions for consistency)
 RUN npm install -g \
-    @openai/codex@0.98.0 \
-    @playwright/mcp@0.0.64 \
+    @openai/codex@0.118.0 \
+    @playwright/mcp@0.0.70 \
     typescript \
     ts-node \
     && npm cache clean --force

@@ -2670,13 +2670,13 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
             const windowId = activeSession?.window.id || 0;
 
             // Build Codex arguments dynamically
-            const codexArgs = ['exec', '--skip-git-repo-check'];
+            const codexArgs = ['exec', '--skip-git-repo-check', '--dangerously-bypass-approvals-and-sandbox'];
 
             // Add all Codex configuration via -c flags
             // This makes GnuNae work without depending on ~/.codex/config.toml
 
             // Model configuration
-            codexArgs.push('-c', 'model=gpt-5.1-codex-max');
+            codexArgs.push('-c', 'model=gpt-5.4');
             codexArgs.push('-c', 'model_reasoning_effort=xhigh');
 
             // Dynamic Playwright MCP config via -c flag

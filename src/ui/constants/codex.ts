@@ -2,30 +2,30 @@
 // Both Settings.tsx and CodexSidebar.tsx should import from here
 
 export type CodexModel =
+    | 'gpt-5.4'
+    | 'gpt-5.4-mini'
+    | 'gpt-5.4-nano'
     | 'gpt-5.3-codex'
-    | 'o4-mini'
-    | 'o3-mini'
     | 'gpt-5.2-codex'
+    | 'gpt-5.2'
     | 'gpt-5.1-codex-max'
     | 'gpt-5.1-codex'
-    | 'gpt-5.1-codex-mini'
-    | 'gpt-5.2'
     | 'gpt-5.1';
 
 export type CodexMode = 'ask' | 'agent' | 'full-access';
 
-export const DEFAULT_MODEL: CodexModel = 'gpt-5.1-codex-mini';
+export const DEFAULT_MODEL: CodexModel = 'gpt-5.4-mini';
 export const DEFAULT_MODE: CodexMode = 'agent';
 
 export const CODEX_MODELS: { value: CodexModel; label: string }[] = [
+    { value: 'gpt-5.4', label: 'GPT-5.4' },
+    { value: 'gpt-5.4-mini', label: 'GPT-5.4-Mini' },
+    { value: 'gpt-5.4-nano', label: 'GPT-5.4-Nano' },
     { value: 'gpt-5.3-codex', label: 'GPT-5.3-Codex' },
-    { value: 'o4-mini', label: 'o4-mini' },
-    { value: 'o3-mini', label: 'o3-mini' },
     { value: 'gpt-5.2-codex', label: 'GPT-5.2-Codex' },
+    { value: 'gpt-5.2', label: 'GPT-5.2' },
     { value: 'gpt-5.1-codex-max', label: 'GPT-5.1-Codex-Max' },
     { value: 'gpt-5.1-codex', label: 'GPT-5.1-Codex' },
-    { value: 'gpt-5.1-codex-mini', label: 'GPT-5.1-Codex-Mini' },
-    { value: 'gpt-5.2', label: 'GPT-5.2' },
     { value: 'gpt-5.1', label: 'GPT-5.1' },
 ];
 
@@ -43,3 +43,4 @@ export function getModelLabel(model: CodexModel, savedDefault?: CodexModel): str
     const effectiveDefault = savedDefault ?? DEFAULT_MODEL;
     return model === effectiveDefault ? `${label} (default)` : label;
 }
+

@@ -3,6 +3,11 @@ import DataRequestCard from './DataRequestCard';
 import SaveTaskCard from './SaveTaskCard';
 import { CODEX_MODELS, CODEX_MODES, DEFAULT_MODEL, DEFAULT_MODE, CodexModel, CodexMode, getModelLabel } from '../constants/codex';
 
+// Validate a saved model is still in the available models list; fall back to DEFAULT_MODEL if retired
+function validModel(saved: string): CodexModel {
+    return CODEX_MODELS.some(m => m.value === saved) ? saved as CodexModel : DEFAULT_MODEL;
+}
+
 interface LogEntry {
     id: number;
     type: 'command' | 'response' | 'error' | 'info' | 'codex';
@@ -72,7 +77,7 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
     useEffect(() => {
         (window as any).electronAPI?.getSettings?.().then((s: any) => {
             if (s?.codex?.model) {
-                const savedModel = s.codex.model as CodexModel;
+                const savedModel = validModel(s.codex.model);
                 setModel(savedModel);
                 setSavedDefaultModel(savedModel);
             }
@@ -82,7 +87,7 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
         // Subscribe to settings changes for live updates
         const unsubSettings = (window as any).electronAPI?.onSettingsChanged?.((s: any) => {
             if (s?.codex?.model) {
-                setSavedDefaultModel(s.codex.model as CodexModel);
+                setSavedDefaultModel(validModel(s.codex.model));
             }
         });
 

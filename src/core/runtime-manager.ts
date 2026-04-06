@@ -182,6 +182,10 @@ class RuntimeManager {
             searchPaths.push(path.join(__dirname, '../../resources/codex', relativeMcpPath));
             searchPaths.push(path.join(__dirname, '../../', relativeMcpPath));
         } else {
+            // macOS: Check embedded resources first (all packaged builds have embedded codex)
+            if (process.platform === 'darwin' && app.isPackaged) {
+                searchPaths.push(path.join(process.resourcesPath, 'codex', relativeMcpPath));
+            }
             searchPaths.push(path.join(app.getPath('userData'), 'codex', relativeMcpPath));
             if (app.isPackaged) {
                 searchPaths.push(path.join(process.resourcesPath, 'app.asar.unpacked', relativeMcpPath));
