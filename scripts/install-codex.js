@@ -162,8 +162,11 @@ try {
         env.PATH = `${path.join(NODE_PATH, 'bin')}:${env.PATH}`;
     }
 
-    // Use the embedded npm to install codex and playwright-mcp
-    const npmArgs = ['install', '@openai/codex@latest', '@playwright/mcp@latest', '--save'];
+    // Pin exact versions for compatibility (update during periodic maintenance)
+    // Must match CODEX_VERSION and PLAYWRIGHT_MCP_VERSION in src/core/runtime-manager.ts
+    const CODEX_VERSION = '0.118.0';
+    const PLAYWRIGHT_MCP_VERSION = '0.0.70';
+    const npmArgs = ['install', `@openai/codex@${CODEX_VERSION}`, `@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}`, '--save'];
 
     console.log(`Running: npm ${npmArgs.join(' ')}`);
 

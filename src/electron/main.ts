@@ -11,7 +11,7 @@ import { getExternalBrowserManager } from '../core/external-browser-manager';
 import { browserDetector } from '../core/browser-detector';
 import { shortcutManager, ShortcutLocation } from '../core/shortcut-manager';
 import { settingsService } from '../core/settings';
-import { getRuntimeManager } from '../core/runtime-manager';
+import { getRuntimeManager, PLAYWRIGHT_MCP_VERSION } from '../core/runtime-manager';
 
 // Enable Chrome DevTools Protocol for Playwright MCP integration
 // Windows: Default to 127.0.0.1 to avoid Firewall prompts and ECONNREFUSED on clean installs.
@@ -2703,7 +2703,7 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
             } else {
                 console.log('[Main] Local Playwright MCP not found, falling back to npx');
                 codexArgs.push('-c', 'mcp_servers.playwright.command=npx');
-                const playwrightArgsValue = `['@playwright/mcp@latest','--cdp-endpoint','${cdpEndpoint}']`;
+                const playwrightArgsValue = `['@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}','--cdp-endpoint','${cdpEndpoint}']`;
                 codexArgs.push('-c', `mcp_servers.playwright.args=${playwrightArgsValue}`);
             }
             codexArgs.push('-c', 'mcp_servers.playwright.startup_timeout_sec=60');

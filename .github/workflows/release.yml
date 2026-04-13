@@ -100,9 +100,8 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
 
       # NOTE: MAS (Mac App Store) builds are NOT included in GitHub releases.
-      # MAS builds should be done locally via `npm run pack:mac-mas` and uploaded
-      # to App Store Connect via Transporter. MAS .pkg files use 3rd Party Mac
-      # Developer certificates which are only valid for App Store distribution.
+      # MAS builds are done locally via `npm run deploy:mas` which builds and
+      # uploads to App Store Connect automatically. See scripts/deploy-mas.js.
 
       # Windows: Build NSIS and portable with Azure signing (for GitHub release)
       - name: Package Windows (NSIS + Portable - Signed)

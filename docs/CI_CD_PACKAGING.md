@@ -44,7 +44,7 @@ GnuNae requires Node.js, npm, and Codex CLI to function. Runtime provisioning di
 | Aspect | **Windows EXE** | **Windows APPX** | **macOS DMG/ZIP** | **macOS MAS** | **Linux** |
 |--------|-----------------|------------------|-------------------|---------------|-----------
 | **npm Build** | `pack:win` | `pack:win` | `pack:mac` | `pack:mac-mas` | `pack:linux` |
-| **GitHub Actions** | ✅ Yes | ❌ Local only | ✅ Yes | ❌ Local only | ✅ Yes |
+| **GitHub Actions** | ✅ Yes | ❌ Local only | ✅ Yes | ❌ Local (`deploy:mas`) | ✅ Yes |
 | **Output Format** | `.exe` (NSIS) | `.appx` | `.dmg` `.zip` | `.pkg` | `.AppImage` `.deb` |
 | **Code Signing** | Azure Trusted Signing | Unsigned (MS Store signs) | Developer ID + Notarization | 3rd Party Mac Developer | GPG |
 | **Node.js** | ✅ Embedded | ✅ Embedded | ✅ Embedded | ✅ Embedded | ⬇️ Auto-download |
@@ -55,9 +55,9 @@ GnuNae requires Node.js, npm, and Codex CLI to function. Runtime provisioning di
 **Legend:** ✅ = Included/Yes, ⬇️ = Downloaded automatically on first run, ❌ = Not included
 
 > [!IMPORTANT]
-> **MAS and APPX are NOT built via GitHub Actions.** Build locally and upload manually:
-> - **MAS**: `npm run pack:mac-mas` → Upload to App Store Connect via Transporter
-> - **APPX**: `npm run pack:win` → Upload to Microsoft Store Partner Center
+> **MAS and APPX are NOT built via GitHub Actions.** Build locally:
+> - **MAS**: `npm run deploy:mas` → Builds and uploads to App Store Connect automatically
+> - **APPX**: `npm run pack:win` → Upload to Microsoft Store Partner Center manually
 
 ### How Auto-Install Works
 
@@ -86,17 +86,26 @@ The runtime is stored in the user's app data directory (Application Support/AppD
 │  │  notarized)  │    │  Signing)    │    │              │                   │
 │  └──────────────┘    └──────────────┘    └──────────────┘                   │
 │                                                                              │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                    LOCAL BUILDS ONLY (not in CI/CD)                 │    │
-│  │   • MAS/PKG → App Store Connect    • APPX → MS Store Partner Center │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                              │
 │                         ↓ Upload Artifacts ↓                                 │
 │                                                                              │
 │                    ┌──────────────────────┐                                  │
 │                    │   GitHub Release     │                                  │
 │                    │   (all platforms)    │                                  │
 │                    └──────────────────────┘                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          LOCAL BUILDS (not in CI/CD)                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────┐                   ┌──────────────┐                        │
+│  │ npm run      │                   │ npm run      │                        │
+│  │ deploy:mas   │──→ xcrun altool   │ pack:win     │                        │
+│  │              │──→ App Store      │              │──→ Manual upload        │
+│  │ (PKG arm64   │    Connect        │ (APPX)       │    to Partner Center    │
+│  │  PKG x64)    │                   │              │                        │
+│  └──────────────┘                   └──────────────┘                        │
+│                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -254,19 +263,39 @@ npm run install-codex && npm run build && electron-builder --mac dmg zip
 
 #### Local Build Command
 ```bash
+# Build only (no upload):
 npm run pack:mac-mas
-# Equivalent to: npm run build && node scripts/load-env.js --mac mas
+
+# Build + upload to App Store Connect (fully automated):
+npm run deploy:mas
 ```
 
 #### Environment Variables
 
-| Variable | Description | GitHub Secret |
-|----------|-------------|---------------|
-| `APPLE_CERTIFICATE_APPLICATION_P12` | Base64-encoded 3rd Party Mac Developer Application .p12 | ✅ |
-| `APPLE_CERTIFICATE_INSTALLER_P12` | Base64-encoded 3rd Party Mac Developer Installer .p12 | ✅ |
-| `APPLE_CERTIFICATE_PASSWORD` | Password for .p12 files | ✅ |
-| `APPLE_PROVISIONING_PROFILE` | Base64-encoded .provisionprofile | ✅ |
-| `APPLE_TEAM_ID` | 10-character Apple Team ID | ✅ |
+| Variable | Description | Source |
+|----------|-------------|--------|
+| `APPLE_CERTIFICATE_APPLICATION_P12` | Base64-encoded 3rd Party Mac Developer Application .p12 | GitHub Secret |
+| `APPLE_CERTIFICATE_INSTALLER_P12` | Base64-encoded 3rd Party Mac Developer Installer .p12 | GitHub Secret |
+| `APPLE_CERTIFICATE_PASSWORD` | Password for .p12 files | `.env.local` |
+| `APPLE_PROVISIONING_PROFILE` | Base64-encoded .provisionprofile | GitHub Secret |
+| `APPLE_TEAM_ID` | 10-character Apple Team ID | `.env.local` |
+| `ASC_API_KEY_ID` | App Store Connect API Key ID | `.env.local` |
+| `ASC_API_ISSUER_ID` | App Store Connect Issuer ID | `.env.local` |
+
+#### App Store Connect API Key Setup
+
+The `deploy:mas` script uses `xcrun altool` with API Key authentication to upload.
+
+1. Go to [App Store Connect → Users and Access → Integrations → API Keys](https://appstoreconnect.apple.com/access/integrations/api)
+2. Generate a new key with **App Manager** role
+3. Note the **Key ID** and **Issuer ID**
+4. Download the `.p8` file (can only be downloaded once!)
+5. Save the `.p8` file to: `~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8`
+6. Add to `.env.local`:
+   ```
+   ASC_API_KEY_ID=YOUR_KEY_ID
+   ASC_API_ISSUER_ID=YOUR_ISSUER_ID
+   ```
 
 #### Entitlements
 
@@ -504,6 +533,13 @@ gpg --pinentry-mode loopback --armor --export-secret-keys YOUR_KEY_ID | base64 |
 | `APPLE_CERTIFICATE_PASSWORD` | .p12 password | `.env.local` | Secret |
 | `APPLE_PROVISIONING_PROFILE` | Provisioning profile (base64) | File | Secret |
 
+#### App Store Connect (MAS upload)
+| Variable | Description | Local | GitHub |
+|----------|-------------|-------|--------|
+| `ASC_API_KEY_ID` | API Key ID (from App Store Connect) | `.env.local` | N/A |
+| `ASC_API_ISSUER_ID` | Issuer ID (from App Store Connect) | `.env.local` | N/A |
+| API Key `.p8` file | Stored at `~/.appstoreconnect/private_keys/` | File | N/A |
+
 #### Azure (Windows)
 | Variable | Description | Local | GitHub |
 |----------|-------------|-------|--------|
@@ -537,6 +573,11 @@ APPLE_TEAM_ID=XXXXXXXXXX
 APPLE_ID=your@apple.id
 APPLE_APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx
 APPLE_CERTIFICATE_PASSWORD=your_p12_password
+
+# App Store Connect API (for deploy:mas)
+ASC_API_KEY_ID=XXXXXXXXXX
+ASC_API_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+# Note: Also place AuthKey_<KEY_ID>.p8 in ~/.appstoreconnect/private_keys/
 
 # Azure Trusted Signing (Windows builds)
 AZURE_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
@@ -585,6 +626,9 @@ In your GitHub repository, go to **Settings → Secrets and variables → Action
 - `APPLE_CERTIFICATE_APPLICATION_P12` (base64)
 - `APPLE_CERTIFICATE_INSTALLER_P12` (base64)
 - `APPLE_PROVISIONING_PROFILE` (base64)
+
+> [!NOTE]
+> App Store Connect API credentials (`ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`, `.p8` key) are **local-only** — they are not needed in GitHub Secrets since MAS builds run locally via `npm run deploy:mas`.
 
 #### Azure Secrets
 - `AZURE_TENANT_ID`
@@ -664,6 +708,6 @@ This is the standard approach for ChatGPT-integrated apps.
 2. [ ] Commit changes
 3. [ ] Create and push tag: `git tag v0.x.x && git push --tags`
 4. [ ] Monitor GitHub Actions workflow
-5. [ ] Verify GitHub Release created with all artifacts
-6. [ ] Upload APPX to Microsoft Store Partner Center
-7. [ ] Upload PKG to App Store Connect via Transporter
+5. [ ] Verify GitHub Release created with all artifacts (DMG, ZIP, EXE, AppImage, DEB)
+6. [ ] Run `npm run deploy:mas` to build and upload MAS .pkg to App Store Connect
+7. [ ] Upload APPX to Microsoft Store Partner Center (manual)

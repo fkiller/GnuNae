@@ -7,11 +7,11 @@ Checklist for periodic dependency updates and version synchronization.
 | Component | Location | Sync With |
 |-----------|----------|-----------|
 | App Version | `package.json` | All releases |
-| Codex CLI | `package.json`, `resources/codex/package.json`, `docker/Dockerfile` | Each other |
-| Playwright MCP | `package.json`, `resources/codex/package.json`, `docker/Dockerfile` | Each other |
+| Codex CLI | `package.json`, `resources/codex/package.json`, `docker/Dockerfile`, `runtime-manager.ts`, `install-codex.js` | Each other |
+| Playwright MCP | `package.json`, `resources/codex/package.json`, `docker/Dockerfile`, `runtime-manager.ts`, `install-codex.js` | Each other |
 | Playwright Base | `docker/Dockerfile` | `package.json` Playwright |
 | Docker Image | `docker-manager.ts` | Auto-synced with app version |
-| AI Models | `src/ui/constants/codex.ts` | OpenAI releases |
+| AI Models | `src/ui/constants/codex.ts`, `src/electron/main.ts` | OpenAI releases |
 
 ---
 
@@ -34,9 +34,23 @@ npm outdated --json
 - Other dependencies
 
 #### B. resources/codex/package.json
-Sync versions with main package.json:
+Sync **exact** versions (no `^` caret) with main package.json:
 - `@openai/codex`
 - `@playwright/mcp`
+
+#### B2. src/core/runtime-manager.ts
+Update the pinned version constants (used for dynamic installation at runtime):
+```typescript
+export const CODEX_VERSION = '0.118.0';
+export const PLAYWRIGHT_MCP_VERSION = '0.0.70';
+```
+
+#### B3. scripts/install-codex.js
+Update the pinned version constants (must match runtime-manager.ts):
+```javascript
+const CODEX_VERSION = '0.118.0';
+const PLAYWRIGHT_MCP_VERSION = '0.0.70';
+```
 
 #### C. docker/Dockerfile
 ```dockerfile
