@@ -161,13 +161,16 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Setup .NET (for msstore CLI)
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '9.0.x'
-
       - name: Install msstore CLI
-        run: dotnet tool install --global MSStoreCLI
+        shell: pwsh
+        run: |
+          $version = "0.3.9"
+          $url = "https://github.com/microsoft/msstore-cli/releases/download/v${version}/MSStoreCLI-win-x64.zip"
+          Write-Host "Downloading msstore CLI v${version}..."
+          Invoke-WebRequest -Uri $url -OutFile msstore-cli.zip
+          Expand-Archive -Path msstore-cli.zip -DestinationPath "$env:RUNNER_TEMP\msstore-cli" -Force
+          echo "$env:RUNNER_TEMP\msstore-cli" | Out-File -Append $env:GITHUB_PATH
+          Write-Host "msstore CLI installed to $env:RUNNER_TEMP\msstore-cli"
 
       - name: Configure msstore CLI
         run: |
