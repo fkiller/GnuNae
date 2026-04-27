@@ -113,10 +113,9 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
 
-      # NOTE: APPX (Microsoft Store) builds are NOT included in GitHub releases.
-      # APPX builds should be done locally via `npm run pack:win` and uploaded
-      # to Microsoft Store Partner Center. APPX packages are unsigned as the
-      # MS Store signs them during submission.
+      # NOTE: APPX (Microsoft Store) builds are handled by the separate
+      # 'build-msstore' job, which builds the APPX and uploads it to
+      # Partner Center using the msstore CLI.
 
       # Linux: Setup GPG for signing
       - name: Setup GPG (Linux)
@@ -142,10 +141,106 @@ jobs:
             release/*.dmg
             release/*.zip
             release/*.exe
-            release/*.appx
             release/*.AppImage
             release/*.deb
           if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────────────────────
+  # Microsoft Store: Build APPX and upload to Partner Center
+  # ─────────────────────────────────────────────────────────────
+  build-msstore:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup .NET (for msstore CLI)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Install msstore CLI
+        run: dotnet tool install --global MSStoreCLI
+
+      - name: Configure msstore CLI
+        run: |
+          msstore reconfigure `
+            --tenantId $env:AZURE_TENANT_ID `
+            --sellerId $env:MSSTORE_SELLER_ID `
+            --clientId $env:AZURE_CLIENT_ID `
+            --clientSecret $env:AZURE_CLIENT_SECRET
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          MSSTORE_SELLER_ID: ${{ secrets.MSSTORE_SELLER_ID }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Inject build config
+        run: node scripts/inject-build-config.js
+        env:
+          BUILD_AUTHOR_NAME: ${{ secrets.BUILD_AUTHOR_NAME }}
+          BUILD_AUTHOR_EMAIL: ${{ secrets.BUILD_AUTHOR_EMAIL }}
+          BUILD_PUBLISHER_NAME: ${{ secrets.BUILD_PUBLISHER_NAME }}
+
+      - name: Download Node.js Portable (Windows)
+        run: node scripts/download-node.js
+
+      - name: Install Codex CLI
+        run: node scripts/install-codex.js
+
+      - name: Build
+        run: npm run build
+
+      # Build APPX only (unsigned — MS Store signs during submission)
+      - name: Package APPX
+        run: npx electron-builder --win appx --publish never
+        env:
+          MSSTORE_PUBLISHER_CN: ${{ secrets.MSSTORE_PUBLISHER_CN }}
+
+      - name: Find APPX file
+        id: find-appx
+        shell: pwsh
+        run: |
+          $appx = Get-ChildItem -Path release -Filter *.appx -Recurse | Select-Object -First 1
+          if (-not $appx) {
+            Write-Error "No .appx file found in release/"
+            exit 1
+          }
+          Write-Host "Found APPX: $($appx.FullName)"
+          echo "APPX_PATH=$($appx.FullName)" >> $env:GITHUB_OUTPUT
+
+      # Upload APPX to Partner Center
+      - name: Upload to Microsoft Store
+        run: |
+          msstore submission update $env:MSSTORE_PRODUCT_ID --package "$env:APPX_PATH"
+          msstore submission poll $env:MSSTORE_PRODUCT_ID
+          msstore submission publish $env:MSSTORE_PRODUCT_ID
+        env:
+          MSSTORE_PRODUCT_ID: ${{ secrets.MSSTORE_PRODUCT_ID }}
+          APPX_PATH: ${{ steps.find-appx.outputs.APPX_PATH }}
+
+      - name: MS Store Summary
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "## Microsoft Store Build Summary" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          Write-Host "" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          $appx = Get-ChildItem -Path release -Filter *.appx -Recurse -ErrorAction SilentlyContinue
+          if ($appx) {
+            Write-Host "APPX built: $($appx.Name) ($([math]::Round($appx.Length / 1MB, 1)) MB)" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          } else {
+            Write-Host "No APPX found" | Out-File -Append $env:GITHUB_STEP_SUMMARY
+          }
 
   release:
     needs: build

@@ -88,6 +88,27 @@ function findPkgFiles() {
     return findPkgFilesRecursive(RELEASE_DIR);
 }
 
+function findAltool() {
+    // altool is inside Xcode.app, but xcrun can't find it if xcode-select
+    // points to CommandLineTools. Check known Xcode locations first.
+    const xcodePaths = [
+        '/Applications/Xcode.app/Contents/Developer/usr/bin/altool',
+        '/Applications/Xcode-beta.app/Contents/Developer/usr/bin/altool',
+    ];
+
+    for (const p of xcodePaths) {
+        if (fs.existsSync(p)) return p;
+    }
+
+    // Fall back to xcrun (works if xcode-select points to Xcode.app)
+    try {
+        const result = execSync('xcrun --find altool 2>/dev/null', { encoding: 'utf8' }).trim();
+        if (result && fs.existsSync(result)) return result;
+    } catch (_) {}
+
+    return null;
+}
+
 function validateApiKeySetup() {
     const keyId = process.env.ASC_API_KEY_ID;
     const issuerId = process.env.ASC_API_ISSUER_ID;
@@ -125,6 +146,20 @@ function validateApiKeySetup() {
     return { keyId, issuerId };
 }
 
+function validateAltool() {
+    const altoolPath = findAltool();
+    if (!altoolPath) {
+        console.error('❌ altool not found!');
+        console.error('   altool requires the full Xcode.app (not just Command Line Tools).');
+        console.error('   Install Xcode from the Mac App Store, then either:');
+        console.error('   a) Run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer');
+        console.error('   b) Or the script will use the direct path automatically.');
+        process.exit(1);
+    }
+    log('🔧', `altool found: ${altoolPath}`);
+    return altoolPath;
+}
+
 // ── Main ─────────────────────────────────────────────────────
 
 async function main() {
@@ -143,24 +178,27 @@ async function main() {
 
     // Validate API key setup before doing anything expensive
     const { keyId, issuerId } = validateApiKeySetup();
+    const altoolPath = validateAltool();
 
     // Read version
     const pkg = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf8'));
     log('📦', `Version: ${pkg.version}`);
 
     // ── Step 1: Build ────────────────────────────────────────
-    log('⬇️ ', 'Step 1/5: Downloading Node.js runtimes...');
+    log('⬇️ ', 'Step 1/4: Downloading Node.js runtime (arm64)...');
     run('npm run download-node-darwin-arm64');
-    run('npm run download-node-darwin-x64');
 
-    log('📥', 'Step 2/5: Installing Codex CLI...');
+    log('📥', 'Step 2/4: Installing Codex CLI...');
     run('npm run install-codex');
 
-    log('🔨', 'Step 3/5: Building app...');
+    log('🔨', 'Step 3/4: Building app...');
     run('npm run build');
 
     // ── Step 2: Package ──────────────────────────────────────
-    log('📦', 'Step 4/6: Packaging MAS .pkg (arm64)...');
+    // Only arm64 is uploaded to App Store — Apple warns about x64-only
+    // binaries missing arm64 (ITMS-91167). Intel Mac users can use the
+    // DMG/ZIP downloads from the website instead.
+    log('📦', 'Step 4/5: Packaging MAS .pkg (arm64)...');
 
     // Clean previous MAS builds (search recursively)
     const existingPkgs = findPkgFiles();
@@ -172,14 +210,10 @@ async function main() {
         });
     }
 
-    // Build each architecture separately (electron-builder handles them better this way)
     run('node scripts/load-env.js --mac mas --arm64');
 
-    log('📦', 'Step 5/6: Packaging MAS .pkg (x64)...');
-    run('node scripts/load-env.js --mac mas --x64');
-
     // ── Step 3: Upload ───────────────────────────────────────
-    log('🚀', 'Step 6/6: Uploading to App Store Connect...');
+    log('🚀', 'Step 5/5: Uploading to App Store Connect...');
 
     const pkgFiles = findPkgFiles();
     if (pkgFiles.length === 0) {
@@ -196,8 +230,8 @@ async function main() {
         const basename = path.basename(pkgFile);
         console.log(`\n   Uploading ${basename}...`);
 
-        const result = spawnSync('xcrun', [
-            'altool', '--upload-app',
+        const result = spawnSync(altoolPath, [
+            '--upload-app',
             '--type', 'macos',
             '--file', pkgFile,
             '--apiKey', keyId,

@@ -44,7 +44,7 @@ GnuNae requires Node.js, npm, and Codex CLI to function. Runtime provisioning di
 | Aspect | **Windows EXE** | **Windows APPX** | **macOS DMG/ZIP** | **macOS MAS** | **Linux** |
 |--------|-----------------|------------------|-------------------|---------------|-----------
 | **npm Build** | `pack:win` | `pack:win` | `pack:mac` | `pack:mac-mas` | `pack:linux` |
-| **GitHub Actions** | ✅ Yes | ❌ Local only | ✅ Yes | ❌ Local (`deploy:mas`) | ✅ Yes |
+| **GitHub Actions** | ✅ Yes | ✅ Yes (auto-upload) | ✅ Yes | ❌ Local (`deploy:mas`) | ✅ Yes |
 | **Output Format** | `.exe` (NSIS) | `.appx` | `.dmg` `.zip` | `.pkg` | `.AppImage` `.deb` |
 | **Code Signing** | Azure Trusted Signing | Unsigned (MS Store signs) | Developer ID + Notarization | 3rd Party Mac Developer | GPG |
 | **Node.js** | ✅ Embedded | ✅ Embedded | ✅ Embedded | ✅ Embedded | ⬇️ Auto-download |
@@ -55,9 +55,10 @@ GnuNae requires Node.js, npm, and Codex CLI to function. Runtime provisioning di
 **Legend:** ✅ = Included/Yes, ⬇️ = Downloaded automatically on first run, ❌ = Not included
 
 > [!IMPORTANT]
-> **MAS and APPX are NOT built via GitHub Actions.** Build locally:
+> **MAS is NOT built via GitHub Actions.** Build locally:
 > - **MAS**: `npm run deploy:mas` → Builds and uploads to App Store Connect automatically
-> - **APPX**: `npm run pack:win` → Upload to Microsoft Store Partner Center manually
+>
+> **APPX is fully automated.** The `build-msstore` job in `release.yml` builds the APPX and uploads it to Partner Center using the `msstore` CLI.
 
 ### How Auto-Install Works
 
@@ -76,35 +77,38 @@ The runtime is stored in the user's app data directory (Application Support/AppD
 │                          GitHub Actions Release Workflow                     │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                   │
-│  │ macOS Runner │    │ Windows      │    │ Linux Runner │                   │
-│  │              │    │ Runner       │    │              │                   │
-│  ├──────────────┤    ├──────────────┤    ├──────────────┤                   │
-│  │ DMG + ZIP    │    │ NSIS         │    │ AppImage     │                   │
-│  │ (Developer   │    │ (Azure       │    │ DEB          │                   │
-│  │  ID signed + │    │  Trust       │    │ (GPG signed) │                   │
-│  │  notarized)  │    │  Signing)    │    │              │                   │
-│  └──────────────┘    └──────────────┘    └──────────────┘                   │
+│  ┌─── build job ────────────────────────────────────────────────────────┐   │
+│  │                                                                      │   │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │   │
+│  │  │ macOS Runner │  │ Windows      │  │ Linux Runner │               │   │
+│  │  │ DMG + ZIP    │  │ Runner       │  │ AppImage     │               │   │
+│  │  │ (Developer   │  │ NSIS         │  │ DEB          │               │   │
+│  │  │  ID signed + │  │ (Azure       │  │ (GPG signed) │               │   │
+│  │  │  notarized)  │  │  Signing)    │  │              │               │   │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘               │   │
+│  │                         ↓ GitHub Release ↓                           │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
 │                                                                              │
-│                         ↓ Upload Artifacts ↓                                 │
-│                                                                              │
-│                    ┌──────────────────────┐                                  │
-│                    │   GitHub Release     │                                  │
-│                    │   (all platforms)    │                                  │
-│                    └──────────────────────┘                                  │
+│  ┌─── build-msstore job (parallel) ─────────────────────────────────────┐   │
+│  │                                                                      │   │
+│  │  ┌──────────────┐                                                    │   │
+│  │  │ Windows      │                                                    │   │
+│  │  │ Runner       │──→ msstore CLI ──→ Partner Center                  │   │
+│  │  │ APPX         │                                                    │   │
+│  │  │ (unsigned)   │                                                    │   │
+│  │  └──────────────┘                                                    │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                          LOCAL BUILDS (not in CI/CD)                         │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  ┌──────────────┐                   ┌──────────────┐                        │
-│  │ npm run      │                   │ npm run      │                        │
-│  │ deploy:mas   │──→ xcrun altool   │ pack:win     │                        │
-│  │              │──→ App Store      │              │──→ Manual upload        │
-│  │ (PKG arm64   │    Connect        │ (APPX)       │    to Partner Center    │
-│  │  PKG x64)    │                   │              │                        │
-│  └──────────────┘                   └──────────────┘                        │
+│  ┌──────────────┐                                                            │
+│  │ npm run      │                                                            │
+│  │ deploy:mas   │──→ xcrun altool ──→ App Store Connect                      │
+│  │ (PKG arm64)  │                                                            │
+│  └──────────────┘                                                            │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -639,6 +643,8 @@ In your GitHub repository, go to **Settings → Secrets and variables → Action
 
 #### Microsoft Store Secrets
 - `MSSTORE_PUBLISHER_CN`
+- `MSSTORE_SELLER_ID` (from Partner Center → Account settings → Identifiers)
+- `MSSTORE_PRODUCT_ID` (your app's Store Product ID)
 
 ### Base64 Encoding Certificates
 
@@ -709,5 +715,5 @@ This is the standard approach for ChatGPT-integrated apps.
 3. [ ] Create and push tag: `git tag v0.x.x && git push --tags`
 4. [ ] Monitor GitHub Actions workflow
 5. [ ] Verify GitHub Release created with all artifacts (DMG, ZIP, EXE, AppImage, DEB)
-6. [ ] Run `npm run deploy:mas` to build and upload MAS .pkg to App Store Connect
-7. [ ] Upload APPX to Microsoft Store Partner Center (manual)
+6. [ ] Verify APPX uploaded to MS Partner Center (check `build-msstore` job)
+7. [ ] Run `npm run deploy:mas` to build and upload MAS .pkg to App Store Connect
