@@ -226,10 +226,12 @@ jobs:
 
       # Upload APPX to Partner Center
       - name: Upload to Microsoft Store
+        shell: pwsh
         run: |
-          msstore submission update $env:MSSTORE_PRODUCT_ID --package "$env:APPX_PATH"
-          msstore submission poll $env:MSSTORE_PRODUCT_ID
-          msstore submission publish $env:MSSTORE_PRODUCT_ID
+          Write-Host "Uploading APPX to Microsoft Store..."
+          Write-Host "APPX: $env:APPX_PATH"
+          Write-Host "Product ID: $env:MSSTORE_PRODUCT_ID"
+          msstore publish . -i "$env:APPX_PATH" -id $env:MSSTORE_PRODUCT_ID -v
         env:
           MSSTORE_PRODUCT_ID: ${{ secrets.MSSTORE_PRODUCT_ID }}
           APPX_PATH: ${{ steps.find-appx.outputs.APPX_PATH }}
