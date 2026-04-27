@@ -205,8 +205,10 @@ jobs:
         run: npm run build
 
       # Build APPX only (unsigned — MS Store signs during submission)
+      # Note: --config.appx.publisher override is required because electron-builder's
+      # ${env.X} substitution doesn't work for appx.publisher (same workaround as load-env.js)
       - name: Package APPX
-        run: npx electron-builder --win appx --publish never
+        run: npx electron-builder --win appx --publish never --config.appx.publisher="${{ secrets.MSSTORE_PUBLISHER_CN }}"
         env:
           MSSTORE_PUBLISHER_CN: ${{ secrets.MSSTORE_PUBLISHER_CN }}
 
