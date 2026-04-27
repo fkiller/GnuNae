@@ -231,10 +231,9 @@ jobs:
           Write-Host "Uploading APPX to Microsoft Store..."
           Write-Host "APPX: $env:APPX_PATH"
           Write-Host "Product ID: $env:MSSTORE_PRODUCT_ID"
-          msstore publish . -i "$env:APPX_PATH" -id $env:MSSTORE_PRODUCT_ID -v
+          msstore publish . --appId $env:MSSTORE_PRODUCT_ID -i release -v
         env:
           MSSTORE_PRODUCT_ID: ${{ secrets.MSSTORE_PRODUCT_ID }}
-          APPX_PATH: ${{ steps.find-appx.outputs.APPX_PATH }}
 
       - name: MS Store Summary
         if: always()
