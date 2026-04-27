@@ -2,7 +2,7 @@ import { app, BrowserWindow, BrowserView, ipcMain, session, Menu, dialog } from 
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, execSync, ChildProcess } from 'child_process';
 import { AuthService } from '../core/auth';
 import { DockerManager, getDockerManager, type SandboxInstance } from '../core/docker-manager';
 import { SandboxApiClient, createSandboxClient } from '../core/sandbox-api';
@@ -35,7 +35,28 @@ if (process.platform === 'win32') {
     }
 }
 
-app.commandLine.appendSwitch('remote-debugging-port', '9222');
+// Find an available CDP port (allows multiple GnuNae instances, e.g. MAS + dev)
+// Must be synchronous because app.commandLine.appendSwitch runs before app.ready
+let cdpPortChosen = 9222;
+for (let port = 9222; port <= 9232; port++) {
+    try {
+        // Synchronous port-in-use check using OS-level commands
+        if (process.platform === 'win32') {
+            execSync(`netstat -ano | findstr "LISTENING" | findstr ":${port} "`, { stdio: 'pipe' });
+        } else {
+            execSync(`lsof -i :${port} -sTCP:LISTEN`, { stdio: 'pipe' });
+        }
+        // Command succeeded → port is in use, try next
+        console.log(`[Main] CDP port ${port} in use, trying next...`);
+    } catch {
+        // Command failed → port is free
+        cdpPortChosen = port;
+        break;
+    }
+}
+console.log(`[Main] Using CDP port: ${cdpPortChosen}`);
+
+app.commandLine.appendSwitch('remote-debugging-port', String(cdpPortChosen));
 app.commandLine.appendSwitch('remote-debugging-address', debuggingAddress);
 
 /**
@@ -1825,13 +1846,13 @@ function setupIpcHandlers(): void {
                     return { success: false, error: 'Failed to connect to external browser CDP' };
                 }
             } else if (config?.browserMode === 'electron-cdp') {
-                // electron-cdp mode: Use Electron's built-in CDP (already provided in config)
-                // The endpoint is passed as http://host.docker.internal:9222
+                // electron-cdp mode: Use Electron's built-in CDP
+                // The UI passes a placeholder; we use cdpPortChosen to get the actual WebSocket URL
                 // Fetch WebSocket URL from Electron's CDP endpoint
                 try {
                     const http = require('http');
                     const wsUrl = await new Promise<string>((resolve, reject) => {
-                        const request = http.get('http://127.0.0.1:9222/json/version', (res: any) => {
+                        const request = http.get(`http://127.0.0.1:${cdpPortChosen}/json/version`, (res: any) => {
                             let data = '';
                             res.on('data', (chunk: string) => data += chunk);
                             res.on('end', () => {
@@ -2594,16 +2615,22 @@ If the user asks you to perform an action, politely explain that you are in Read
 ## MODE: AGENT (Supervised)
 Before performing these CRITICAL ACTIONS, you MUST ask for user confirmation first:
 - Any payment, checkout, or purchase action
-- Final form submissions (submit, confirm, proceed, complete)
 - Account changes (delete account, deactivate, change password/email)
 - Any action involving money or financial transactions
-- Sending messages or emails
+- Sending messages, emails, or social media posts
 - Booking or reservation confirmations
+- Deleting data or content permanently
 
 For critical actions, output: "⚠️ This action requires confirmation: [describe action]. Please confirm to proceed."
 Then WAIT for user response before continuing.
 
-For non-critical actions (navigation, reading, filling forms without submitting), proceed normally.
+These are NOT critical — proceed WITHOUT asking:
+- Searching (Google, Bing, site search, etc.)
+- Navigating to pages or clicking links
+- Filling form fields (without final payment/account submit)
+- Reading, scrolling, extracting information
+- Selecting options, filters, or tabs
+- Logging in with stored credentials
 
 `;
             } else if (mode === 'full-access') {
@@ -2684,9 +2711,9 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
             const extBrowserManager = getExternalBrowserManager();
             const browserStatus = extBrowserManager.getStatus();
 
-            // Use external browser's CDP port if available, otherwise use default (9222)
+            // Use external browser's CDP port if available, otherwise use the port we bound at startup
             // The external browser manager has the current active CDP port
-            const cdpPort = browserStatus.cdpPort || 9222;
+            const cdpPort = browserStatus.cdpPort || cdpPortChosen;
             const cdpEndpoint = `http://127.0.0.1:${cdpPort}`;
 
             console.log('[Main] Configuring Playwright MCP with CDP endpoint:', cdpEndpoint);

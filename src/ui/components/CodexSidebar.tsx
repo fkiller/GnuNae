@@ -144,7 +144,9 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
     // Subscribe to Codex output streams and PDS requests
     useEffect(() => {
         const unsubOutput = (window as any).electronAPI?.onCodexOutput?.((data: any) => {
-            const message = data.data.trim();
+            // Strip ANSI escape codes (color, bold, etc.) from Codex CLI output
+            // eslint-disable-next-line no-control-regex
+            const message = data.data.replace(/\x1b\[[0-9;]*m/g, '').trim();
             if (!message) return;
 
             // Check if debug mode is enabled (async - use localStorage cache)
