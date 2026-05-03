@@ -31,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -158,19 +158,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
-      - name: Install msstore CLI
-        shell: pwsh
-        run: |
-          $version = "0.3.9"
-          $url = "https://github.com/microsoft/msstore-cli/releases/download/v${version}/MSStoreCLI-win-x64.zip"
-          Write-Host "Downloading msstore CLI v${version}..."
-          Invoke-WebRequest -Uri $url -OutFile msstore-cli.zip
-          Expand-Archive -Path msstore-cli.zip -DestinationPath "$env:RUNNER_TEMP\msstore-cli" -Force
-          echo "$env:RUNNER_TEMP\msstore-cli" | Out-File -Append $env:GITHUB_PATH
-          Write-Host "msstore CLI installed to $env:RUNNER_TEMP\msstore-cli"
+      - name: Setup Microsoft Store Developer CLI
+        uses: microsoft/microsoft-store-apppublisher@v1.3
 
       - name: Configure msstore CLI
         run: |
@@ -212,8 +204,8 @@ jobs:
         env:
           MSSTORE_PUBLISHER_CN: ${{ secrets.MSSTORE_PUBLISHER_CN }}
 
-      - name: Find APPX file
-        id: find-appx
+      # Upload APPX to Partner Center
+      - name: Upload to Microsoft Store
         shell: pwsh
         run: |
           $appx = Get-ChildItem -Path release -Filter *.appx -Recurse | Select-Object -First 1
@@ -221,17 +213,10 @@ jobs:
             Write-Error "No .appx file found in release/"
             exit 1
           }
-          Write-Host "Found APPX: $($appx.FullName)"
-          echo "APPX_PATH=$($appx.FullName)" >> $env:GITHUB_OUTPUT
-
-      # Upload APPX to Partner Center
-      - name: Upload to Microsoft Store
-        shell: pwsh
-        run: |
           Write-Host "Uploading APPX to Microsoft Store..."
-          Write-Host "APPX: $env:APPX_PATH"
+          Write-Host "APPX: $($appx.FullName)"
           Write-Host "Product ID: $env:MSSTORE_PRODUCT_ID"
-          msstore publish . --appId $env:MSSTORE_PRODUCT_ID -i release -v
+          msstore publish $appx.FullName -id $env:MSSTORE_PRODUCT_ID -v
         env:
           MSSTORE_PRODUCT_ID: ${{ secrets.MSSTORE_PRODUCT_ID }}
 
