@@ -167,14 +167,14 @@ jobs:
       - name: Configure msstore CLI
         run: |
           msstore reconfigure `
-            --tenantId $env:AZURE_TENANT_ID `
+            --tenantId $env:MSSTORE_TENANT_ID `
             --sellerId $env:MSSTORE_SELLER_ID `
-            --clientId $env:AZURE_CLIENT_ID `
-            --clientSecret $env:AZURE_CLIENT_SECRET
+            --clientId $env:MSSTORE_CLIENT_ID `
+            --clientSecret $env:MSSTORE_CLIENT_SECRET
         env:
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
           MSSTORE_SELLER_ID: ${{ secrets.MSSTORE_SELLER_ID }}
 
       - name: Install dependencies
