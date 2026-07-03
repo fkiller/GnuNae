@@ -17,7 +17,10 @@ jobs:
           # macOS builds both ARM64 and x64 via cross-compilation on Apple Silicon runner
           - os: macos-latest
             platform: mac
-          - os: windows-latest
+          # windows-latest currently resolves to windows-2025-vs2026, where
+          # node-gyp could not find a usable Visual Studio toolchain while
+          # rebuilding node-pty during electron-builder packaging.
+          - os: windows-2022
             platform: win
           - os: ubuntu-latest
             platform: linux
@@ -149,7 +152,9 @@ jobs:
   # Microsoft Store: Build APPX and upload to Partner Center
   # ─────────────────────────────────────────────────────────────
   build-msstore:
-    runs-on: windows-latest
+    # Keep MSIX packaging on the same known-good Windows toolchain as the
+    # direct Windows release job until native rebuilds support VS2026 runners.
+    runs-on: windows-2022
 
     steps:
       - name: Checkout
