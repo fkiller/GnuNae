@@ -1,0 +1,79 @@
+name: Maintenance task
+description: Scope a GnuNae maintenance task for Codex-first work.
+title: "[Maintenance]: "
+labels:
+  - maintenance
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for Codex Cloud tasks, dependency/runtime updates, docs refreshes, CI changes, and release-prep work.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or goal
+      description: Describe the concrete outcome expected from this task.
+      placeholder: What should be true after this task is complete?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: List included files/areas and explicitly excluded files/areas.
+      placeholder: Include the likely files, platforms, and anything that must not be changed.
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform impact
+      multiple: true
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Docker/Virtual Mode
+        - Microsoft Store
+        - Mac App Store
+        - GitHub Actions
+        - Documentation only
+    validations:
+      required: true
+  - type: checkboxes
+    id: release_sensitive
+    attributes:
+      label: Release-sensitive areas
+      description: Check anything this task is allowed to touch.
+      options:
+        - label: Release workflows
+        - label: Signing configuration
+        - label: Store identity, product IDs, or bundle IDs
+        - label: Entitlements or provisioning profile paths
+        - label: Store packaging/upload scripts
+        - label: Secrets or credential setup
+        - label: None of the above
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable behavior, docs, or checks required before merge.
+      placeholder: "- `npm run build` passes\n- Docs mention manual Windows/macOS checks"
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification plan
+      description: Include automated commands and manual checks.
+      placeholder: "`npm ci`, `npm run build`, GitHub Actions, manual Windows/macOS checks..."
+    validations:
+      required: true
+  - type: textarea
+    id: manual
+    attributes:
+      label: Manual owner intervention
+      description: Note credentials, store portals, local OS hardware, or accounts needed.
+      placeholder: "Needs App Store Connect upload from owner macOS machine."
+    validations:
+      required: false

@@ -1,6 +1,13 @@
 # GnuNae Periodic Maintenance Guide
 
-Checklist for periodic dependency updates and version synchronization.
+> [!IMPORTANT]
+> Maintenance source of truth is the current code, `package.json`, scripts,
+> Dockerfile, and GitHub Actions workflows. This document must be refreshed as
+> part of dependency/runtime/Codex updates. If it conflicts with code or CI,
+> trust code and CI first, then update this document in the same PR.
+
+Checklist for periodic dependency, runtime, Codex CLI, model, core library, and
+release-flow updates.
 
 ## Quick Reference
 
@@ -11,7 +18,29 @@ Checklist for periodic dependency updates and version synchronization.
 | Playwright MCP | `package.json`, `resources/codex/package.json`, `docker/Dockerfile`, `runtime-manager.ts`, `install-codex.js` | Each other |
 | Playwright Base | `docker/Dockerfile` | `package.json` Playwright |
 | Docker Image | `docker-manager.ts` | Auto-synced with app version |
-| AI Models | `src/ui/constants/codex.ts`, `src/electron/main.ts` | OpenAI releases |
+| AI Models | Inspect current code first: static fallbacks, any model registry, Codex CLI cache, and Codex spawn config | OpenAI Codex changelog and Codex CLI releases |
+| Electron | `package.json`, `package-lock.json`, Electron API usage in `src/electron/main.ts` | Electron releases and breaking changes |
+| MCP SDK | `package.json`, `package-lock.json`, MCP integration points | MCP TypeScript SDK releases |
+| Node runtime | `scripts/download-node.js`, `src/core/runtime-manager.ts`, packaged `resources/runtime*` | Node.js release/security updates |
+| Release workflows | `.github/workflows/release.yml`, `.github/workflows/docker.yml`, `.github/workflows/ci.yml` | GitHub Actions behavior and store/signing requirements |
+
+## Upstream Release Notes To Check
+
+Check upstream "what's new" or release notes before changing versions:
+
+- OpenAI Codex changelog: https://developers.openai.com/codex/changelog
+- OpenAI Codex CLI releases: https://github.com/openai/codex/releases
+- Playwright release notes: https://playwright.dev/docs/release-notes
+- Playwright MCP package: https://www.npmjs.com/package/@playwright/mcp
+- Electron releases: https://github.com/electron/electron/releases
+- Electron release cadence/support: https://www.electronjs.org/docs/latest/tutorial/electron-timelines
+- MCP TypeScript SDK releases: https://github.com/modelcontextprotocol/typescript-sdk/releases
+- Node.js releases: https://nodejs.org/en/about/previous-releases
+- electron-builder releases: https://github.com/electron-userland/electron-builder/releases
+- Microsoft Store Developer CLI: https://github.com/microsoft/msstore-cli
+
+Record the relevant upstream release-note links in the PR body when a version
+or runtime change is made.
 
 ---
 
@@ -63,18 +92,30 @@ RUN npm install -g \
     @playwright/mcp@0.0.70 \
 ```
 
-#### D. src/ui/constants/codex.ts
-Add new AI models as OpenAI releases them.
-- Update `CodexModel` type union
-- Update `CODEX_MODELS` array (newest first)
-- Update `DEFAULT_MODEL` if a new default is appropriate
-- Remove retired models (e.g., o3-mini, o4-mini → retired Feb 2026)
+#### D. AI models and Codex capabilities
+Do not assume the model list is static. Inspect current code first.
 
-#### D2. src/electron/main.ts
-Update the hardcoded model in Codex args:
-```typescript
-codexArgs.push('-c', 'model=gpt-5.4');  // Keep current flagship
-```
+If the active branch uses only static model constants:
+- Update `src/ui/constants/codex.ts`.
+- Update the default in `src/core/settings.ts`.
+- Update Codex spawn defaults in `src/electron/main.ts`.
+- Verify Settings and Codex sidebar dropdowns still render valid defaults.
+
+If the active branch has a model registry such as `src/core/model-registry.ts`
+or `config/models.json`:
+- Treat `src/ui/constants/codex.ts` as a fallback list unless code says
+  otherwise.
+- Update bundled/remote registry data and fallback constants together.
+- Verify the registry source order, default model, reasoning effort, minimum
+  Codex CLI version, and stale-model migration behavior.
+- Check Codex CLI's own model cache behavior before hardcoding new assumptions.
+
+For both paths:
+- Read the OpenAI Codex changelog and Codex CLI release notes.
+- Check whether a new model requires a newer `@openai/codex` version.
+- Check whether prompt, approval, sandbox, MCP, or auth behavior changed.
+- Document any model access or subscription limitations as needs manual
+  confirmation if code cannot prove them.
 
 #### E. README.md
 Add version history entry.
@@ -90,6 +131,9 @@ npm version patch  # or minor/major
 npm install
 npm run build
 ```
+
+For PRs, confirm GitHub `CI` passes on Windows, macOS, and Linux. For release
+candidates, monitor the tag-triggered release and Docker workflows.
 
 ### 4. Docker Image
 
@@ -129,17 +173,23 @@ git commit -m "v0.8.31: Dependency upgrades"
 # 3. Bump version
 npm version patch
 
-# 4. Push (triggers Docker build on main)
+# 4. Push with tags when owner-approved
 git push && git push --tags
 
-# 5. Build app packages
-npm run pack:win
-npm run pack:mac
+# 5. GitHub Actions handles:
+# - macOS DMG/ZIP build, signing, and notarization
+# - Windows NSIS/portable build and Azure signing
+# - Linux AppImage/DEB build
+# - Microsoft Store APPX/MSIX build and Partner Center upload
+# - GitHub Release creation
+# - GHCR sandbox image publication
 
-# 6. Upload to stores
-# - APPX → MS Store Partner Center
-# - PKG → App Store Connect
+# 6. Current local-only step when needed:
+npm run deploy:mas  # owner macOS machine only, uploads Mac App Store build
 ```
+
+Do not push release tags, submit store packages, or run `npm run deploy:mas`
+without explicit owner release approval.
 
 ---
 

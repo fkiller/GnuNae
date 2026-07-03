@@ -8,6 +8,13 @@ An Electron-based browser with an AI-powered Codex sidebar for intelligent web a
 
 > ⚠️ **Alpha Warning**: This app is still in alpha stage. Do not use it in production or with sensitive data.
 
+> **Maintenance note:** Some historical release and maintenance details in this
+> README may lag behind the current workflows. For Codex-first maintenance,
+> current build/release authority, and stale-doc handling, see
+> [`AGENTS.md`](AGENTS.md), [`docs/maintenance-playbook.md`](docs/maintenance-playbook.md),
+> [`docs/test-matrix.md`](docs/test-matrix.md), and
+> [`docs/release-checklist.md`](docs/release-checklist.md).
+
 ## Architecture
 
 ```mermaid
