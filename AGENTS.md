@@ -156,6 +156,9 @@ Current workflows are defined under `.github/workflows/`.
 - `ci.yml` runs `npm ci` and `npm run build` on Windows, macOS, and Linux for
   PRs and selected pushes. It is a non-release build check and does not sign,
   notarize, package, or upload store artifacts.
+- `maintenance-watch.yml` runs weekly and on manual dispatch. It generates an
+  advisory maintenance report and creates or updates a GitHub Issue. It does
+  not deploy, sign, notarize, push tags, submit store packages, or read secrets.
 - `dependabot.yml` opens weekly npm dependency updates.
 - Mac App Store packaging/upload is not handled by GitHub Actions. The current
   repo script is `npm run deploy:mas`, which must run locally on macOS with

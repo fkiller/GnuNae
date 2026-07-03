@@ -1,0 +1,63 @@
+name: Maintenance Watch
+
+on:
+  schedule:
+    - cron: '23 11 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: maintenance-watch
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    name: Scan maintenance signals
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate maintenance report
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/maintenance-watch.js --output maintenance-report.md --json maintenance-report.json
+
+      - name: Add report to step summary
+        run: |
+          cat maintenance-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create or update maintenance issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPORT_PATH: maintenance-report.md
+        run: |
+          set -euo pipefail
+
+          issue_title="Periodic maintenance watch - $(date -u +%Y-%m-%d)"
+          existing_issue="$(gh issue list \
+            --state open \
+            --search 'Periodic maintenance watch in:title' \
+            --json number \
+            --jq '.[0].number // empty')"
+
+          if [ -n "$existing_issue" ]; then
+            gh issue edit "$existing_issue" \
+              --title "$issue_title" \
+              --body-file "$REPORT_PATH"
+            echo "Updated issue #$existing_issue"
+          else
+            gh issue create \
+              --title "$issue_title" \
+              --body-file "$REPORT_PATH"
+          fi

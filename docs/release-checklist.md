@@ -48,6 +48,10 @@ by exposing secret values to Codex.
 - Confirm the release issue or checklist is owner-approved.
 - Confirm no unrelated changes are included.
 - Confirm `package.json` version is the intended release version.
+- Review the latest `Maintenance Watch` issue. Resolve or explicitly defer any
+  release-blocking Codex CLI, Playwright MCP, Playwright, Electron, MCP SDK,
+  Node.js runtime, Docker base image, electron-builder, or GitHub Actions
+  finding before tagging.
 - Confirm `package-lock.json` is in sync.
 - Confirm Codex CLI and Playwright MCP versions are intentionally synchronized
   across `package.json`, `resources/codex/package.json`, `scripts/install-codex.js`,

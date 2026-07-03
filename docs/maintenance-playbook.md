@@ -66,6 +66,38 @@ Current local-only release step:
   `.env.local`, and the App Store Connect `.p8` key. Moving this into GitHub
   Actions should be a separate owner-reviewed release-engineering PR.
 
+## Periodic Maintenance Automation
+
+Periodic maintenance is advisory and PR-driven, not deploy-driven.
+
+`.github/workflows/maintenance-watch.yml` runs weekly and on manual dispatch. It
+executes `scripts/maintenance-watch.js`, writes a report to the workflow
+summary, and creates or updates one open GitHub Issue titled `Periodic
+maintenance watch - YYYY-MM-DD`.
+
+The report checks repository pins and public upstream metadata for:
+
+- npm dependencies and dev dependencies that matter to the desktop/runtime
+  stack.
+- Codex CLI, Playwright MCP, Playwright, Electron, MCP SDK, Node.js runtime,
+  electron-builder, and React/Vite/TypeScript versions.
+- Runtime pins in `src/core/runtime-manager.ts`.
+- Portable Node default in `scripts/download-node.js`.
+- Docker base image and globally installed Codex/Playwright MCP pins in
+  `docker/Dockerfile`.
+- Reusable GitHub Actions refs under `.github/workflows`.
+
+The workflow is intentionally limited:
+
+- It does not deploy.
+- It does not push tags.
+- It does not edit files or open dependency bump PRs by itself.
+- It does not sign, notarize, package release artifacts, upload to stores, or
+  read secret values.
+
+Use the generated issue to scope narrow Codex tasks. Each accepted maintenance
+item should become its own PR unless the coupling is explicitly documented.
+
 ## How To Scope Codex Tasks
 
 Good Codex tasks should have one primary outcome. Include:
@@ -119,6 +151,8 @@ Interpret workflows from `.github/workflows`, not from older docs alone.
   `build-msstore`.
 - `docker.yml` runs for Docker path PRs, selected branch pushes, manual
   dispatch, and `v*` tags. Non-PR runs push sandbox images to GHCR.
+- `maintenance-watch.yml` runs weekly and by manual dispatch. It creates or
+  updates an advisory GitHub Issue and never performs release or store actions.
 - `dependabot.yml` opens weekly npm dependency updates grouped by dependency
   type.
 
@@ -191,7 +225,6 @@ For stale docs, prefer a small follow-up PR that:
 4. Decide whether to move Mac App Store upload into GitHub Actions. Treat this
    as release-sensitive because it touches Apple credentials, certificates,
    provisioning profiles, and store submission behavior.
-5. Add dependency and runtime update automation that checks Codex CLI,
-   Playwright MCP, Playwright, Electron, MCP SDK, Node.js runtime, Docker base
-   images, electron-builder, and GitHub Actions runner changes against upstream
-   release notes.
+5. Expand maintenance automation later to open scoped draft PRs after the owner
+   is comfortable with the advisory issue flow. Keep release and store actions
+   owner-approved and tag/manual only.

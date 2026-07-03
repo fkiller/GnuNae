@@ -39,6 +39,10 @@ Release and packaging checks:
 Dependency automation:
 
 - `.github/dependabot.yml` - weekly npm dependency update PRs.
+- `.github/workflows/maintenance-watch.yml` - weekly/manual advisory scan that
+  creates or updates a GitHub Issue for dependency, runtime, Codex CLI,
+  Playwright MCP, Electron, Node.js, Docker base image, and GitHub Actions
+  review. It does not deploy or update files.
 
 ## Missing Checks
 
@@ -85,6 +89,8 @@ For dependency updates:
 - `npm ci`
 - `npm run build`
 - `npm run build:docker` if Docker-related packages or Dockerfile changed.
+- Review the latest `Maintenance Watch` issue and the upstream release notes it
+  links before selecting versions.
 - Manual app smoke checks on at least Windows or macOS before release.
 
 ## Recommended Full Validation Checks
@@ -110,6 +116,9 @@ Run these before larger merges or release candidates:
 ## Recommended Release Candidate Checks
 
 - Confirm version in `package.json` and any related runtime/version docs.
+- Confirm the latest `Maintenance Watch` issue has no unresolved
+  release-blocking dependency, runtime, Codex CLI, Playwright MCP, Electron,
+  Node.js, Docker, or GitHub Actions finding.
 - Confirm Codex CLI, Playwright MCP, Playwright, Docker base image, and bundled
   runtime versions are intentionally synchronized.
 - Run `npm ci` and `npm run build` on a clean checkout.
