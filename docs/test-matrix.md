@@ -1,0 +1,152 @@
+# GnuNae Test Matrix
+
+This matrix documents the checks currently available in the repository and the
+checks that should be added or performed manually for maintenance and release
+work.
+
+## Existing Checks Discovered
+
+Package install and builds:
+
+- `npm ci` - clean install from `package-lock.json`.
+- `npm install` - local install/update path.
+- `npm run build:electron` - runs `tsc` for Electron main, preload, and shared
+  core TypeScript under `src`, excluding `src/ui/**/*`.
+- `npm run build:ui` - runs `vite build` and `node scripts/build-ui.js`.
+- `npm run build` - runs `build:electron` and `build:ui`.
+- `npm run build:docker` - builds `gnunae/sandbox:latest` from `docker/`.
+- `npm run build:docker:clean` - no-cache Docker sandbox build.
+
+Release and packaging checks:
+
+- `npm run pack:mac` - downloads macOS runtimes, installs Codex, builds, and
+  invokes electron-builder for DMG/ZIP.
+- `npm run pack:mac-mas` - downloads macOS runtimes, installs Codex, builds, and
+  invokes electron-builder for Mac App Store target.
+- `npm run deploy:mas` - local macOS-only Mac App Store build and upload script.
+- `npm run pack:win` - downloads Windows runtime, installs Codex, builds, and
+  invokes electron-builder for Windows targets.
+- `npm run pack:linux` - builds and invokes electron-builder for Linux targets.
+- `.github/workflows/release.yml` - tag-triggered multi-platform release,
+  signing, notarization, Microsoft Store upload, and GitHub Release creation.
+- `.github/workflows/docker.yml` - Docker image build/push workflow.
+
+Dependency automation:
+
+- `.github/dependabot.yml` - weekly npm dependency update PRs.
+
+## Missing Checks
+
+- No `npm test` script.
+- No lint script.
+- No formatter script.
+- No standalone renderer typecheck command outside Vite build.
+- No ordinary app PR workflow for `npm ci` plus app build.
+- No unit tests for `src/core` services.
+- No IPC contract tests for `preload.ts` and `main.ts`.
+- No Electron smoke test that launches the app and verifies the first window.
+- No renderer component tests.
+- No browser automation E2E tests.
+- No Docker API integration test in the app test suite.
+- No automated signing/notarization dry-run for PRs.
+- No automated Microsoft Store or Mac App Store validation outside release or
+  owner-local flows.
+
+## Recommended Quick PR Checks
+
+For documentation-only PRs:
+
+- Inspect changed Markdown files.
+- Run `git diff --check` if whitespace risk exists.
+- Run `npm run build` when practical, especially if docs describe build or
+  release behavior.
+
+For app code PRs:
+
+- `npm ci`
+- `npm run build:electron`
+- `npm run build:ui`
+- Prefer `npm run build` as the standard combined check.
+
+For Docker changes:
+
+- `npm run build:docker` when Docker is available.
+- If Docker is unavailable in the environment, document that limitation.
+
+For dependency updates:
+
+- `npm ci`
+- `npm run build`
+- `npm run build:docker` if Docker-related packages or Dockerfile changed.
+- Manual app smoke checks on at least Windows or macOS before release.
+
+## Recommended Full Validation Checks
+
+Run these before larger merges or release candidates:
+
+- `npm ci`
+- `npm run build`
+- `npm run build:docker`
+- Launch the app locally with `npm run start` after build.
+- Verify native Codex runtime detection in Settings.
+- Verify Codex login flow can start and complete with a real account.
+- Verify one basic prompt in Native mode against a normal web page.
+- Verify Virtual Mode can create a Docker sandbox and run a basic prompt.
+- Verify tab creation, tab switching, navigation, and back/forward/reload.
+- Verify PDS request and PDS store flows.
+- Verify task creation, favorite/running/scheduled UI, and one scheduled task
+  execution path.
+- Verify Bottom Panel output and terminal behavior.
+- Verify external browser detection, shortcut creation, and chat mode.
+- Verify settings persistence after restart.
+
+## Recommended Release Candidate Checks
+
+- Confirm version in `package.json` and any related runtime/version docs.
+- Confirm Codex CLI, Playwright MCP, Playwright, Docker base image, and bundled
+  runtime versions are intentionally synchronized.
+- Run `npm ci` and `npm run build` on a clean checkout.
+- Run `npm run build:docker` and confirm the app version expects the matching
+  GHCR sandbox image tag.
+- Create a release candidate tag only when owner-approved.
+- Monitor all `release.yml` jobs on the tag.
+- Monitor `docker.yml` on the tag.
+- Download and smoke-test GitHub Release artifacts.
+- Verify Windows installer, portable executable, and Linux artifacts launch.
+- Verify macOS DMG/ZIP signature and notarization status.
+- Confirm Microsoft Store upload result in Partner Center.
+- Run `npm run deploy:mas` locally on owner macOS hardware for Mac App Store
+  upload when needed.
+
+## Manual Windows Checks
+
+These cannot be fully verified in Codex Cloud:
+
+- Windows CDP binding behavior, including the default `127.0.0.1` path and
+  Virtual Mode `0.0.0.0` behavior.
+- Windows firewall prompts or absence of prompts.
+- Azure Trusted Signing result for NSIS/portable artifacts.
+- Microsoft Store APPX/MSIX packaging and Partner Center submission state.
+- Installer install/uninstall behavior.
+- Portable app runtime migration to stable user data storage.
+- Tray menu, run-in-background, launch-at-startup, and hidden startup.
+- External browser shortcuts for Chrome, Edge, Brave, Opera, and related icons.
+- Docker Desktop `host.docker.internal` behavior.
+- Real Codex CLI login, token refresh, and OpenAI account capability.
+
+## Manual macOS Checks
+
+These cannot be fully verified in Codex Cloud:
+
+- Developer ID signing and notarization on downloaded DMG/ZIP.
+- Gatekeeper launch behavior on a clean machine.
+- Mac App Store entitlements, sandbox behavior, provisioning profile, and
+  App Store Connect upload.
+- `npm run deploy:mas` on macOS with full Xcode, certificates, `.p8` API key,
+  and provisioning profile.
+- Runtime bundling for arm64 and x64 macOS builds.
+- External browser `.app` shortcut bundles and icons.
+- Tray/menu bar behavior and hidden startup.
+- Docker Desktop `host.docker.internal` behavior.
+- Real Codex CLI login, token refresh, and browser automation against external
+  browsers.
