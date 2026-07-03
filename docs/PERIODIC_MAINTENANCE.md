@@ -23,6 +23,7 @@ release-flow updates.
 | MCP SDK | `package.json`, `package-lock.json`, MCP integration points | MCP TypeScript SDK releases |
 | Node runtime | `scripts/download-node.js`, `src/core/runtime-manager.ts`, packaged `resources/runtime*` | Node.js release/security updates |
 | Release workflows | `.github/workflows/release.yml`, `.github/workflows/docker.yml`, `.github/workflows/ci.yml` | GitHub Actions behavior and store/signing requirements |
+| Maintenance watch | `.github/workflows/maintenance-watch.yml`, `scripts/maintenance-watch.js` | Advisory issue only; not deploy automation |
 
 ## Upstream Release Notes To Check
 
@@ -41,6 +42,30 @@ Check upstream "what's new" or release notes before changing versions:
 
 Record the relevant upstream release-note links in the PR body when a version
 or runtime change is made.
+
+## Automated Maintenance Watch
+
+Periodic maintenance is part of CI/CD as an advisory scheduled workflow, not as
+an automatic deploy step.
+
+`.github/workflows/maintenance-watch.yml` runs weekly and by manual dispatch. It
+runs `scripts/maintenance-watch.js`, writes a workflow summary, and creates or
+updates a GitHub Issue named `Periodic maintenance watch - YYYY-MM-DD`.
+
+The workflow checks current repository pins against public upstream metadata for
+Codex CLI, Playwright MCP, Playwright, Electron, MCP SDK, Node.js,
+electron-builder, selected core frontend/build dependencies, Docker base image
+pins, and GitHub Actions refs.
+
+The workflow must remain non-release automation:
+
+- It does not run when `npm run deploy:mas` is executed locally.
+- It does not run as part of the tag-triggered release workflow unless invoked
+  separately.
+- It does not push tags, sign, notarize, package release artifacts, upload to
+  stores, edit files, open bump PRs, or read secrets.
+- It should create maintenance work for Codex/owner review; deployment remains
+  owner-approved and tag/manual only.
 
 ---
 
