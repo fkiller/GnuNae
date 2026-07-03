@@ -38,6 +38,34 @@ Expected flow:
 6. Store submissions remain owner-controlled unless a workflow is explicitly
    designed and reviewed for that purpose.
 
+## Cloud And GitHub End-to-end Flow
+
+For normal PRs, the Cloud/GitHub validation path is:
+
+1. Codex opens or updates a PR.
+2. GitHub `CI` runs `npm ci` and `npm run build` on Windows, macOS, and Linux.
+3. Codex inspects failing logs and fixes repo-owned failures.
+4. Owner performs manual desktop checks that CI cannot cover.
+
+For release candidates, the Cloud/GitHub path is the tag-driven release flow:
+
+1. Owner approves the release candidate and tag.
+2. A `v*` tag triggers `release.yml` and `docker.yml`.
+3. GitHub Actions consumes configured secrets without exposing their values to
+   Codex Cloud.
+4. `release.yml` builds signed/notarized app artifacts and uploads Microsoft
+   Store APPX/MSIX through the `build-msstore` job.
+5. `docker.yml` publishes the matching sandbox image to GHCR.
+6. Codex can inspect workflow status and logs, but cannot view signing or store
+   credentials.
+
+Current local-only release step:
+
+- Mac App Store upload still runs through `npm run deploy:mas` on an
+  owner-controlled macOS machine with Xcode, certificates, provisioning profile,
+  `.env.local`, and the App Store Connect `.p8` key. Moving this into GitHub
+  Actions should be a separate owner-reviewed release-engineering PR.
+
 ## How To Scope Codex Tasks
 
 Good Codex tasks should have one primary outcome. Include:
@@ -94,9 +122,16 @@ Interpret workflows from `.github/workflows`, not from older docs alone.
 - `dependabot.yml` opens weekly npm dependency updates grouped by dependency
   type.
 
-Current implication: ordinary app PRs do not appear to have a required app build
-workflow unless one is added later. Codex should run local safe checks and
-document the gap.
+Current implication: ordinary app PRs should receive the non-release `CI` build
+matrix, while release signing, notarization, store upload, and Docker image
+publication remain tag-driven workflows.
+
+## Build Script Notes
+
+`npm run build:ui` runs Vite and then `scripts/build-ui.js`. The helper copies
+`src/ui/login.html` and the root `assets/` directory into `dist/`, so renderer
+build changes that affect login UI, public assets, screenshots, icons, or media
+must account for both Vite output and this copy step.
 
 ## Stale Or Conflicting Docs Found
 
@@ -106,10 +141,18 @@ Committed docs that need caution:
   and manual store upload after tagging. Current `release.yml` already performs
   GitHub Release packaging and Microsoft Store upload on `v*` tags, while Mac
   App Store remains local through `npm run deploy:mas`.
+- `docs/PERIODIC_MAINTENANCE.md` also had stale model-update guidance that
+  treated `src/ui/constants/codex.ts` and a hardcoded `main.ts` model as the
+  whole model source. Future maintenance must first inspect the current code:
+  static fallback lists, any merged model registry, Codex CLI model cache, and
+  OpenAI Codex changelog can all affect the correct update path.
 - `docs/CI_CD_PACKAGING.md` mostly matches the current workflow, but some
   Microsoft Store sections still describe local `pack:win` plus manual upload.
   Later sections correctly describe the automated `build-msstore` job. Verify
   against `release.yml` before following it.
+- `docs/CI_CD_PACKAGING.md` also omitted several Microsoft Store secrets used by
+  `release.yml` (`MSSTORE_TENANT_ID`, `MSSTORE_CLIENT_ID`,
+  `MSSTORE_CLIENT_SECRET`) in one secrets table.
 - `README.md` describes the main app and package scripts but its workflow list
   is incomplete because it omits `docker.yml` and Dependabot.
 - `docs/SIGNING.md` contains concrete certificate details and should be treated
@@ -138,18 +181,17 @@ For stale docs, prefer a small follow-up PR that:
 
 ## Recommended Next PRs
 
-1. Add a minimal PR CI workflow for non-release validation, likely `npm ci` and
-   `npm run build`, without changing release automation.
-2. Add a PR template and issue templates that capture platform impact,
-   release-sensitive files, manual checks, and verification commands.
-3. Refresh or mark stale `docs/PERIODIC_MAINTENANCE.md` and
-   `docs/CI_CD_PACKAGING.md` based on the current workflows.
-4. Decide whether the local uncommitted model-registry work should become a
+1. Decide whether the local uncommitted model-registry work should become a
    separate owner-reviewed feature PR.
-5. Add smoke tests or scripted checks for preload IPC contracts, settings
+2. Add smoke tests or scripted checks for preload IPC contracts, settings
    persistence, task scheduling logic, and Docker API client behavior.
-6. Add a manual release-candidate checklist issue template for Windows Store,
+3. Add a manual release-candidate checklist issue template for Windows Store,
    Mac App Store, notarization, installers, Docker image tags, and runtime
    bundling.
-7. Add dependency update guidance for Codex CLI, Playwright MCP, Playwright base
-   image, Electron, and runtime bundles.
+4. Decide whether to move Mac App Store upload into GitHub Actions. Treat this
+   as release-sensitive because it touches Apple credentials, certificates,
+   provisioning profiles, and store submission behavior.
+5. Add dependency and runtime update automation that checks Codex CLI,
+   Playwright MCP, Playwright, Electron, MCP SDK, Node.js runtime, Docker base
+   images, electron-builder, and GitHub Actions runner changes against upstream
+   release notes.

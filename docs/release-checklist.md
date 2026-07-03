@@ -38,6 +38,11 @@ Important current behavior: the GitHub Release job depends on `build`, not on
 `build-msstore`. Microsoft Store upload failure may require separate review even
 if the GitHub Release is created.
 
+Codex Cloud note: local `.env.local` and GitHub Actions secrets may both be
+configured, but Codex Cloud cannot read either. End-to-end signed/store release
+validation happens by triggering GitHub Actions and inspecting logs/status, not
+by exposing secret values to Codex.
+
 ## Pre-release Checks
 
 - Confirm the release issue or checklist is owner-approved.
@@ -50,6 +55,8 @@ if the GitHub Release is created.
 - Confirm Docker base image version matches the Playwright version policy.
 - Run `npm ci`.
 - Run `npm run build`.
+- Confirm GitHub `CI` passes on Windows, macOS, and Linux for the PR before the
+  release candidate is tagged.
 - Run `npm run build:docker` if Docker is available.
 - Smoke-test the built app locally with `npm run start`.
 - Verify Native mode with a real Codex login.
@@ -65,6 +72,8 @@ if the GitHub Release is created.
 - Confirm `MSSTORE_PUBLISHER_CN`, `MSSTORE_TENANT_ID`, `MSSTORE_CLIENT_ID`,
   `MSSTORE_CLIENT_SECRET`, `MSSTORE_SELLER_ID`, and `MSSTORE_PRODUCT_ID` are
   configured as GitHub Actions secrets.
+- These Microsoft Store secrets are consumed by `release.yml`; Codex Cloud can
+  verify whether the workflow passed or failed, but cannot inspect their values.
 - Confirm `build/appx/*` assets are present and intentionally current.
 - Confirm the release workflow APPX publisher override is still present.
 - After tag workflow runs, inspect `build-msstore` logs.
@@ -87,6 +96,9 @@ if the GitHub Release is created.
 - Confirm App Store Connect API key file exists at
   `~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8`.
 - Run `npm run deploy:mas` only on owner-approved macOS hardware.
+- This is the current local-only release step. If the goal is full Cloud
+  release automation, create a separate owner-reviewed PR to move MAS packaging
+  and upload into GitHub Actions.
 - Confirm the uploaded build appears in App Store Connect/TestFlight.
 - Confirm App Store availability excludes regions that require unavailable
   permits for OpenAI/ChatGPT-backed functionality, if applicable.

@@ -74,6 +74,10 @@ npm run dev:electron   # tsc for Electron/main, then electron .
 npm run start          # Launch Electron directly, expects a prior build
 ```
 
+Use `npm run dev` as a local interactive sanity check when working on renderer
+or Electron startup behavior. It is not a CI check because it starts long-running
+Vite/Electron processes.
+
 Build and typecheck:
 
 ```bash
@@ -81,6 +85,10 @@ npm run build:electron # Runs tsc for main/preload/core TypeScript
 npm run build:ui       # Runs vite build and scripts/build-ui.js
 npm run build          # build:electron, then build:ui
 ```
+
+`scripts/build-ui.js` copies `src/ui/login.html` and the root `assets/`
+directory into `dist/` after Vite completes. Keep that script in mind when
+changing login UI, icons, screenshots, or public renderer assets.
 
 Docker sandbox:
 
@@ -118,6 +126,9 @@ Tests and lint:
   `ipcMain.handle` or event senders in `main.ts`.
 - Browser content is rendered in Electron `BrowserView` instances managed by
   `TabManager` in `main.ts`. React renders the app shell around those views.
+  Electron 39 marks `BrowserView` as deprecated in favor of `WebContentsView`;
+  this is current technical debt, not an instruction to migrate in unrelated
+  PRs.
 - Codex CLI configuration is assembled at spawn time with `-c` flags, including
   Playwright MCP CDP endpoint configuration. Do not rely on modifying a global
   `~/.codex/config.toml` for app behavior.
@@ -142,6 +153,9 @@ Current workflows are defined under `.github/workflows/`.
     `build-msstore`.
 - `docker.yml` builds the sandbox image on Docker path PRs, selected branch
   pushes, manual dispatch, and `v*` tags. Non-PR runs push to GHCR.
+- `ci.yml` runs `npm ci` and `npm run build` on Windows, macOS, and Linux for
+  PRs and selected pushes. It is a non-release build check and does not sign,
+  notarize, package, or upload store artifacts.
 - `dependabot.yml` opens weekly npm dependency updates.
 - Mac App Store packaging/upload is not handled by GitHub Actions. The current
   repo script is `npm run deploy:mas`, which must run locally on macOS with
@@ -173,6 +187,10 @@ signing config, or alter release automation as part of ordinary maintenance.
 ## Secrets And Store Credentials
 
 Never ask the owner to paste secrets into chat or commit secrets to the repo.
+This local checkout may have `.env.local` populated, and GitHub Actions secrets
+may also be configured, but Codex Cloud cannot read either directly. Treat
+GitHub Actions as the credential boundary for Cloud validation: Codex can push
+workflow changes and inspect pass/fail logs, but it cannot view secret values.
 When a task requires signing keys, App Store Connect credentials, Microsoft
 Partner Center credentials, Azure signing credentials, or GitHub Actions
 secrets:
@@ -207,6 +225,8 @@ browser automation.
   not available, document that limitation.
 - For documentation-only changes, verify the changed docs directly and run the
   safest available repository check if practical.
+- For PRs, expect GitHub `CI` to run `npm ci` and `npm run build` across
+  Windows, macOS, and Linux. If it does not run, document why before merge.
 - Explicitly state that lint/tests are not available unless scripts are added.
 
 ## Required PR Summary Format

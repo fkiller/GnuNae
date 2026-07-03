@@ -14,6 +14,8 @@ Package install and builds:
   core TypeScript under `src`, excluding `src/ui/**/*`.
 - `npm run build:ui` - runs `vite build` and `node scripts/build-ui.js`.
 - `npm run build` - runs `build:electron` and `build:ui`.
+- `npm run dev` - starts Vite and Electron for local interactive smoke testing.
+  It is not suitable as an unattended CI check because it is long-running.
 - `npm run build:docker` - builds `gnunae/sandbox:latest` from `docker/`.
 - `npm run build:docker:clean` - no-cache Docker sandbox build.
 
@@ -30,6 +32,9 @@ Release and packaging checks:
 - `.github/workflows/release.yml` - tag-triggered multi-platform release,
   signing, notarization, Microsoft Store upload, and GitHub Release creation.
 - `.github/workflows/docker.yml` - Docker image build/push workflow.
+- `.github/workflows/ci.yml` - non-release PR/push build matrix for Windows,
+  macOS, and Linux. It runs `npm ci` and `npm run build`; it does not sign,
+  package, notarize, or upload store artifacts.
 
 Dependency automation:
 
@@ -41,7 +46,6 @@ Dependency automation:
 - No lint script.
 - No formatter script.
 - No standalone renderer typecheck command outside Vite build.
-- No ordinary app PR workflow for `npm ci` plus app build.
 - No unit tests for `src/core` services.
 - No IPC contract tests for `preload.ts` and `main.ts`.
 - No Electron smoke test that launches the app and verifies the first window.
@@ -63,10 +67,13 @@ For documentation-only PRs:
 
 For app code PRs:
 
-- `npm ci`
-- `npm run build:electron`
-- `npm run build:ui`
-- Prefer `npm run build` as the standard combined check.
+- Local: `npm ci`
+- Local: `npm run build:electron`
+- Local: `npm run build:ui`
+- Local: prefer `npm run build` as the standard combined check.
+- Local interactive: `npm run dev` when the change affects renderer behavior,
+  Electron startup, BrowserView layout, or Settings/Chat mode ergonomics.
+- GitHub: confirm `CI` passes on Windows, macOS, and Linux.
 
 For Docker changes:
 
@@ -111,6 +118,9 @@ Run these before larger merges or release candidates:
 - Create a release candidate tag only when owner-approved.
 - Monitor all `release.yml` jobs on the tag.
 - Monitor `docker.yml` on the tag.
+- Treat GitHub Actions as the Cloud end-to-end path for signed Windows/macOS
+  direct-download artifacts, Linux artifacts, Microsoft Store upload, and Docker
+  image publication. Codex can inspect logs but cannot inspect secret values.
 - Download and smoke-test GitHub Release artifacts.
 - Verify Windows installer, portable executable, and Linux artifacts launch.
 - Verify macOS DMG/ZIP signature and notarization status.

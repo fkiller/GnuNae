@@ -1,5 +1,12 @@
 # GnuNae CI/CD Packaging Documentation
 
+> [!IMPORTANT]
+> This document is partially stale in places. Treat `package.json`,
+> `.github/workflows/release.yml`, `.github/workflows/docker.yml`, scripts, and
+> signing/store configuration as the source of truth. In particular, Microsoft
+> Store upload is automated by the current `build-msstore` workflow job, while
+> Mac App Store upload is still local through `npm run deploy:mas`.
+
 This document describes the complete CI/CD pipeline for building, signing, and distributing GnuNae across all platforms.
 
 ## Table of Contents
@@ -643,6 +650,9 @@ In your GitHub repository, go to **Settings → Secrets and variables → Action
 
 #### Microsoft Store Secrets
 - `MSSTORE_PUBLISHER_CN`
+- `MSSTORE_TENANT_ID`
+- `MSSTORE_CLIENT_ID`
+- `MSSTORE_CLIENT_SECRET`
 - `MSSTORE_SELLER_ID` (from Partner Center → Account settings → Identifiers)
 - `MSSTORE_PRODUCT_ID` (your app's Store Product ID)
 
