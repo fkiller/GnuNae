@@ -17,11 +17,6 @@ jobs:
           # macOS builds both ARM64 and x64 via cross-compilation on Apple Silicon runner
           - os: macos-latest
             platform: mac
-          # windows-latest currently resolves to windows-2025-vs2026, where
-          # node-gyp could not find a usable Visual Studio toolchain while
-          # rebuilding node-pty during electron-builder packaging.
-          - os: windows-2022
-            platform: win
           - os: ubuntu-latest
             platform: linux
 
@@ -49,15 +44,6 @@ jobs:
 
       - name: Build
         run: npm run build
-
-      # Windows-specific: Download portable Node.js and install Codex CLI
-      - name: Download Node.js Portable (Windows)
-        if: matrix.platform == 'win'
-        run: node scripts/download-node.js
-
-      - name: Install Codex CLI (Windows)
-        if: matrix.platform == 'win'
-        run: node scripts/install-codex.js
 
       # Python 3.12+ removed distutils, but setuptools provides it
       - name: Install Python setuptools (macOS)
@@ -106,88 +92,10 @@ jobs:
       # MAS builds are done locally via `npm run deploy:mas` which builds and
       # uploads to App Store Connect automatically. See scripts/deploy-mas.js.
 
-      # Windows: Build NSIS and portable with Azure signing (for GitHub release)
-      - name: Package Windows (NSIS + Portable - Signed)
-        if: matrix.platform == 'win'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Continue'
-
-          $endpoints = @()
-          if ($env:AZURE_TRUSTED_SIGNING_ENDPOINT) {
-            $endpoints += $env:AZURE_TRUSTED_SIGNING_ENDPOINT
-          }
-          $endpoints += @(
-            'https://eus.codesigning.azure.net/',
-            'https://brs.codesigning.azure.net/',
-            'https://cus.codesigning.azure.net/',
-            'https://jpe.codesigning.azure.net/',
-            'https://krc.codesigning.azure.net/',
-            'https://ncus.codesigning.azure.net/',
-            'https://neu.codesigning.azure.net/',
-            'https://plc.codesigning.azure.net/',
-            'https://scus.codesigning.azure.net/',
-            'https://swn.codesigning.azure.net/',
-            'https://wcus.codesigning.azure.net/',
-            'https://weu.codesigning.azure.net/',
-            'https://wus.codesigning.azure.net/',
-            'https://wus2.codesigning.azure.net/',
-            'https://wus3.codesigning.azure.net/'
-          )
-          $endpoints = $endpoints |
-            Where-Object { $_ } |
-            ForEach-Object {
-              $value = $_.Trim()
-              if ($value.EndsWith('/')) { $value } else { "$value/" }
-            } |
-            Select-Object -Unique
-
-          $attempt = 0
-          foreach ($endpoint in $endpoints) {
-            $attempt += 1
-            Write-Host "Trusted Signing attempt $attempt/$($endpoints.Count): $endpoint"
-
-            if (Test-Path release) {
-              Remove-Item -Recurse -Force release
-            }
-
-            $outputFile = Join-Path $env:RUNNER_TEMP "trusted-signing-attempt-$attempt.log"
-            & npx electron-builder --win nsis portable --publish never `
-              --config.win.signAndEditExecutable=false `
-              --config.win.azureSignOptions.endpoint="$endpoint" `
-              --config.win.azureSignOptions.codeSigningAccountName="${{ secrets.AZURE_CODE_SIGNING_NAME }}" `
-              --config.win.azureSignOptions.certificateProfileName="${{ secrets.AZURE_CERT_PROFILE_NAME }}" `
-              --config.win.azureSignOptions.publisherName="${{ secrets.BUILD_PUBLISHER_NAME }}" 2>&1 |
-              Tee-Object -FilePath $outputFile
-            $exitCode = $LASTEXITCODE
-
-            if ($exitCode -eq 0) {
-              Write-Host "Trusted Signing succeeded with endpoint $endpoint"
-              exit 0
-            }
-
-            $output = Get-Content -Raw -Path $outputFile
-            $looksLikeSigningFailure = $output -match 'Status:\s*403|SignerSign\(\) failed|Invoke-TrustedSigning|SignTool Error'
-            if (-not $looksLikeSigningFailure) {
-              Write-Error "electron-builder failed for a reason that does not look like a Trusted Signing endpoint failure."
-              exit $exitCode
-            }
-
-            Write-Warning "Trusted Signing failed with endpoint $endpoint; trying the next supported endpoint."
-          }
-
-          Write-Error "All Trusted Signing endpoint attempts failed."
-          exit 1
-        env:
-          # Azure Trusted Signing credentials for NSIS installer
-          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-
       # NOTE: APPX (Microsoft Store) builds are handled by the separate
       # 'build-msstore' job, which builds the APPX and uploads it to
-      # Partner Center using the msstore CLI.
+      # Partner Center using the msstore CLI. Direct Windows NSIS/portable
+      # GitHub-release artifacts are intentionally not built.
 
       # Linux: Setup GPG for signing
       - name: Setup GPG (Linux)
@@ -212,7 +120,6 @@ jobs:
           path: |
             release/*.dmg
             release/*.zip
-            release/*.exe
             release/*.AppImage
             release/*.deb
           if-no-files-found: ignore
@@ -221,8 +128,8 @@ jobs:
   # Microsoft Store: Build APPX and upload to Partner Center
   # ─────────────────────────────────────────────────────────────
   build-msstore:
-    # Keep MSIX packaging on the same known-good Windows toolchain as the
-    # direct Windows release job until native rebuilds support VS2026 runners.
+    # Keep MSIX packaging on the known-good Windows toolchain until native
+    # rebuilds support VS2026 runners.
     runs-on: windows-2022
 
     steps:

@@ -1,5 +1,11 @@
 # Windows Code Signing Setup
 
+> [!WARNING]
+> This document is historical for the current release workflow. Standalone
+> Windows NSIS/portable EXE signing is intentionally skipped; Windows
+> distribution uses Microsoft Store APPX/MSIX deployment, which is signed by the
+> Store after submission.
+
 This document explains how to configure Azure Trusted Signing for GnuNae Windows builds.
 
 ## GitHub Secrets Required

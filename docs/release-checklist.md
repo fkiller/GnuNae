@@ -12,25 +12,27 @@ source of truth.
    `git push && git push --tags`.
 3. Push a tag matching `v*`.
 4. `.github/workflows/release.yml` starts on the tag.
-5. The matrix `build` job runs on macOS, Windows, and Ubuntu:
+5. The matrix `build` job runs on macOS and Ubuntu:
    - `npm ci`
    - `node scripts/inject-build-config.js`
    - `npm run build`
    - macOS DMG/ZIP packaging with Developer ID signing and notarization.
-   - Windows NSIS and portable packaging with Azure Trusted Signing.
    - Linux AppImage/DEB packaging with GPG configuration.
    - Uploads release artifacts.
-6. The `build-msstore` job runs on Windows:
+6. Direct Windows NSIS/portable GitHub-release artifacts are intentionally not
+   built, signed, or uploaded. Windows distribution uses Microsoft Store
+   deployment.
+7. The `build-msstore` job runs on Windows:
    - Configures Microsoft Store Developer CLI.
    - Runs `npm ci`, build config injection, runtime download, Codex install,
      and `npm run build`.
    - Builds APPX, renames APPX to MSIX for the CLI, and uploads to Partner
      Center with `msstore publish`.
-7. The `release` job downloads matrix build artifacts and creates a GitHub
+8. The `release` job downloads matrix build artifacts and creates a GitHub
    Release with generated notes.
-8. `.github/workflows/docker.yml` also runs for `v*` tags and publishes the
+9. `.github/workflows/docker.yml` also runs for `v*` tags and publishes the
    sandbox image to GHCR.
-9. Mac App Store upload is local, not GitHub Actions: run `npm run deploy:mas`
+10. Mac App Store upload is local, not GitHub Actions: run `npm run deploy:mas`
    on owner-controlled macOS hardware with required certificates, provisioning
    profile, and App Store Connect API key.
 
@@ -53,6 +55,8 @@ by exposing secret values to Codex.
   Node.js runtime, Docker base image, electron-builder, or GitHub Actions
   finding before tagging.
 - Confirm `package-lock.json` is in sync.
+- Confirm `package.json` keeps Windows packaging APPX-only unless the owner
+  explicitly re-enables standalone NSIS/portable distribution.
 - Confirm Codex CLI and Playwright MCP versions are intentionally synchronized
   across `package.json`, `resources/codex/package.json`, `scripts/install-codex.js`,
   `src/core/runtime-manager.ts`, and `docker/Dockerfile`.
@@ -138,8 +142,7 @@ by exposing secret values to Codex.
 - Task creation, scheduling, running, stopping, and blocked state work.
 - Bottom Panel output and terminal work.
 - External browser detection and chat mode work.
-- Windows installer installs, launches, and uninstalls.
-- Windows portable executable launches after extraction and restart.
+- Microsoft Store Windows package installs, launches, updates, and uninstalls.
 - macOS DMG/ZIP installs and passes Gatekeeper.
 - Microsoft Store package validation passes.
 - Mac App Store/TestFlight build processes successfully.
@@ -149,7 +152,8 @@ by exposing secret values to Codex.
 - Confirm GitHub Release exists with expected artifacts and release notes.
 - Confirm Docker image tags exist in GHCR for the exact version and expected
   major/minor or latest tags.
-- Confirm Windows artifacts are signed.
+- Confirm no standalone Windows EXE artifacts were published to the GitHub
+  Release.
 - Confirm macOS artifacts are signed and notarized.
 - Confirm Linux artifacts are present and downloadable.
 - Confirm Microsoft Partner Center received the MSIX upload.

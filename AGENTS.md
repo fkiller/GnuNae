@@ -141,11 +141,13 @@ Tests and lint:
 Current workflows are defined under `.github/workflows/`.
 
 - `release.yml` runs on pushed tags matching `v*`.
-  - Matrix build job runs on macOS, Windows, and Ubuntu.
+  - Matrix build job runs on macOS and Ubuntu.
   - It runs `npm ci`, injects build config, runs `npm run build`, then packages:
-    macOS DMG/ZIP with Developer ID signing and notarization, Windows NSIS and
-    portable artifacts with Azure Trusted Signing, and Linux AppImage/DEB with
-    GPG configuration.
+    macOS DMG/ZIP with Developer ID signing and notarization, and Linux
+    AppImage/DEB with GPG configuration.
+  - Direct Windows NSIS/portable GitHub-release artifacts are intentionally not
+    built or signed. Windows distribution is handled through Microsoft Store
+    APPX/MSIX deployment.
   - A separate `build-msstore` job builds an APPX/MSIX on Windows and uploads it
     to Microsoft Partner Center with the `msstore` CLI.
   - The GitHub Release job creates a non-draft GitHub Release from artifacts
@@ -212,10 +214,10 @@ verification is insufficient, do not claim it passed. Provide a manual checklist
 and label the unverified area clearly.
 
 Manual verification is required for signing, notarization, Microsoft Store
-submission, Mac App Store submission, app sandbox entitlements, Windows
-installer behavior, portable runtime migration, tray/startup behavior, external
-browser shortcuts, Docker Desktop host networking, OpenAI/Codex login, and real
-browser automation.
+submission, Mac App Store submission, app sandbox entitlements, Windows Store
+install/update behavior, tray/startup behavior, external browser shortcuts,
+Docker Desktop host networking, OpenAI/Codex login, and real browser
+automation.
 
 ## Required Checks Before PR
 

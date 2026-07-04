@@ -27,10 +27,13 @@ Release and packaging checks:
   invokes electron-builder for Mac App Store target.
 - `npm run deploy:mas` - local macOS-only Mac App Store build and upload script.
 - `npm run pack:win` - downloads Windows runtime, installs Codex, builds, and
-  invokes electron-builder for Windows targets.
+  invokes electron-builder for the Windows Store APPX target.
 - `npm run pack:linux` - builds and invokes electron-builder for Linux targets.
 - `.github/workflows/release.yml` - tag-triggered multi-platform release,
   signing, notarization, Microsoft Store upload, and GitHub Release creation.
+  It publishes macOS and Linux artifacts to GitHub Releases; direct Windows
+  NSIS/portable artifacts are intentionally skipped because Windows
+  distribution uses Microsoft Store APPX/MSIX deployment.
 - `.github/workflows/docker.yml` - Docker image build/push workflow.
 - `.github/workflows/ci.yml` - non-release PR/push build matrix for Windows,
   macOS, and Linux. It runs `npm ci` and `npm run build`; it does not sign,
@@ -127,11 +130,11 @@ Run these before larger merges or release candidates:
 - Create a release candidate tag only when owner-approved.
 - Monitor all `release.yml` jobs on the tag.
 - Monitor `docker.yml` on the tag.
-- Treat GitHub Actions as the Cloud end-to-end path for signed Windows/macOS
+- Treat GitHub Actions as the Cloud end-to-end path for signed/notarized macOS
   direct-download artifacts, Linux artifacts, Microsoft Store upload, and Docker
   image publication. Codex can inspect logs but cannot inspect secret values.
 - Download and smoke-test GitHub Release artifacts.
-- Verify Windows installer, portable executable, and Linux artifacts launch.
+- Verify Linux artifacts launch.
 - Verify macOS DMG/ZIP signature and notarization status.
 - Confirm Microsoft Store upload result in Partner Center.
 - Run `npm run deploy:mas` locally on owner macOS hardware for Mac App Store
@@ -144,10 +147,8 @@ These cannot be fully verified in Codex Cloud:
 - Windows CDP binding behavior, including the default `127.0.0.1` path and
   Virtual Mode `0.0.0.0` behavior.
 - Windows firewall prompts or absence of prompts.
-- Azure Trusted Signing result for NSIS/portable artifacts.
 - Microsoft Store APPX/MSIX packaging and Partner Center submission state.
-- Installer install/uninstall behavior.
-- Portable app runtime migration to stable user data storage.
+- Microsoft Store install/update/uninstall behavior.
 - Tray menu, run-in-background, launch-at-startup, and hidden startup.
 - External browser shortcuts for Chrome, Edge, Brave, Opera, and related icons.
 - Docker Desktop `host.docker.internal` behavior.

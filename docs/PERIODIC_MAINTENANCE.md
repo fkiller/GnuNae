@@ -203,7 +203,7 @@ git push && git push --tags
 
 # 5. GitHub Actions handles:
 # - macOS DMG/ZIP build, signing, and notarization
-# - Windows NSIS/portable build and Azure signing
+# - Windows Store APPX/MSIX build and Partner Center upload
 # - Linux AppImage/DEB build
 # - Microsoft Store APPX/MSIX build and Partner Center upload
 # - GitHub Release creation
