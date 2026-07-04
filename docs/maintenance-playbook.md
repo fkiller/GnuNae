@@ -87,6 +87,10 @@ The report checks repository pins and public upstream metadata for:
 - Docker base image and globally installed Codex/Playwright MCP pins in
   `docker/Dockerfile`.
 - Reusable GitHub Actions refs under `.github/workflows`.
+- GitHub Pages website health for `www.gnunae.com`: `docs/CNAME`, Pages
+  source branch/path, HTTPS certificate state, homepage version metadata,
+  latest GitHub Release tag, Store links, and release asset names used by
+  download links.
 
 The workflow is intentionally limited:
 
@@ -95,6 +99,8 @@ The workflow is intentionally limited:
 - It does not edit files or open dependency bump PRs by itself.
 - It does not sign, notarize, package release artifacts, upload to stores, or
   read secret values.
+- It does not edit the website automatically. When the report flags a website
+  version or download-link mismatch, open a scoped PR against `docs/`.
 
 Use the generated issue to scope narrow Codex tasks. Each accepted maintenance
 item should become its own PR unless the coupling is explicitly documented.

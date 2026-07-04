@@ -24,6 +24,7 @@ release-flow updates.
 | Node runtime | `scripts/download-node.js`, `src/core/runtime-manager.ts`, packaged `resources/runtime*` | Node.js release/security updates |
 | Release workflows | `.github/workflows/release.yml`, `.github/workflows/docker.yml`, `.github/workflows/ci.yml` | GitHub Actions behavior and store/signing requirements |
 | Maintenance watch | `.github/workflows/maintenance-watch.yml`, `scripts/maintenance-watch.js` | Advisory issue only; not deploy automation |
+| Website | `docs/index.html`, `docs/CNAME`, GitHub Pages, GitHub Releases | Version, domain, HTTPS, Store/download links |
 
 ## Upstream Release Notes To Check
 
@@ -55,7 +56,7 @@ updates a GitHub Issue named `Periodic maintenance watch - YYYY-MM-DD`.
 The workflow checks current repository pins against public upstream metadata for
 Codex CLI, Playwright MCP, Playwright, Electron, MCP SDK, Node.js,
 electron-builder, selected core frontend/build dependencies, Docker base image
-pins, and GitHub Actions refs.
+pins, GitHub Actions refs, and `www.gnunae.com` website signals.
 
 The workflow must remain non-release automation:
 
@@ -64,6 +65,8 @@ The workflow must remain non-release automation:
   separately.
 - It does not push tags, sign, notarize, package release artifacts, upload to
   stores, edit files, open bump PRs, or read secrets.
+- It does not update `docs/index.html` automatically; website version and
+  download-link changes still require a scoped PR.
 - It should create maintenance work for Codex/owner review; deployment remains
   owner-approved and tag/manual only.
 

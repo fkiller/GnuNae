@@ -159,8 +159,11 @@ Current workflows are defined under `.github/workflows/`.
   PRs and selected pushes. It is a non-release build check and does not sign,
   notarize, package, or upload store artifacts.
 - `maintenance-watch.yml` runs weekly and on manual dispatch. It generates an
-  advisory maintenance report and creates or updates a GitHub Issue. It does
-  not deploy, sign, notarize, push tags, submit store packages, or read secrets.
+  advisory maintenance report and creates or updates a GitHub Issue. It checks
+  dependency/runtime pins plus GitHub Pages website signals for
+  `www.gnunae.com`, including Pages source/CNAME/HTTPS, website version
+  metadata, latest release tag, Store links, and release assets. It does not
+  deploy, sign, notarize, push tags, submit store packages, or read secrets.
 - `dependabot.yml` opens weekly npm dependency updates.
 - Mac App Store packaging/upload is not handled by GitHub Actions. The current
   repo script is `npm run deploy:mas`, which must run locally on macOS with

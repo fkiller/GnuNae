@@ -73,6 +73,11 @@ by exposing secret values to Codex.
 - Verify external browser chat mode if shortcuts, browser detection, CDP, or
   tray behavior changed.
 - Confirm release notes and website/store-facing claims match the actual build.
+- Confirm `docs/index.html` `gnunae-version` metadata and `CURRENT_VERSION`
+  fallback match the release tag.
+- Confirm `www.gnunae.com` download links match current distribution:
+  Microsoft Store for Windows, Mac App Store for default macOS download, and
+  latest GitHub Release AppImage for Linux.
 
 ## Windows Store Checks
 
@@ -160,4 +165,6 @@ by exposing secret values to Codex.
 - Confirm Mac App Store/TestFlight processing result after local upload.
 - Download artifacts from public release links and run at least one smoke test.
 - Update website/download links or store listing text if needed.
+- Confirm `www.gnunae.com` renders the new release version after GitHub Pages
+  publishes `docs/`.
 - Open follow-up issues for any manual checks that failed or were skipped.
