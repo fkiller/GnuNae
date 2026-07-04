@@ -1,6 +1,6 @@
 {
   "name": "gnunae",
-  "version": "0.8.52",
+  "version": "0.8.53",
   "productName": "GnuNae",
   "main": "dist/electron/main.js",
   "author": {
@@ -97,7 +97,7 @@
         "portable",
         "appx"
       ],
-      "signAndEditExecutable": true,
+      "signAndEditExecutable": false,
       "signExts": [
         "!node.exe"
       ],

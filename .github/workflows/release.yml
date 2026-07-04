@@ -153,7 +153,7 @@ jobs:
 
             $outputFile = Join-Path $env:RUNNER_TEMP "trusted-signing-attempt-$attempt.log"
             & npx electron-builder --win nsis portable --publish never `
-              --config.win.signAndEditExecutable=true `
+              --config.win.signAndEditExecutable=false `
               --config.win.azureSignOptions.endpoint="$endpoint" `
               --config.win.azureSignOptions.codeSigningAccountName="${{ secrets.AZURE_CODE_SIGNING_NAME }}" `
               --config.win.azureSignOptions.certificateProfileName="${{ secrets.AZURE_CERT_PROFILE_NAME }}" `
