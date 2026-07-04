@@ -164,6 +164,12 @@ Current workflows are defined under `.github/workflows/`.
   `www.gnunae.com`, including Pages source/CNAME/HTTPS, website version
   metadata, latest release tag, Store links, and release assets. It does not
   deploy, sign, notarize, push tags, submit store packages, or read secrets.
+- `store-status-watch.yml` runs every six hours and on manual dispatch. It
+  generates a read-only Microsoft Store / Mac App Store status report and
+  creates or updates a GitHub Issue named `Store status watch`. It can read
+  store API credentials from GitHub Actions secrets, but it must not build,
+  upload, submit, publish, change metadata, rotate secrets, or modify store
+  configuration.
 - `dependabot.yml` opens weekly npm dependency updates.
 - Mac App Store packaging/upload is not handled by GitHub Actions. The current
   repo script is `npm run deploy:mas`, which must run locally on macOS with
@@ -174,6 +180,7 @@ Current workflows are defined under `.github/workflows/`.
 Do not modify these without explicit owner review:
 
 - Release workflows: `.github/workflows/release.yml`, `.github/workflows/docker.yml`.
+- Store status workflow: `.github/workflows/store-status-watch.yml`.
 - electron-builder identity and targets in `package.json`, including `appId`,
   `productName`, `artifactName`, `mac`, `mas`, `win`, `appx`, `linux`, and
   signing-related config.
@@ -210,6 +217,12 @@ secrets:
 4. Document the command that could not be completed and mark the result as
    needs manual confirmation.
 
+For store status monitoring, Codex may add or update workflow logic that reads
+secrets already configured in GitHub Actions, but must never print secret
+values. Mac App Store status polling requires `ASC_API_KEY_ID`,
+`ASC_API_ISSUER_ID`, and either `ASC_API_PRIVATE_KEY_BASE64` or
+`ASC_API_PRIVATE_KEY`.
+
 ## Cloud Verification Limits
 
 Codex Cloud cannot fully verify all desktop and store behavior. When cloud
@@ -222,6 +235,10 @@ install/update behavior, tray/startup behavior, external browser shortcuts,
 Docker Desktop host networking, OpenAI/Codex login, and real browser
 automation.
 
+`store-status-watch.yml` can confirm current review/status values from Store
+APIs when credentials are configured, but it does not replace manual portal
+review, TestFlight/App Store Connect checks, or Store package install testing.
+
 ## Required Checks Before PR
 
 - Always inspect `git status -sb` and the diff before staging.
@@ -231,6 +248,8 @@ automation.
 - For renderer changes, run `npm run build:ui` or `npm run build`.
 - For Docker changes, run `npm run build:docker` when Docker is available; if
   not available, document that limitation.
+- For store status monitor changes, run `node --check scripts/store-status-watch.js`
+  and at least one safe local report generation path.
 - For documentation-only changes, verify the changed docs directly and run the
   safest available repository check if practical.
 - For PRs, expect GitHub `CI` to run `npm ci` and `npm run build` across

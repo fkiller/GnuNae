@@ -60,6 +60,19 @@ For release candidates, the Cloud/GitHub path is the tag-driven release flow:
 6. Codex can inspect workflow status and logs, but cannot view signing or store
    credentials.
 
+Store review/status tracking after release is separate from deployment:
+
+- `.github/workflows/store-status-watch.yml` runs every six hours and by manual
+  dispatch. It executes `scripts/store-status-watch.js`, writes a workflow
+  summary, and creates or updates one open GitHub Issue named `Store status
+  watch`.
+- Windows status comes from the Microsoft Store Developer CLI `submission
+  status` command against the configured Partner Center product.
+- Mac App Store status comes from the App Store Connect API using the latest
+  macOS build processing state and latest macOS App Store version review state.
+- The workflow is read-only. It must not build, upload, submit, publish, change
+  metadata, rotate secrets, or alter store configuration.
+
 Current local-only release step:
 
 - Mac App Store upload still runs through `npm run deploy:mas` on an
@@ -104,6 +117,46 @@ The workflow is intentionally limited:
 
 Use the generated issue to scope narrow Codex tasks. Each accepted maintenance
 item should become its own PR unless the coupling is explicitly documented.
+
+## Store Status Automation
+
+Store status monitoring is advisory and post-submission oriented.
+
+`.github/workflows/store-status-watch.yml` runs every six hours and by manual
+dispatch. It checks:
+
+- Microsoft Store Partner Center submission status through `msstore submission
+  status`.
+- Mac App Store latest build processing state through the App Store Connect
+  builds API.
+- Mac App Store latest app version review state through the App Store Connect
+  app store versions API.
+
+The workflow updates one GitHub Issue named `Store status watch`. Use that issue
+to decide whether owner action is needed in Partner Center, TestFlight, or App
+Store Connect.
+
+Required GitHub Actions secrets for Windows status:
+
+- `MSSTORE_TENANT_ID`
+- `MSSTORE_CLIENT_ID`
+- `MSSTORE_CLIENT_SECRET`
+- `MSSTORE_SELLER_ID`
+- `MSSTORE_PRODUCT_ID`
+
+Required GitHub Actions secrets for Mac App Store status:
+
+- `ASC_API_KEY_ID`
+- `ASC_API_ISSUER_ID`
+- `ASC_API_PRIVATE_KEY_BASE64` or `ASC_API_PRIVATE_KEY`
+
+Optional Mac App Store status secrets:
+
+- `APP_STORE_CONNECT_APP_ID`
+- `APP_STORE_CONNECT_BUNDLE_ID`
+
+If App Store Connect API credentials are absent, the workflow reports Mac status
+as manual review instead of submitting anything or failing release automation.
 
 ## How To Scope Codex Tasks
 
@@ -160,6 +213,9 @@ Interpret workflows from `.github/workflows`, not from older docs alone.
   dispatch, and `v*` tags. Non-PR runs push sandbox images to GHCR.
 - `maintenance-watch.yml` runs weekly and by manual dispatch. It creates or
   updates an advisory GitHub Issue and never performs release or store actions.
+- `store-status-watch.yml` runs every six hours and by manual dispatch. It
+  reads store review/status state and updates an advisory GitHub Issue, but it
+  never builds, uploads, submits, publishes, or changes store metadata.
 - `dependabot.yml` opens weekly npm dependency updates grouped by dependency
   type.
 
@@ -232,6 +288,8 @@ For stale docs, prefer a small follow-up PR that:
 4. Decide whether to move Mac App Store upload into GitHub Actions. Treat this
    as release-sensitive because it touches Apple credentials, certificates,
    provisioning profiles, and store submission behavior.
-5. Expand maintenance automation later to open scoped draft PRs after the owner
+5. Add a lightweight release-candidate issue template that links the latest
+   `Store status watch` issue and separates Store portal action from CI logs.
+6. Expand maintenance automation later to open scoped draft PRs after the owner
    is comfortable with the advisory issue flow. Keep release and store actions
    owner-approved and tag/manual only.

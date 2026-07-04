@@ -1,0 +1,76 @@
+name: Store Status Watch
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: store-status-watch
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    name: Scan store review status
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Microsoft Store Developer CLI
+        uses: microsoft/microsoft-store-apppublisher@v1.3
+
+      - name: Generate store status report
+        shell: pwsh
+        env:
+          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
+          MSSTORE_SELLER_ID: ${{ secrets.MSSTORE_SELLER_ID }}
+          MSSTORE_PRODUCT_ID: ${{ secrets.MSSTORE_PRODUCT_ID }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_PRIVATE_KEY: ${{ secrets.ASC_API_PRIVATE_KEY }}
+          ASC_API_PRIVATE_KEY_BASE64: ${{ secrets.ASC_API_PRIVATE_KEY_BASE64 }}
+          APP_STORE_CONNECT_APP_ID: ${{ secrets.APP_STORE_CONNECT_APP_ID }}
+          APP_STORE_CONNECT_BUNDLE_ID: ${{ secrets.APP_STORE_CONNECT_BUNDLE_ID }}
+        run: |
+          node scripts/store-status-watch.js --output store-status-report.md --json store-status-report.json
+
+      - name: Add report to step summary
+        shell: pwsh
+        run: |
+          Get-Content store-status-report.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+      - name: Create or update store status issue
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $issueTitle = "Store status watch"
+          $existingIssue = gh issue list `
+            --state open `
+            --search "Store status watch in:title" `
+            --json number `
+            --jq ".[0].number // empty"
+
+          if ($existingIssue) {
+            gh issue edit $existingIssue `
+              --title $issueTitle `
+              --body-file store-status-report.md
+            Write-Host "Updated issue #$existingIssue"
+          } else {
+            gh issue create `
+              --title $issueTitle `
+              --body-file store-status-report.md
+          }

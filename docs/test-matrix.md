@@ -47,6 +47,10 @@ Dependency automation:
   Playwright MCP, Electron, Node.js, Docker base image, and GitHub Actions
   review, plus GitHub Pages website version/domain/download-link signals. It
   does not deploy or update files.
+- `.github/workflows/store-status-watch.yml` - six-hour/manual read-only store
+  status scan that creates or updates a GitHub Issue for Microsoft Store
+  submission status and Mac App Store build/app-version review state. It does
+  not build, upload, submit, publish, or modify store metadata.
 
 ## Missing Checks
 
@@ -61,8 +65,9 @@ Dependency automation:
 - No browser automation E2E tests.
 - No Docker API integration test in the app test suite.
 - No automated signing/notarization dry-run for PRs.
-- No automated Microsoft Store or Mac App Store validation outside release or
-  owner-local flows.
+- No automated Microsoft Store or Mac App Store package validation outside
+  release or owner-local flows. Store status monitoring is read-only and does
+  not replace install/update/sandbox validation.
 
 ## Recommended Quick PR Checks
 
@@ -131,15 +136,21 @@ Run these before larger merges or release candidates:
 - Create a release candidate tag only when owner-approved.
 - Monitor all `release.yml` jobs on the tag.
 - Monitor `docker.yml` on the tag.
+- Manually dispatch `Store Status Watch` after Store upload/submission and
+  inspect the `Store status watch` issue.
 - Treat GitHub Actions as the Cloud end-to-end path for signed/notarized macOS
   direct-download artifacts, Linux artifacts, Microsoft Store upload, and Docker
   image publication. Codex can inspect logs but cannot inspect secret values.
 - Download and smoke-test GitHub Release artifacts.
 - Verify Linux artifacts launch.
 - Verify macOS DMG/ZIP signature and notarization status.
-- Confirm Microsoft Store upload result in Partner Center.
+- Confirm Microsoft Store upload result in Partner Center and in the `Store
+  status watch` issue.
 - Run `npm run deploy:mas` locally on owner macOS hardware for Mac App Store
   upload when needed.
+- Confirm Mac App Store/TestFlight processing and app version review status in
+  App Store Connect and in the `Store status watch` issue when API secrets are
+  configured.
 
 ## Manual Windows Checks
 
@@ -148,7 +159,9 @@ These cannot be fully verified in Codex Cloud:
 - Windows CDP binding behavior, including the default `127.0.0.1` path and
   Virtual Mode `0.0.0.0` behavior.
 - Windows firewall prompts or absence of prompts.
-- Microsoft Store APPX/MSIX packaging and Partner Center submission state.
+- Microsoft Store APPX/MSIX packaging and Partner Center submission state. The
+  store status workflow can report Partner Center status, but cannot install or
+  validate the package.
 - Microsoft Store install/update/uninstall behavior.
 - Tray menu, run-in-background, launch-at-startup, and hidden startup.
 - External browser shortcuts for Chrome, Edge, Brave, Opera, and related icons.
@@ -162,7 +175,8 @@ These cannot be fully verified in Codex Cloud:
 - Developer ID signing and notarization on downloaded DMG/ZIP.
 - Gatekeeper launch behavior on a clean machine.
 - Mac App Store entitlements, sandbox behavior, provisioning profile, and
-  App Store Connect upload.
+  App Store Connect upload. The store status workflow can report build/review
+  state when API secrets are configured, but cannot validate sandbox behavior.
 - `npm run deploy:mas` on macOS with full Xcode, certificates, `.p8` API key,
   and provisioning profile.
 - Runtime bundling for arm64 and x64 macOS builds.
