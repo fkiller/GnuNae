@@ -97,8 +97,12 @@ function knownSecretValues() {
   ].filter((value) => value && value.length >= 8);
 }
 
+function stripAnsi(text) {
+  return String(text || '').replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '');
+}
+
 function sanitizeText(text) {
-  let sanitized = String(text || '');
+  let sanitized = stripAnsi(text);
   for (const secret of knownSecretValues()) {
     sanitized = sanitized.split(secret).join('[redacted]');
   }
