@@ -5,7 +5,9 @@
 > `.github/workflows/release.yml`, `.github/workflows/docker.yml`, scripts, and
 > signing/store configuration as the source of truth. In particular, Microsoft
 > Store upload is automated by the current `build-msstore` workflow job, while
-> Mac App Store upload is still local through `npm run deploy:mas`.
+> Mac App Store upload is still local through `npm run deploy:mas`. Standalone
+> Windows NSIS/portable EXE signing and GitHub Release publication are
+> intentionally skipped; Windows distribution uses Microsoft Store APPX/MSIX.
 
 This document describes the complete CI/CD pipeline for building, signing, and distributing GnuNae across all platforms.
 

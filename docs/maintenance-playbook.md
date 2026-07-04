@@ -53,8 +53,9 @@ For release candidates, the Cloud/GitHub path is the tag-driven release flow:
 2. A `v*` tag triggers `release.yml` and `docker.yml`.
 3. GitHub Actions consumes configured secrets without exposing their values to
    Codex Cloud.
-4. `release.yml` builds signed/notarized app artifacts and uploads Microsoft
-   Store APPX/MSIX through the `build-msstore` job.
+4. `release.yml` builds signed/notarized macOS artifacts, Linux artifacts, and
+   uploads Microsoft Store APPX/MSIX through the `build-msstore` job. Direct
+   Windows NSIS/portable GitHub-release artifacts are intentionally skipped.
 5. `docker.yml` publishes the matching sandbox image to GHCR.
 6. Codex can inspect workflow status and logs, but cannot view signing or store
    credentials.
@@ -143,8 +144,8 @@ what remains unverified, and the safest owner action.
 Interpret workflows from `.github/workflows`, not from older docs alone.
 
 - `release.yml` is tag-triggered on `v*`, not a normal PR CI workflow.
-- `release.yml` builds app artifacts for macOS, Windows, and Linux, then creates
-  a GitHub Release from those artifacts.
+- `release.yml` builds app artifacts for macOS and Linux, then creates a GitHub
+  Release from those artifacts.
 - The same workflow has a separate `build-msstore` job that builds APPX/MSIX
   and uploads to Microsoft Partner Center.
 - The GitHub Release job currently depends on the matrix `build` job, not on
