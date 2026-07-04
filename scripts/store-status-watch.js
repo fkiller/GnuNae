@@ -357,6 +357,14 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? value : date.toISOString();
 }
 
+function newestByAttribute(items, attributeName) {
+  return [...(items || [])].sort((left, right) => {
+    const leftTime = Date.parse(left.attributes?.[attributeName] || '') || 0;
+    const rightTime = Date.parse(right.attributes?.[attributeName] || '') || 0;
+    return rightTime - leftTime;
+  })[0] || null;
+}
+
 async function checkMacAppStore(packageJson) {
   const bundleId = process.env.APP_STORE_CONNECT_BUNDLE_ID || packageJson.build?.appId || '';
   const missing = requiredEnv(['ASC_API_KEY_ID', 'ASC_API_ISSUER_ID']);
@@ -406,20 +414,18 @@ async function checkMacAppStore(packageJson) {
 
     const builds = await httpGetJson(appStoreUrl('/v1/builds', {
       'filter[app]': appId,
-      'sort': '-uploadedDate',
       'limit': '5',
       'fields[builds]': 'version,uploadedDate,processingState,expired',
     }), token);
-    const latestBuild = Array.isArray(builds.data) ? builds.data[0] : null;
+    const latestBuild = newestByAttribute(builds.data, 'uploadedDate');
     const latestBuildAttrs = latestBuild ? latestBuild.attributes || {} : {};
 
     const versions = await httpGetJson(appStoreUrl(`/v1/apps/${appId}/appStoreVersions`, {
       'filter[platform]': 'MAC_OS',
-      'sort': '-createdDate',
       'limit': '5',
       'fields[appStoreVersions]': 'versionString,appStoreState,platform,createdDate',
     }), token);
-    const latestVersion = Array.isArray(versions.data) ? versions.data[0] : null;
+    const latestVersion = newestByAttribute(versions.data, 'createdDate');
     const latestVersionAttrs = latestVersion ? latestVersion.attributes || {} : {};
 
     return [
