@@ -35,6 +35,10 @@ source of truth.
 10. Mac App Store upload is local, not GitHub Actions: run `npm run deploy:mas`
    on owner-controlled macOS hardware with required certificates, provisioning
    profile, and App Store Connect API key.
+11. `.github/workflows/store-status-watch.yml` can be manually dispatched after
+    Store upload/submission. It reads Microsoft Store and App Store Connect
+    status and updates the `Store status watch` GitHub Issue. It does not upload
+    packages or submit store metadata.
 
 Important current behavior: the GitHub Release job depends on `build`, not on
 `build-msstore`. Microsoft Store upload failure may require separate review even
@@ -54,6 +58,9 @@ by exposing secret values to Codex.
   release-blocking Codex CLI, Playwright MCP, Playwright, Electron, MCP SDK,
   Node.js runtime, Docker base image, electron-builder, or GitHub Actions
   finding before tagging.
+- Review the latest `Store status watch` issue. Before a new tag, any existing
+  Store submission still in review, rejected, or failed should be understood and
+  intentionally allowed to proceed.
 - Confirm `package-lock.json` is in sync.
 - Confirm `package.json` keeps Windows packaging APPX-only unless the owner
   explicitly re-enables standalone NSIS/portable distribution.
@@ -93,6 +100,8 @@ by exposing secret values to Codex.
 - Confirm the package was uploaded to Partner Center.
 - Confirm Partner Center validation, age rating, listing, screenshots, pricing,
   and availability before submission.
+- Manually run `Store Status Watch` after upload/submission and confirm the
+  issue shows the expected Microsoft Store status.
 - Manually smoke-test the Store package when available.
 
 ## Mac App Store Checks
@@ -108,11 +117,19 @@ by exposing secret values to Codex.
   `ASC_API_KEY_ID`, and `ASC_API_ISSUER_ID`.
 - Confirm App Store Connect API key file exists at
   `~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8`.
+- If GitHub Actions should track Mac App Store review status, confirm
+  `ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`, and either
+  `ASC_API_PRIVATE_KEY_BASE64` or `ASC_API_PRIVATE_KEY` are configured as
+  GitHub Actions secrets. `APP_STORE_CONNECT_APP_ID` may be set when bundle ID
+  lookup is not sufficient.
 - Run `npm run deploy:mas` only on owner-approved macOS hardware.
 - This is the current local-only release step. If the goal is full Cloud
   release automation, create a separate owner-reviewed PR to move MAS packaging
   and upload into GitHub Actions.
 - Confirm the uploaded build appears in App Store Connect/TestFlight.
+- Manually run `Store Status Watch` after upload/submission and confirm the
+  issue shows expected TestFlight build processing and App Store version review
+  state.
 - Confirm App Store availability excludes regions that require unavailable
   permits for OpenAI/ChatGPT-backed functionality, if applicable.
 
@@ -163,6 +180,8 @@ by exposing secret values to Codex.
 - Confirm Linux artifacts are present and downloadable.
 - Confirm Microsoft Partner Center received the MSIX upload.
 - Confirm Mac App Store/TestFlight processing result after local upload.
+- Confirm the latest `Store status watch` issue reflects the expected Microsoft
+  Store and Mac App Store status.
 - Download artifacts from public release links and run at least one smoke test.
 - Update website/download links or store listing text if needed.
 - Confirm `www.gnunae.com` renders the new release version after GitHub Pages

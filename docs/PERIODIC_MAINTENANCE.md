@@ -24,6 +24,7 @@ release-flow updates.
 | Node runtime | `scripts/download-node.js`, `src/core/runtime-manager.ts`, packaged `resources/runtime*` | Node.js release/security updates |
 | Release workflows | `.github/workflows/release.yml`, `.github/workflows/docker.yml`, `.github/workflows/ci.yml` | GitHub Actions behavior and store/signing requirements |
 | Maintenance watch | `.github/workflows/maintenance-watch.yml`, `scripts/maintenance-watch.js` | Advisory issue only; not deploy automation |
+| Store status watch | `.github/workflows/store-status-watch.yml`, `scripts/store-status-watch.js` | Read-only review/status issue only; not deploy automation |
 | Website | `docs/index.html`, `docs/CNAME`, GitHub Pages, GitHub Releases | Version, domain, HTTPS, Store/download links |
 
 ## Upstream Release Notes To Check
@@ -69,6 +70,35 @@ The workflow must remain non-release automation:
   download-link changes still require a scoped PR.
 - It should create maintenance work for Codex/owner review; deployment remains
   owner-approved and tag/manual only.
+
+## Automated Store Status Watch
+
+Store review tracking is part of CI/CD as a read-only scheduled workflow, not as
+an automatic deploy or submission step.
+
+`.github/workflows/store-status-watch.yml` runs every six hours and by manual
+dispatch. It runs `scripts/store-status-watch.js`, writes a workflow summary,
+and creates or updates one GitHub Issue named `Store status watch`.
+
+The workflow checks:
+
+- Microsoft Store Partner Center submission status through `msstore submission
+  status`.
+- Mac App Store latest build processing state through the App Store Connect
+  builds API.
+- Mac App Store latest app version review state through the App Store Connect
+  app store versions API.
+
+The workflow must remain read-only:
+
+- It does not run when `npm run deploy:mas` is executed locally.
+- It does not push tags, sign, notarize, package release artifacts, upload to
+  stores, submit store metadata, publish submissions, edit files, or rotate
+  secrets.
+- It may read GitHub Actions secrets for store APIs, but it must never print
+  secret values.
+- Missing App Store Connect API credentials should produce a manual-review row,
+  not a store submission attempt.
 
 ---
 

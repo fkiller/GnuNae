@@ -641,7 +641,14 @@ In your GitHub repository, go to **Settings → Secrets and variables → Action
 - `APPLE_PROVISIONING_PROFILE` (base64)
 
 > [!NOTE]
-> App Store Connect API credentials (`ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`, `.p8` key) are **local-only** — they are not needed in GitHub Secrets since MAS builds run locally via `npm run deploy:mas`.
+> Mac App Store upload remains local via `npm run deploy:mas`, so local
+> App Store Connect credentials (`ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`, `.p8`
+> key) are still required on the owner macOS machine. The read-only
+> `store-status-watch.yml` workflow can additionally use GitHub Actions secrets
+> `ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`, and either
+> `ASC_API_PRIVATE_KEY_BASE64` or `ASC_API_PRIVATE_KEY` to report App Store
+> Connect build/review status. That workflow does not upload or submit MAS
+> builds.
 
 #### Azure Secrets
 - `AZURE_TENANT_ID`
