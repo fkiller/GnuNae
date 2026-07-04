@@ -333,7 +333,7 @@ function classifyAppStoreBuild(state) {
 function classifyAppStoreVersion(state) {
   const normalized = String(state || '').toUpperCase();
   if (!normalized) return 'manual review';
-  if (['READY_FOR_DISTRIBUTION'].includes(normalized)) return 'published';
+  if (['READY_FOR_DISTRIBUTION', 'READY_FOR_SALE'].includes(normalized)) return 'published';
   if ([
     'WAITING_FOR_REVIEW',
     'IN_REVIEW',
