@@ -16,6 +16,12 @@ const { execSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULT_OUTPUT = 'maintenance-report.md';
 const DEFAULT_JSON_OUTPUT = 'maintenance-report.json';
+const REPOSITORY = process.env.GITHUB_REPOSITORY || 'fkiller/GnuNae';
+const EXPECTED_PAGES_CNAME = 'www.gnunae.com';
+const EXPECTED_PAGES_SOURCE = { branch: 'main', path: '/docs' };
+const EXPECTED_LINUX_APPIMAGE = 'GnuNae-linux-x86_64.AppImage';
+const MICROSOFT_STORE_URL_FRAGMENT = 'apps.microsoft.com/store/detail/9NZJR4NK234Q';
+const MAC_APP_STORE_URL_FRAGMENT = 'apps.apple.com/us/app/gnunae/id6757864396';
 
 const RELEASE_NOTES = {
   codex: 'https://developers.openai.com/codex/changelog',
@@ -153,6 +159,15 @@ function isAttentionStatus(status) {
   return !['current', 'same major', 'tracking major', 'manual review'].includes(status);
 }
 
+function githubHeaders() {
+  const headers = {};
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  if (token) {
+    headers.authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 function httpGetJson(url, { headers = {}, timeoutMs = 15000 } = {}) {
   return new Promise((resolve, reject) => {
     const request = https.get(url, {
@@ -233,13 +248,8 @@ async function nodeReleaseInfo(currentNodeVersion, warnings) {
 }
 
 async function githubLatestTag(repo, warnings) {
-  const headers = {};
-  if (process.env.GITHUB_TOKEN) {
-    headers.authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-  }
-
   const data = await capture(`GitHub tags ${repo}`, warnings, () => (
-    httpGetJson(`https://api.github.com/repos/${repo}/tags?per_page=20`, { headers })
+    httpGetJson(`https://api.github.com/repos/${repo}/tags?per_page=20`, { headers: githubHeaders() })
   ));
 
   if (!Array.isArray(data) || data.length === 0) {
@@ -252,6 +262,28 @@ async function githubLatestTag(repo, warnings) {
     .sort((a, b) => compareVersions(b, a));
 
   return sorted[0] || data[0].name || '';
+}
+
+async function githubLatestRelease(repo, warnings) {
+  const data = await capture(`GitHub latest release ${repo}`, warnings, () => (
+    httpGetJson(`https://api.github.com/repos/${repo}/releases/latest`, { headers: githubHeaders() })
+  ));
+
+  if (!data) {
+    return { tagName: '', url: '', assets: [] };
+  }
+
+  return {
+    tagName: data.tag_name || '',
+    url: data.html_url || '',
+    assets: Array.isArray(data.assets) ? data.assets.map((asset) => asset.name).filter(Boolean) : [],
+  };
+}
+
+async function githubPagesInfo(repo, warnings) {
+  return capture(`GitHub Pages ${repo}`, warnings, () => (
+    httpGetJson(`https://api.github.com/repos/${repo}/pages`, { headers: githubHeaders() })
+  ));
 }
 
 function getPackageVersion(packageJson, packageLock, packageName) {
@@ -335,6 +367,126 @@ function parseGitHubActions() {
   }));
 }
 
+function parseWebsitePins() {
+  const indexHtml = tryReadText('docs/index.html');
+  const cname = tryReadText('docs/CNAME').trim();
+  const versionMeta = indexHtml.match(/<meta\s+name=["']gnunae-version["']\s+content=["']([^"']+)["']/i);
+  const currentVersionConstant = indexHtml.match(/CURRENT_VERSION\s*=\s*['"]([^'"]+)['"]/);
+
+  return {
+    cname,
+    versionMeta: versionMeta ? versionMeta[1] : '',
+    currentVersionConstant: currentVersionConstant ? currentVersionConstant[1] : '',
+    hasMicrosoftStoreLink: indexHtml.includes(MICROSOFT_STORE_URL_FRAGMENT),
+    hasMacAppStoreLink: indexHtml.includes(MAC_APP_STORE_URL_FRAGMENT),
+    hasLinuxAppImageLink: indexHtml.includes(EXPECTED_LINUX_APPIMAGE),
+    hasLatestReleaseApiFetch: indexHtml.includes('https://api.github.com/repos/fkiller/GnuNae/releases/latest'),
+  };
+}
+
+function daysUntil(dateValue) {
+  const date = Date.parse(dateValue || '');
+  if (!Number.isFinite(date)) return null;
+  return Math.ceil((date - Date.now()) / (1000 * 60 * 60 * 24));
+}
+
+function buildWebsiteRows(packageJson, latestRelease, pagesInfo) {
+  const pins = parseWebsitePins();
+  const expectedTag = `v${packageJson.version}`;
+  const releaseAssets = latestRelease.assets || [];
+  const windowsExeAssets = releaseAssets.filter((asset) => /win.*\.exe$/i.test(asset) || /\.exe$/i.test(asset));
+  const pagesSource = pagesInfo && pagesInfo.source
+    ? `${pagesInfo.source.branch || ''} ${pagesInfo.source.path || ''}`.trim()
+    : '';
+  const expectedPagesSource = `${EXPECTED_PAGES_SOURCE.branch} ${EXPECTED_PAGES_SOURCE.path}`;
+  const certDays = pagesInfo && pagesInfo.https_certificate
+    ? daysUntil(pagesInfo.https_certificate.expires_at)
+    : null;
+  const certState = pagesInfo && pagesInfo.https_certificate ? pagesInfo.https_certificate.state : '';
+  const httpsCurrent = pagesInfo
+    ? [
+      pagesInfo.https_enforced ? 'https enforced' : 'https not enforced',
+      certState ? `cert ${certState}` : 'cert unknown',
+      certDays == null ? 'expiry unknown' : `expires in ${certDays} days`,
+    ].join(', ')
+    : 'unknown';
+
+  return [
+    {
+      area: 'Website version meta',
+      current: pins.versionMeta || 'missing',
+      latest: expectedTag,
+      status: pins.versionMeta === expectedTag ? 'current' : 'needs update',
+      source: 'docs/index.html',
+    },
+    {
+      area: 'Website version fallback constant',
+      current: pins.currentVersionConstant || 'missing',
+      latest: expectedTag,
+      status: pins.currentVersionConstant === expectedTag ? 'current' : 'needs update',
+      source: 'docs/index.html',
+    },
+    {
+      area: 'GitHub Pages CNAME',
+      current: pins.cname || 'missing',
+      latest: EXPECTED_PAGES_CNAME,
+      status: pins.cname === EXPECTED_PAGES_CNAME ? 'current' : 'needs update',
+      source: 'docs/CNAME',
+    },
+    {
+      area: 'GitHub Pages source',
+      current: pagesSource || 'unknown',
+      latest: expectedPagesSource,
+      status: pagesInfo ? (pagesSource === expectedPagesSource ? 'current' : 'needs update') : 'manual review',
+      source: 'GitHub Pages API',
+    },
+    {
+      area: 'GitHub Pages HTTPS certificate',
+      current: httpsCurrent,
+      latest: 'https enforced, approved cert, >30 days remaining',
+      status: pagesInfo
+        ? (pagesInfo.https_enforced && certState === 'approved' && (certDays == null || certDays > 30) ? 'current' : 'needs review')
+        : 'manual review',
+      source: 'GitHub Pages API',
+    },
+    {
+      area: 'Latest GitHub Release tag',
+      current: latestRelease.tagName || 'unknown',
+      latest: expectedTag,
+      status: latestRelease.tagName === expectedTag ? 'current' : 'release mismatch',
+      source: latestRelease.url || 'GitHub Releases API',
+    },
+    {
+      area: 'Website Linux AppImage download',
+      current: pins.hasLinuxAppImageLink ? EXPECTED_LINUX_APPIMAGE : 'missing link',
+      latest: releaseAssets.includes(EXPECTED_LINUX_APPIMAGE) ? 'asset present in latest release' : 'asset missing in latest release',
+      status: pins.hasLinuxAppImageLink && releaseAssets.includes(EXPECTED_LINUX_APPIMAGE) ? 'current' : 'needs update',
+      source: 'docs/index.html + GitHub Releases API',
+    },
+    {
+      area: 'Website Microsoft Store download',
+      current: pins.hasMicrosoftStoreLink ? 'Microsoft Store link present' : 'missing Microsoft Store link',
+      latest: 'Windows uses Store; no standalone Windows EXE release assets',
+      status: pins.hasMicrosoftStoreLink && windowsExeAssets.length === 0 ? 'current' : 'needs update',
+      source: 'docs/index.html + GitHub Releases API',
+    },
+    {
+      area: 'Website Mac App Store download',
+      current: pins.hasMacAppStoreLink ? 'Mac App Store link present' : 'missing Mac App Store link',
+      latest: 'Mac App Store link present',
+      status: pins.hasMacAppStoreLink ? 'current' : 'needs update',
+      source: 'docs/index.html',
+    },
+    {
+      area: 'Website latest-release API fallback',
+      current: pins.hasLatestReleaseApiFetch ? 'latest release fetch present' : 'missing latest release fetch',
+      latest: 'homepage should show current release when GitHub API is available',
+      status: pins.hasLatestReleaseApiFetch ? 'current' : 'needs update',
+      source: 'docs/index.html',
+    },
+  ];
+}
+
 function actionStatus(currentRef, latestTag) {
   if (!latestTag) return 'latest unknown';
   if (/^[0-9a-f]{40}$/i.test(currentRef)) return 'pinned SHA';
@@ -375,6 +527,7 @@ function buildReport(report) {
     ...report.packageRows.filter((row) => isAttentionStatus(row.status)),
     ...report.runtimeRows.filter((row) => isAttentionStatus(row.status)),
     ...report.actionRows.filter((row) => isAttentionStatus(row.status)),
+    ...report.websiteRows.filter((row) => isAttentionStatus(row.status)),
   ];
 
   const summary = [
@@ -423,6 +576,11 @@ function buildReport(report) {
     )
     : 'No reusable GitHub Actions were found in `.github/workflows`.';
 
+  const websiteSection = markdownTable(
+    ['Area', 'Current', 'Expected', 'Status', 'Source'],
+    report.websiteRows.map((row) => [row.area, row.current, row.latest, row.status, row.source])
+  );
+
   const warningsSection = report.warnings.length
     ? report.warnings.map((warning) => `- ${warning}`).join('\n')
     : '- No upstream fetch warnings.';
@@ -447,6 +605,10 @@ ${runtimeSection}
 
 ${actionsSection}
 
+## Website And Release Page Signals
+
+${websiteSection}
+
 ## Required Human Review
 
 - Read upstream "what's new" or release notes before changing Codex CLI,
@@ -456,6 +618,9 @@ ${actionsSection}
   with release workflow or signing changes unless owner-approved.
 - Run the standard PR build matrix before merge.
 - For release candidates, use the release checklist and owner-approved tag flow.
+- When the app version changes, update \`docs/index.html\` website version
+  metadata/fallback text and confirm the latest GitHub Release assets match the
+  website download links.
 - Keep Mac App Store upload local through \`npm run deploy:mas\` until a
   separate owner-reviewed PR moves that flow into GitHub Actions.
 
@@ -493,6 +658,8 @@ async function main() {
 
   const nodeCurrent = runtimePins.runtimeNode || runtimePins.downloadNodeDefault;
   const nodeInfo = await nodeReleaseInfo(nodeCurrent, warnings);
+  const latestRelease = await githubLatestRelease(REPOSITORY, warnings);
+  const pagesInfo = await githubPagesInfo(REPOSITORY, warnings);
 
   const latestActionTags = new Map();
   for (const action of actionPins) {
@@ -593,6 +760,7 @@ async function main() {
       source: action.files.join(', '),
     };
   });
+  const websiteRows = buildWebsiteRows(packageJson, latestRelease, pagesInfo);
 
   const report = {
     generatedAt: new Date().toISOString(),
@@ -603,6 +771,7 @@ async function main() {
     packageRows,
     runtimeRows,
     actionRows,
+    websiteRows,
     warnings,
   };
 

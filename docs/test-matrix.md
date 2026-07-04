@@ -45,7 +45,8 @@ Dependency automation:
 - `.github/workflows/maintenance-watch.yml` - weekly/manual advisory scan that
   creates or updates a GitHub Issue for dependency, runtime, Codex CLI,
   Playwright MCP, Electron, Node.js, Docker base image, and GitHub Actions
-  review. It does not deploy or update files.
+  review, plus GitHub Pages website version/domain/download-link signals. It
+  does not deploy or update files.
 
 ## Missing Checks
 

@@ -15,6 +15,7 @@
     <title>GnuNae - AI-Powered Browser</title>
     <meta name="description"
         content="GnuNae is an AI-powered browser with Codex sidebar for intelligent web automation. Download for macOS, Windows, or Linux.">
+    <meta name="gnunae-version" content="v0.8.54">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -491,7 +492,7 @@
                     <svg id="osIcon" viewBox="0 0 24 24" fill="currentColor"></svg>
                     <span id="downloadText">Download for your platform</span>
                 </a>
-                <p class="download-info" id="downloadInfo">Loading version... • Free & Open Source</p>
+                <p class="download-info" id="downloadInfo">v0.8.54 • Free & Open Source</p>
 
                 <div class="other-platforms">
                     <a href="https://apps.apple.com/us/app/gnunae/id6757864396?mt=12" class="platform-link"
@@ -659,6 +660,7 @@
             const downloadBtn = document.getElementById('downloadBtn');
             const downloadText = document.getElementById('downloadText');
             const osIcon = document.getElementById('osIcon');
+            const CURRENT_VERSION = 'v0.8.54';
 
             const platform = navigator.platform.toLowerCase();
 
@@ -732,11 +734,11 @@
             fetch('https://api.github.com/repos/fkiller/GnuNae/releases/latest')
                 .then(r => r.json())
                 .then(data => {
-                    const version = data.tag_name || 'latest';
+                    const version = data.tag_name || CURRENT_VERSION;
                     document.getElementById('downloadInfo').textContent = `${version} • Free & Open Source`;
                 })
                 .catch(() => {
-                    document.getElementById('downloadInfo').textContent = 'Latest • Free & Open Source';
+                    document.getElementById('downloadInfo').textContent = `${CURRENT_VERSION} • Free & Open Source`;
                 });
         })();
 
