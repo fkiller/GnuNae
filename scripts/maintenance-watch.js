@@ -25,6 +25,7 @@ const MAC_APP_STORE_URL_FRAGMENT = 'apps.apple.com/us/app/gnunae/id6757864396';
 
 const RELEASE_NOTES = {
   codex: 'https://developers.openai.com/codex/changelog',
+  codexModels: 'https://developers.openai.com/codex/models',
   codexCli: 'https://github.com/openai/codex/releases',
   playwright: 'https://playwright.dev/docs/release-notes',
   playwrightMcp: 'https://www.npmjs.com/package/@playwright/mcp',
@@ -331,6 +332,43 @@ function parseRuntimePins() {
   };
 }
 
+
+function parseCodexModelPins() {
+  const manifest = (() => {
+    try {
+      return readJson('src/core/codex-models.json');
+    } catch {
+      return {};
+    }
+  })();
+  const settings = tryReadText('src/core/settings.ts');
+  const constants = tryReadText('src/ui/constants/codex.ts');
+  const main = tryReadText('src/electron/main.ts');
+  const models = Array.isArray(manifest.models) ? manifest.models.map((entry) => entry.value).filter(Boolean) : [];
+  const deprecated = new Set(Array.isArray(manifest.deprecated) ? manifest.deprecated : []);
+  const settingsDefault = settings.match(/codex:\s*{[\s\S]*?model:\s*'([^']+)'/)?.[1] || '';
+
+  const problems = [];
+  if (manifest.sourceUrl !== RELEASE_NOTES.codexModels) problems.push('manifest source URL mismatch');
+  if (!models.length) problems.push('model manifest missing models');
+  if (!manifest.defaultModel) problems.push('manifest default missing');
+  if (manifest.defaultModel && !models.includes(manifest.defaultModel)) problems.push('manifest default absent from model list');
+  if (settingsDefault && settingsDefault !== manifest.defaultModel) problems.push('settings default differs from manifest default');
+  for (const model of models) {
+    if (deprecated.has(model)) problems.push(`deprecated model still selectable: ${model}`);
+  }
+  if (!constants.includes('../../core/codex-models.json')) problems.push('renderer is not using model manifest');
+  if (!main.includes('../core/codex-models.json')) problems.push('main process is not using model manifest');
+
+  return {
+    models,
+    defaultModel: manifest.defaultModel || '',
+    sourceUrl: manifest.sourceUrl || '',
+    updatedAt: manifest.updatedAt || '',
+    status: problems.length ? problems.join('; ') : 'current',
+  };
+}
+
 function parseGitHubActions() {
   const workflowsDir = path.join(ROOT, '.github', 'workflows');
   if (!fs.existsSync(workflowsDir)) return [];
@@ -526,6 +564,7 @@ function buildReport(report) {
   const attentionRows = [
     ...report.packageRows.filter((row) => isAttentionStatus(row.status)),
     ...report.runtimeRows.filter((row) => isAttentionStatus(row.status)),
+    ...report.modelRows.filter((row) => isAttentionStatus(row.status)),
     ...report.actionRows.filter((row) => isAttentionStatus(row.status)),
     ...report.websiteRows.filter((row) => isAttentionStatus(row.status)),
   ];
@@ -561,6 +600,11 @@ function buildReport(report) {
   const runtimeSection = markdownTable(
     ['Area', 'Current', 'Latest or expected', 'Status', 'Source'],
     report.runtimeRows.map((row) => [row.area, row.current, row.latest, row.status, row.source])
+  );
+
+  const modelSection = markdownTable(
+    ['Area', 'Current', 'Latest or expected', 'Status', 'Source'],
+    report.modelRows.map((row) => [row.area, row.current, row.latest, row.status, row.source])
   );
 
   const actionsSection = report.actionRows.length
@@ -601,6 +645,10 @@ ${packageSection}
 
 ${runtimeSection}
 
+## Codex Model Signals
+
+${modelSection}
+
 ## GitHub Actions Signals
 
 ${actionsSection}
@@ -612,7 +660,7 @@ ${websiteSection}
 ## Required Human Review
 
 - Read upstream "what's new" or release notes before changing Codex CLI,
-  Playwright MCP, Playwright, Electron, MCP SDK, Node.js, Docker base images,
+  Codex models/defaults, Playwright MCP, Playwright, Electron, MCP SDK, Node.js, Docker base images,
   electron-builder, GitHub Actions, or store tooling.
 - Open narrow PRs for version changes. Do not combine dependency/runtime bumps
   with release workflow or signing changes unless owner-approved.
@@ -649,6 +697,7 @@ async function main() {
   const packageLock = readJson('package-lock.json');
   const runtimePins = parseRuntimePins();
   const actionPins = parseGitHubActions();
+  const codexModelPins = parseCodexModelPins();
   const warnings = [];
 
   const latestPackages = new Map();
@@ -748,6 +797,16 @@ async function main() {
     },
   ];
 
+  const modelRows = [
+    {
+      area: 'Codex model defaults/list',
+      current: codexModelPins.defaultModel || 'missing',
+      latest: `official source: ${codexModelPins.sourceUrl || RELEASE_NOTES.codexModels}`,
+      status: codexModelPins.status,
+      source: 'src/core/codex-models.json',
+    },
+  ];
+
   const actionRows = actionPins.map((action) => {
     const latest = latestActionTags.get(action.repo) || '';
     return {
@@ -770,6 +829,7 @@ async function main() {
       : '',
     packageRows,
     runtimeRows,
+    modelRows,
     actionRows,
     websiteRows,
     warnings,

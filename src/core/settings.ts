@@ -429,7 +429,7 @@ const DEFAULT_SETTINGS: AppSettings = {
         userAgent: '',
     },
     codex: {
-        model: 'gpt-5.1-codex-mini',
+        model: 'gpt-5.5',
         mode: 'agent',
         prePrompt: DEFAULT_PRE_PROMPT,
         prePromptCustomized: false,

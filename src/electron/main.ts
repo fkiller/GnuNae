@@ -11,6 +11,7 @@ import { getExternalBrowserManager } from '../core/external-browser-manager';
 import { browserDetector } from '../core/browser-detector';
 import { shortcutManager, ShortcutLocation } from '../core/shortcut-manager';
 import { settingsService } from '../core/settings';
+import codexModelManifest from '../core/codex-models.json';
 import { getRuntimeManager, PLAYWRIGHT_MCP_VERSION } from '../core/runtime-manager';
 
 // Enable Chrome DevTools Protocol for Playwright MCP integration
@@ -2403,8 +2404,12 @@ function setupIpcHandlers(): void {
     });
 
     // Execute Codex CLI with prompt (for user chat)
-    ipcMain.handle('codex:execute', async (event, prompt: string, mode: string = 'agent') => {
-        console.log('[Main] Executing Codex (chat) in mode:', mode, 'prompt:', prompt.substring(0, 50) + '...');
+    ipcMain.handle('codex:execute', async (event, prompt: string, mode: string = 'agent', model?: string) => {
+        const requestedModel = model || settingsService.get('codex')?.model;
+        const supportedModels = new Set(codexModelManifest.models.map((entry) => entry.value));
+        const selectedModel = requestedModel && supportedModels.has(requestedModel) ? requestedModel : codexModelManifest.defaultModel;
+        const cliModel = selectedModel === codexModelManifest.defaultModel ? undefined : selectedModel;
+        console.log('[Main] Executing Codex (chat) in mode:', mode, 'model:', cliModel || `${selectedModel} (Codex default)`, 'prompt:', prompt.substring(0, 50) + '...');
 
         // Capture sender window for all output messages
         const senderWindow = BrowserWindow.fromWebContents(event.sender);
@@ -2491,7 +2496,7 @@ function setupIpcHandlers(): void {
 
                 const abort = senderSession.sandbox!.client.executeCodex(
                     fullPrompt,
-                    { mode },  // Don't pass prePrompt - it's already in fullPrompt
+                    { mode, model: cliModel },  // Don't pass prePrompt - it's already in fullPrompt
                     // onStdout
                     (data: string) => {
                         output += data;
@@ -2703,7 +2708,11 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
             // This makes GnuNae work without depending on ~/.codex/config.toml
 
             // Model configuration
-            codexArgs.push('-c', 'model=gpt-5.4');
+            // Do not pass the generated default explicitly; letting Codex choose its own
+            // default provides a safe fallback when an app build ages out.
+            if (cliModel) {
+                codexArgs.push('-c', `model=${cliModel}`);
+            }
             codexArgs.push('-c', 'model_reasoning_effort=xhigh');
 
             // Dynamic Playwright MCP config via -c flag
