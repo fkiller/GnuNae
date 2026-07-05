@@ -20,6 +20,18 @@ If documentation conflicts with code or CI:
 - If the conflict involves signing, store identity, entitlements, workflow
   releases, or secrets, stop and request owner review.
 
+Documentation updates are part of implementation, not follow-up cleanup. Use
+the map in `AGENTS.md` before opening a PR. In particular:
+
+- Codex CLI, model, runtime, or Playwright MCP changes must update
+  `docs/codex-model-runtime.md` and must inspect both Native and Docker/Virtual
+  Mode behavior.
+- Dependency maintenance must cover the Dockerfile/image path whenever it
+  touches Codex CLI, Playwright MCP, Playwright, browser automation, or runtime
+  pins.
+- Release/store/signing changes must update release docs and remain
+  owner-reviewed.
+
 ## Intended Future Workflow
 
 GitHub Issue → Codex task → PR → GitHub Actions → owner review → merge →
@@ -53,9 +65,11 @@ For release candidates, the Cloud/GitHub path is the tag-driven release flow:
 2. A `v*` tag triggers `release.yml` and `docker.yml`.
 3. GitHub Actions consumes configured secrets without exposing their values to
    Codex Cloud.
-4. `release.yml` builds signed/notarized macOS artifacts, Linux artifacts, and
-   uploads Microsoft Store APPX/MSIX through the `build-msstore` job. Direct
-   Windows NSIS/portable GitHub-release artifacts are intentionally skipped.
+4. `release.yml` builds signed/notarized macOS artifacts, Linux artifacts,
+   uploads Microsoft Store APPX/MSIX through the `build-msstore` job, and
+   uploads the universal Mac App Store package through the `build-mas` job.
+   Direct Windows NSIS/portable GitHub-release artifacts are intentionally
+   skipped.
 5. `docker.yml` publishes the matching sandbox image to GHCR.
 6. Codex can inspect workflow status and logs, but cannot view signing or store
    credentials.
@@ -73,12 +87,10 @@ Store review/status tracking after release is separate from deployment:
 - The workflow is read-only. It must not build, upload, submit, publish, change
   metadata, rotate secrets, or alter store configuration.
 
-Current local-only release step:
-
-- Mac App Store upload still runs through `npm run deploy:mas` on an
-  owner-controlled macOS machine with Xcode, certificates, provisioning profile,
-  `.env.local`, and the App Store Connect `.p8` key. Moving this into GitHub
-  Actions should be a separate owner-reviewed release-engineering PR.
+Mac App Store upload is now part of the tag-triggered release workflow. The
+local `npm run deploy:mas` command remains available for owner-controlled
+macOS uploads, but the normal release path is the `build-mas` GitHub Actions
+job with configured Apple signing and App Store Connect secrets.
 
 ## Periodic Maintenance Automation
 
@@ -117,6 +129,9 @@ The workflow is intentionally limited:
 
 Use the generated issue to scope narrow Codex tasks. Each accepted maintenance
 item should become its own PR unless the coupling is explicitly documented.
+When the accepted item changes Codex CLI, Playwright MCP, Playwright, or model
+behavior, the PR must update both native runtime pins and Docker image pins, or
+explain why one side is intentionally unchanged.
 
 ## Store Status Automation
 
@@ -207,8 +222,10 @@ Interpret workflows from `.github/workflows`, not from older docs alone.
   Release from those artifacts.
 - The same workflow has a separate `build-msstore` job that builds APPX/MSIX
   and uploads to Microsoft Partner Center.
+- The same workflow has a separate `build-mas` job that builds and uploads the
+  universal Mac App Store package to App Store Connect.
 - The GitHub Release job currently depends on the matrix `build` job, not on
-  `build-msstore`.
+  `build-msstore` or `build-mas`.
 - `docker.yml` runs for Docker path PRs, selected branch pushes, manual
   dispatch, and `v*` tags. Non-PR runs push sandbox images to GHCR.
 - `maintenance-watch.yml` runs weekly and by manual dispatch. It creates or
@@ -234,15 +251,19 @@ must account for both Vite output and this copy step.
 
 Committed docs that need caution:
 
-- `docs/PERIODIC_MAINTENANCE.md` describes a release flow with local packaging
-  and manual store upload after tagging. Current `release.yml` already performs
-  GitHub Release packaging and Microsoft Store upload on `v*` tags, while Mac
-  App Store remains local through `npm run deploy:mas`.
+- `docs/PERIODIC_MAINTENANCE.md` previously described a release flow with local
+  packaging and manual store upload after tagging. Current `release.yml`
+  performs GitHub Release packaging, Microsoft Store upload, and Mac App Store
+  upload on `v*` tags.
 - `docs/PERIODIC_MAINTENANCE.md` also had stale model-update guidance that
   treated `src/ui/constants/codex.ts` and a hardcoded `main.ts` model as the
   whole model source. Future maintenance must first inspect the current code:
   static fallback lists, any merged model registry, Codex CLI model cache, and
   OpenAI Codex changelog can all affect the correct update path.
+- `docs/codex-model-runtime.md` records the current Codex model/runtime failure
+  behavior. It documents the native retry/update sequence for model and
+  outdated-CLI failures, while Docker mode reports outdated sandbox-image
+  failures and relies on Docker image rebuild/publish.
 - `docs/CI_CD_PACKAGING.md` mostly matches the current workflow, but some
   Microsoft Store sections still describe local `pack:win` plus manual upload.
   Later sections correctly describe the automated `build-msstore` job. Verify
@@ -261,9 +282,10 @@ Local audit note:
   agent guidance. No committed file explicitly named Antigravity was found in
   this pass. If legacy Antigravity or Claude notes are committed later, treat
   root `AGENTS.md` and current code/CI as the maintenance baseline.
-- Untracked local model-registry work was present during this audit. It was not
-  included in this documentation PR and needs owner confirmation before future
-  Cloud tasks rely on it.
+- Earlier local model-registry work has not been observed in the current
+  committed code path. If a model registry is reintroduced, update
+  `docs/codex-model-runtime.md`, `docs/PERIODIC_MAINTENANCE.md`, and this
+  playbook in the same PR.
 
 ## Handling Stale Documentation
 
@@ -278,18 +300,15 @@ For stale docs, prefer a small follow-up PR that:
 
 ## Recommended Next PRs
 
-1. Decide whether the local uncommitted model-registry work should become a
-   separate owner-reviewed feature PR.
+1. Add smoke tests for native model/outdated-CLI retry handling and Docker
+   outdated-image messaging.
 2. Add smoke tests or scripted checks for preload IPC contracts, settings
    persistence, task scheduling logic, and Docker API client behavior.
 3. Add a manual release-candidate checklist issue template for Windows Store,
    Mac App Store, notarization, installers, Docker image tags, and runtime
    bundling.
-4. Decide whether to move Mac App Store upload into GitHub Actions. Treat this
-   as release-sensitive because it touches Apple credentials, certificates,
-   provisioning profiles, and store submission behavior.
-5. Add a lightweight release-candidate issue template that links the latest
+4. Add a lightweight release-candidate issue template that links the latest
    `Store status watch` issue and separates Store portal action from CI logs.
-6. Expand maintenance automation later to open scoped draft PRs after the owner
+5. Expand maintenance automation later to open scoped draft PRs after the owner
    is comfortable with the advisory issue flow. Keep release and store actions
    owner-approved and tag/manual only.

@@ -80,6 +80,50 @@ const npmCmd = PLATFORM === 'win32'
     ? path.join(NODE_PATH, 'npm.cmd')
     : path.join(NODE_PATH, 'bin', 'npm');
 
+function getNodeExecutableForRuntime(dir) {
+    return PLATFORM === 'win32'
+        ? path.join(dir, 'node.exe')
+        : path.join(dir, 'bin', 'node');
+}
+
+function getInstallTargets() {
+    if (PLATFORM !== 'darwin') {
+        return [{ platform: PLATFORM, arch: ARCH, npmArgs: [] }];
+    }
+
+    const runtimeArchs = ['arm64', 'x64'].filter((arch) => {
+        const runtimeDir = path.join(PROJECT_ROOT, 'resources', `runtime-darwin-${arch}`);
+        return fs.existsSync(getNodeExecutableForRuntime(runtimeDir));
+    });
+    const archs = runtimeArchs.length > 0 ? runtimeArchs : [ARCH];
+    const currentFirst = Array.from(new Set([
+        ARCH,
+        ...archs.filter((arch) => arch !== ARCH),
+    ])).filter((arch) => archs.includes(arch));
+
+    return currentFirst.map((arch) => ({
+        platform: 'darwin',
+        arch,
+        npmArgs: ['--include=optional', '--os=darwin', `--cpu=${arch}`],
+    }));
+}
+
+function verifyDarwinOptionalPackages(targets) {
+    for (const target of targets) {
+        if (target.platform !== 'darwin') continue;
+        const packagePath = path.join(
+            TARGET_DIR,
+            'node_modules',
+            '@openai',
+            `codex-darwin-${target.arch}`,
+            'package.json'
+        );
+        if (!fs.existsSync(packagePath)) {
+            throw new Error(`Missing @openai/codex-darwin-${target.arch} after installation`);
+        }
+    }
+}
+
 console.log('='.repeat(50));
 console.log('GnuNae Codex CLI Installer');
 console.log('='.repeat(50));
@@ -166,20 +210,32 @@ try {
     // Must match CODEX_VERSION and PLAYWRIGHT_MCP_VERSION in src/core/runtime-manager.ts
     const CODEX_VERSION = '0.118.0';
     const PLAYWRIGHT_MCP_VERSION = '0.0.70';
-    const npmArgs = ['install', `@openai/codex@${CODEX_VERSION}`, `@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}`, '--save'];
+    const installTargets = getInstallTargets();
 
-    console.log(`Running: npm ${npmArgs.join(' ')}`);
+    for (const target of installTargets) {
+        const npmArgs = [
+            'install',
+            `@openai/codex@${CODEX_VERSION}`,
+            `@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}`,
+            '--save',
+            ...target.npmArgs
+        ];
 
-    const result = spawnSync(npmCmd, npmArgs, {
-        cwd: TARGET_DIR,
-        env,
-        stdio: 'inherit',
-        shell: PLATFORM === 'win32'
-    });
+        console.log(`Running for ${target.platform}-${target.arch}: npm ${npmArgs.join(' ')}`);
 
-    if (result.status !== 0) {
-        throw new Error(`npm install failed with exit code ${result.status}`);
+        const result = spawnSync(npmCmd, npmArgs, {
+            cwd: TARGET_DIR,
+            env,
+            stdio: 'inherit',
+            shell: PLATFORM === 'win32'
+        });
+
+        if (result.status !== 0) {
+            throw new Error(`npm install failed for ${target.platform}-${target.arch} with exit code ${result.status}`);
+        }
     }
+
+    verifyDarwinOptionalPackages(installTargets);
 
     // Verify installation
     if (!fs.existsSync(codexPath)) {

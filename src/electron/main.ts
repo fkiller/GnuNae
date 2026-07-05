@@ -68,6 +68,67 @@ function getEmbeddedNodeEnv(): NodeJS.ProcessEnv {
     return getRuntimeManager().getEmbeddedNodeEnv();
 }
 
+function isModelSelectionFailure(output: string): boolean {
+    const lower = output.toLowerCase();
+    if (
+        lower.includes('chatgpt') ||
+        lower.includes('subscription') ||
+        lower.includes('billing') ||
+        lower.includes('permission') ||
+        lower.includes('access denied')
+    ) {
+        return false;
+    }
+
+    return (
+        lower.includes('requires a newer version of codex') ||
+        lower.includes('unsupported model') ||
+        lower.includes('unknown model') ||
+        lower.includes('invalid model') ||
+        lower.includes('model not found') ||
+        lower.includes('model does not exist') ||
+        lower.includes('model is not supported') ||
+        (lower.includes('model') && lower.includes('not supported')) ||
+        (lower.includes('model') && lower.includes('deprecated'))
+    );
+}
+
+function isOutdatedCodexFailure(output: string): boolean {
+    const lower = output.toLowerCase();
+    return (
+        lower.includes('requires a newer version of codex') ||
+        lower.includes('codex cli is out of date') ||
+        lower.includes('codex is out of date') ||
+        lower.includes('please update codex') ||
+        lower.includes('please upgrade codex') ||
+        lower.includes('update the codex cli') ||
+        lower.includes('upgrade the codex cli') ||
+        (
+            lower.includes('this version of codex') &&
+            (
+                lower.includes('unsupported') ||
+                lower.includes('no longer supported') ||
+                lower.includes('outdated')
+            )
+        )
+    );
+}
+
+function withoutModelConfigArgs(args: string[]): string[] {
+    const filtered: string[] = [];
+    for (let i = 0; i < args.length; i++) {
+        const isModelConfig =
+            args[i] === '-c' &&
+            (args[i + 1]?.startsWith('model=') || args[i + 1]?.startsWith('model_reasoning_effort='));
+        if (isModelConfig) {
+            i++;
+            continue;
+        }
+        filtered.push(args[i]);
+    }
+    return filtered;
+}
+
 
 
 // Read package.json for app info
@@ -2676,7 +2737,7 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
 
             // Determine Codex CLI path using RuntimeManager
             const isWindows = process.platform === 'win32';
-            const codexBin = getRuntimeManager().getCodexPath();
+            let codexBin = getRuntimeManager().getCodexPath();
             if (!codexBin) {
                 console.error('[Main] Codex CLI not found');
                 senderWindow?.webContents.send('codex:output', {
@@ -2735,29 +2796,31 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
             }
             codexArgs.push('-c', 'mcp_servers.playwright.startup_timeout_sec=60');
 
+            const buildCodexEnv = (): NodeJS.ProcessEnv => ({
+                ...getEmbeddedNodeEnv(),
+                // GnuNae window identification for future MCP target isolation
+                GNUNAE_WINDOW_ID: String(windowId),
+                GNUNAE_SESSION_ID: activeSession?.sessionId || '',
+                // UTF-8 encoding for proper Korean/Unicode support
+                PYTHONIOENCODING: 'utf-8',
+                PYTHONUTF8: '1',
+                LANG: 'en_US.UTF-8',
+                // Ensure Windows can find executables
+                ...(isWindows && {
+                    ComSpec: process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe',
+                    SystemRoot: process.env.SystemRoot || 'C:\\Windows',
+                    // Windows UTF-8 code page
+                    CHCP: '65001',
+                }),
+            });
+
             const chatProcess = spawn(codexBin, codexArgs, {
                 // Use shell on Windows for .cmd scripts
                 shell: isWindows ? true : false,
                 cwd,
                 // Enable windowsHide to prevent console window popup on Windows
                 windowsHide: true,
-                env: {
-                    ...getEmbeddedNodeEnv(),
-                    // GnuNae window identification for future MCP target isolation
-                    GNUNAE_WINDOW_ID: String(windowId),
-                    GNUNAE_SESSION_ID: activeSession?.sessionId || '',
-                    // UTF-8 encoding for proper Korean/Unicode support
-                    PYTHONIOENCODING: 'utf-8',
-                    PYTHONUTF8: '1',
-                    LANG: 'en_US.UTF-8',
-                    // Ensure Windows can find executables
-                    ...(isWindows && {
-                        ComSpec: process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe',
-                        SystemRoot: process.env.SystemRoot || 'C:\\Windows',
-                        // Windows UTF-8 code page
-                        CHCP: '65001',
-                    }),
-                },
+                env: buildCodexEnv(),
             });
 
             // Handle spawn errors (e.g. binary not found, permission denied, provenance issues)
@@ -2890,14 +2953,150 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
                 senderWindow?.webContents.send('codex:output', { type: 'stderr', data: chunk });
             });
 
-            chatProcess.on('close', (code) => {
+            let codexExecutionCompleted = false;
+            let codexUpgradeRetryAttempted = false;
+
+            const completeCodexExecution = (
+                exitCode: number | null,
+                resultOutput: string = output,
+                resultErrorOutput: string = errorOutput,
+            ) => {
+                if (codexExecutionCompleted) return;
+                codexExecutionCompleted = true;
+                senderWindow?.webContents.send('codex:complete', {
+                    code: exitCode,
+                    output: resultOutput,
+                    errorOutput: resultErrorOutput,
+                });
+                codexProcesses.delete('chat');
+                resolve({
+                    success: exitCode === 0,
+                    output: resultOutput,
+                    errorOutput: resultErrorOutput,
+                    code: exitCode,
+                });
+            };
+
+            async function upgradeCodexAndRetryDefault(reason: string): Promise<boolean> {
+                if (codexUpgradeRetryAttempted) {
+                    return false;
+                }
+                codexUpgradeRetryAttempted = true;
+
+                senderWindow?.webContents.send('codex:output', {
+                    type: 'stderr',
+                    data: `\n${reason}\nUpdating Codex CLI, then retrying with the CLI default model...\n`,
+                });
+
+                const upgradeResult = await getRuntimeManager().upgradeCodex();
+                if (!upgradeResult.success) {
+                    const upgradeError = `Codex CLI update failed: ${upgradeResult.error || 'Unknown error'}`;
+                    senderWindow?.webContents.send('codex:output', {
+                        type: 'stderr',
+                        data: `${upgradeError}\nPlease update Codex CLI manually and try again.\n`,
+                    });
+                    completeCodexExecution(1, output, `${errorOutput}\n${upgradeError}`);
+                    return true;
+                }
+
+                await getRuntimeManager().validateRuntime();
+                const upgradedCodexBin = getRuntimeManager().getCodexPath();
+                if (!upgradedCodexBin) {
+                    const missingError = 'Codex CLI update completed, but the upgraded executable could not be found.';
+                    senderWindow?.webContents.send('codex:output', {
+                        type: 'stderr',
+                        data: `${missingError}\nPlease restart GnuNae and try again.\n`,
+                    });
+                    completeCodexExecution(1, output, `${errorOutput}\n${missingError}`);
+                    return true;
+                }
+
+                codexBin = upgradedCodexBin;
+                retryWithoutModelOverride(false, 'Retrying with the updated Codex CLI default model...');
+                return true;
+            }
+
+            function retryWithoutModelOverride(allowUpgradeOnFailure = true, notice?: string): void {
+                senderWindow?.webContents.send('codex:output', {
+                    type: 'stderr',
+                    data: notice
+                        ? `\n${notice}\n`
+                        : '\nConfigured Codex model failed before execution. Retrying once with Codex CLI default model...\n',
+                });
+
+                output = '';
+                errorOutput = '';
+
+                const fallbackProcess = spawn(codexBin!, withoutModelConfigArgs(codexArgs), {
+                    shell: isWindows ? true : false,
+                    cwd,
+                    windowsHide: true,
+                    env: buildCodexEnv(),
+                });
+
+                codexProcesses.set('chat', fallbackProcess);
+
+                fallbackProcess.stdin?.write(fullPrompt);
+                fallbackProcess.stdin?.end();
+
+                fallbackProcess.stdout?.on('data', (data: Buffer) => {
+                    const chunk = data.toString('utf8');
+                    output += chunk;
+                    console.log('[Codex default stdout]', chunk);
+                    senderWindow?.webContents.send('codex:output', { type: 'stdout', data: chunk });
+                });
+
+                fallbackProcess.stderr?.on('data', (data: Buffer) => {
+                    const chunk = data.toString('utf8');
+                    errorOutput += chunk;
+                    console.log('[Codex default stderr]', chunk);
+                    senderWindow?.webContents.send('codex:output', { type: 'stderr', data: chunk });
+                });
+
+                fallbackProcess.on('close', async (fallbackCode) => {
+                    const fallbackFailure = output + ' ' + errorOutput;
+                    if (
+                        fallbackCode !== 0 &&
+                        allowUpgradeOnFailure &&
+                        (isOutdatedCodexFailure(fallbackFailure) || isModelSelectionFailure(fallbackFailure))
+                    ) {
+                        const handled = await upgradeCodexAndRetryDefault(
+                            'Codex CLI default model also failed. The installed CLI is likely too old for the current model catalog.',
+                        );
+                        if (handled) return;
+                    }
+
+                    completeCodexExecution(fallbackCode);
+                });
+
+                fallbackProcess.on('error', (err) => {
+                    const userMessage = `Codex default-model retry failed: ${err.message}`;
+                    senderWindow?.webContents.send('codex:error', { error: userMessage });
+                    completeCodexExecution(1, output, `${errorOutput}\n${userMessage}`);
+                });
+            }
+
+            chatProcess.on('close', async (code) => {
                 console.log('[Main] Codex process exited with code:', code);
 
                 // Combine output and error for pattern matching
                 const allOutput = (output + ' ' + errorOutput).toLowerCase();
+                const rawFailureOutput = output + ' ' + errorOutput;
 
                 // Check for common issues and provide helpful messages
                 if (code !== 0) {
+                    if (isOutdatedCodexFailure(rawFailureOutput)) {
+                        const handled = await upgradeCodexAndRetryDefault(
+                            'Configured Codex model requires a newer Codex CLI than the installed runtime provides.',
+                        );
+                        if (handled) return;
+                    }
+
+                    if (isModelSelectionFailure(rawFailureOutput)) {
+                        retryWithoutModelOverride();
+                        return;
+                    }
+
                     let helpMessage = '';
 
                     // Free user / subscription required
@@ -2955,9 +3154,7 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
                     }
                 }
 
-                senderWindow?.webContents.send('codex:complete', { code, output, errorOutput });
-                codexProcesses.delete('chat');
-                resolve({ success: code === 0, output, errorOutput, code });
+                completeCodexExecution(code);
             });
 
             chatProcess.on('error', (err) => {
@@ -2970,8 +3167,7 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
                 }
 
                 senderWindow?.webContents.send('codex:error', { error: userMessage });
-                codexProcesses.delete('chat');
-                resolve({ success: false, error: userMessage });
+                completeCodexExecution(1, output, `${errorOutput}\n${userMessage}`);
             });
         });
     });

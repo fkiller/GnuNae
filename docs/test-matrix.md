@@ -23,17 +23,19 @@ Release and packaging checks:
 
 - `npm run pack:mac` - downloads macOS runtimes, installs Codex, builds, and
   invokes electron-builder for DMG/ZIP.
-- `npm run pack:mac-mas` - downloads macOS runtimes, installs Codex, builds, and
-  invokes electron-builder for Mac App Store target.
-- `npm run deploy:mas` - local macOS-only Mac App Store build and upload script.
+- `npm run pack:mac-mas` - downloads macOS arm64/x64 runtimes, installs Codex,
+  builds, and invokes electron-builder for the universal Mac App Store target.
+- `npm run deploy:mas` - macOS-only universal Mac App Store build and upload
+  script used by the tag-triggered `build-mas` workflow job and by optional
+  owner-local uploads.
 - `npm run pack:win` - downloads Windows runtime, installs Codex, builds, and
   invokes electron-builder for the Windows Store APPX target.
 - `npm run pack:linux` - builds and invokes electron-builder for Linux targets.
 - `.github/workflows/release.yml` - tag-triggered multi-platform release,
-  signing, notarization, Microsoft Store upload, and GitHub Release creation.
-  It publishes macOS and Linux artifacts to GitHub Releases; direct Windows
-  NSIS/portable artifacts are intentionally skipped because Windows
-  distribution uses Microsoft Store APPX/MSIX deployment.
+  signing, notarization, Microsoft Store upload, Mac App Store upload, and
+  GitHub Release creation. It publishes macOS and Linux artifacts to GitHub
+  Releases; direct Windows NSIS/portable artifacts are intentionally skipped
+  because Windows distribution uses Microsoft Store APPX/MSIX deployment.
 - `.github/workflows/docker.yml` - Docker image build/push workflow.
 - `.github/workflows/ci.yml` - non-release PR/push build matrix for Windows,
   macOS, and Linux. It runs `npm ci` and `npm run build`; it does not sign,
@@ -64,10 +66,13 @@ Dependency automation:
 - No renderer component tests.
 - No browser automation E2E tests.
 - No Docker API integration test in the app test suite.
+- No automated stale-model or outdated-Codex CLI failure test for Native mode.
+- No automated outdated Docker sandbox Codex CLI/model-catalog failure test.
 - No automated signing/notarization dry-run for PRs.
-- No automated Microsoft Store or Mac App Store package validation outside
-  release or owner-local flows. Store status monitoring is read-only and does
-  not replace install/update/sandbox validation.
+- No automated Microsoft Store install/update validation or Mac App Store
+  sandbox/TestFlight validation outside release and store status flows. Store
+  status monitoring is read-only and does not replace install/update/sandbox
+  validation.
 
 ## Recommended Quick PR Checks
 
@@ -93,11 +98,22 @@ For Docker changes:
 - `npm run build:docker` when Docker is available.
 - If Docker is unavailable in the environment, document that limitation.
 
+For Codex CLI, model, runtime, or Playwright MCP changes:
+
+- `npm run build`
+- `npm run build:docker` when Docker is available.
+- Verify `docs/codex-model-runtime.md` still matches actual Native and Docker
+  behavior.
+- Manually verify one basic Native prompt and one basic Virtual Mode prompt
+  before release when the change affects execution behavior.
+
 For dependency updates:
 
 - `npm ci`
 - `npm run build`
 - `npm run build:docker` if Docker-related packages or Dockerfile changed.
+- Treat Codex CLI, Playwright MCP, and Playwright updates as Docker-related
+  unless explicitly proven otherwise.
 - Review the latest `Maintenance Watch` issue and the upstream release notes it
   links before selecting versions.
 - Manual app smoke checks on at least Windows or macOS before release.
@@ -114,6 +130,9 @@ Run these before larger merges or release candidates:
 - Verify Codex login flow can start and complete with a real account.
 - Verify one basic prompt in Native mode against a normal web page.
 - Verify Virtual Mode can create a Docker sandbox and run a basic prompt.
+- For Codex model/runtime changes, verify the documented failure path in
+  `docs/codex-model-runtime.md`: stale explicit model, no-model default, and
+  outdated Docker image messaging where practical.
 - Verify tab creation, tab switching, navigation, and back/forward/reload.
 - Verify PDS request and PDS store flows.
 - Verify task creation, favorite/running/scheduled UI, and one scheduled task
@@ -139,15 +158,15 @@ Run these before larger merges or release candidates:
 - Manually dispatch `Store Status Watch` after Store upload/submission and
   inspect the `Store status watch` issue.
 - Treat GitHub Actions as the Cloud end-to-end path for signed/notarized macOS
-  direct-download artifacts, Linux artifacts, Microsoft Store upload, and Docker
-  image publication. Codex can inspect logs but cannot inspect secret values.
+  direct-download artifacts, Linux artifacts, Microsoft Store upload, Mac App
+  Store upload, and Docker image publication. Codex can inspect logs but cannot
+  inspect secret values.
 - Download and smoke-test GitHub Release artifacts.
 - Verify Linux artifacts launch.
 - Verify macOS DMG/ZIP signature and notarization status.
 - Confirm Microsoft Store upload result in Partner Center and in the `Store
   status watch` issue.
-- Run `npm run deploy:mas` locally on owner macOS hardware for Mac App Store
-  upload when needed.
+- Confirm the `build-mas` job uploaded the universal Mac App Store package.
 - Confirm Mac App Store/TestFlight processing and app version review status in
   App Store Connect and in the `Store status watch` issue when API secrets are
   configured.
@@ -175,11 +194,13 @@ These cannot be fully verified in Codex Cloud:
 - Developer ID signing and notarization on downloaded DMG/ZIP.
 - Gatekeeper launch behavior on a clean machine.
 - Mac App Store entitlements, sandbox behavior, provisioning profile, and
-  App Store Connect upload. The store status workflow can report build/review
-  state when API secrets are configured, but cannot validate sandbox behavior.
-- `npm run deploy:mas` on macOS with full Xcode, certificates, `.p8` API key,
-  and provisioning profile.
-- Runtime bundling for arm64 and x64 macOS builds.
+  TestFlight/App Store Connect processing. The release workflow can upload the
+  package and the store status workflow can report build/review state when API
+  secrets are configured, but neither can validate sandbox behavior.
+- Optional owner-local `npm run deploy:mas` on macOS with full Xcode,
+  certificates, `.p8` API key, and provisioning profile.
+- Runtime bundling for arm64/x64 direct macOS builds and the universal Mac App
+  Store build.
 - External browser `.app` shortcut bundles and icons.
 - Tray/menu bar behavior and hidden startup.
 - Docker Desktop `host.docker.internal` behavior.

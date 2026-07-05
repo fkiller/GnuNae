@@ -42,6 +42,45 @@ let playwrightMcpProcess = null;
 const startTime = Date.now();
 let requestCount = 0;
 
+function isModelOrOutdatedCodexFailure(output) {
+    const lower = output.toLowerCase();
+    if (
+        lower.includes('chatgpt') ||
+        lower.includes('subscription') ||
+        lower.includes('billing') ||
+        lower.includes('permission') ||
+        lower.includes('access denied')
+    ) {
+        return false;
+    }
+
+    return (
+        lower.includes('requires a newer version of codex') ||
+        lower.includes('unsupported model') ||
+        lower.includes('unknown model') ||
+        lower.includes('invalid model') ||
+        lower.includes('model not found') ||
+        lower.includes('model does not exist') ||
+        lower.includes('model is not supported') ||
+        lower.includes('codex cli is out of date') ||
+        lower.includes('codex is out of date') ||
+        lower.includes('please update codex') ||
+        lower.includes('please upgrade codex') ||
+        lower.includes('update the codex cli') ||
+        lower.includes('upgrade the codex cli') ||
+        (lower.includes('model') && lower.includes('not supported')) ||
+        (lower.includes('model') && lower.includes('deprecated')) ||
+        (
+            lower.includes('this version of codex') &&
+            (
+                lower.includes('unsupported') ||
+                lower.includes('no longer supported') ||
+                lower.includes('outdated')
+            )
+        )
+    );
+}
+
 // ========== HEARTBEAT WATCHDOG ==========
 // Container will self-terminate if no heartbeat received within timeout
 // Uses a grace period to avoid termination on temporary network issues
@@ -117,6 +156,7 @@ function executeCodex(prompt, options, onData, onError, onComplete) {
     }
 
     fullPrompt += prompt;
+    let combinedOutput = '';
 
     codexProcess = spawn('codex', args, {
         cwd: options.workDir || '/workspace',
@@ -134,6 +174,7 @@ function executeCodex(prompt, options, onData, onError, onComplete) {
     if (codexProcess.stdout) {
         codexProcess.stdout.on('data', (data) => {
             const text = data.toString('utf8');
+            combinedOutput += text;
             console.log('[Codex stdout]', text.trim());
             onData(text);
         });
@@ -142,12 +183,20 @@ function executeCodex(prompt, options, onData, onError, onComplete) {
     if (codexProcess.stderr) {
         codexProcess.stderr.on('data', (data) => {
             const text = data.toString('utf8');
+            combinedOutput += text;
             console.log('[Codex stderr]', text.trim());
             onError(text);
         });
     }
 
     codexProcess.on('close', (code) => {
+        if (code !== 0 && isModelOrOutdatedCodexFailure(combinedOutput)) {
+            onError(
+                '\nCodex failed because the sandbox image appears to contain an outdated Codex CLI or model catalog.\n' +
+                'Update the Docker sandbox image through maintenance/release CI, or rebuild locally with:\n' +
+                '  npm run build:docker:clean\n'
+            );
+        }
         onComplete(code);
         codexProcess = null;
     });

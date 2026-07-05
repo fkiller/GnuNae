@@ -13,7 +13,9 @@ An Electron-based browser with an AI-powered Codex sidebar for intelligent web a
 > current build/release authority, and stale-doc handling, see
 > [`AGENTS.md`](AGENTS.md), [`docs/maintenance-playbook.md`](docs/maintenance-playbook.md),
 > [`docs/test-matrix.md`](docs/test-matrix.md), and
-> [`docs/release-checklist.md`](docs/release-checklist.md).
+> [`docs/release-checklist.md`](docs/release-checklist.md). For Codex model,
+> runtime, and Docker sandbox failure handling, see
+> [`docs/codex-model-runtime.md`](docs/codex-model-runtime.md).
 
 ## Architecture
 
@@ -276,10 +278,13 @@ For detailed CI/CD pipeline documentation, code signing setup, and environment c
 
 GnuNae configures Codex CLI automatically at runtime via `-c` flags. **No manual configuration needed** - GnuNae works out of the box without modifying `~/.codex/config.toml`.
 
-If you have custom settings in `~/.codex/config.toml`, GnuNae will override them with:
-- Model: `gpt-5.1-codex-max` (or select GPT-5.3-Codex in the model dropdown)
-- Reasoning: `xhigh`
-- Playwright MCP with dynamic CDP endpoint
+If you have custom settings in `~/.codex/config.toml`, GnuNae overrides Codex
+spawn configuration for app-managed browser automation. Current committed code
+uses a static renderer model list, passes `model=gpt-5.4` with `xhigh`
+reasoning in Native mode, and lets Docker/Virtual Mode use the Codex CLI
+default model inside the sandbox image. See
+[`docs/codex-model-runtime.md`](docs/codex-model-runtime.md) for model/runtime
+failure handling and Docker parity requirements.
 
 ## Project Structure
 

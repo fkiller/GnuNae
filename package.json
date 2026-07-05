@@ -1,6 +1,6 @@
 {
   "name": "gnunae",
-  "version": "0.8.54",
+  "version": "0.8.55",
   "productName": "GnuNae",
   "main": "dist/electron/main.js",
   "author": {
@@ -25,7 +25,7 @@
     "download-node-darwin-x64": "node scripts/download-node.js --platform darwin --arch x64",
     "install-codex": "node scripts/install-codex.js",
     "pack:mac": "npm run download-node-darwin-arm64 && npm run download-node-darwin-x64 && npm run install-codex && npm run build && node scripts/load-env.js --mac dmg zip",
-    "pack:mac-mas": "npm run download-node-darwin-arm64 && npm run download-node-darwin-x64 && npm run install-codex && npm run build && node scripts/load-env.js --mac mas",
+    "pack:mac-mas": "npm run download-node-darwin-arm64 && npm run download-node-darwin-x64 && npm run install-codex && npm run build && node scripts/load-env.js --mac mas --universal",
     "deploy:mas": "node scripts/deploy-mas.js",
     "pack:win": "npm run download-node && npm run install-codex && ping 127.0.0.1 -n 4 > nul && npm run build && node scripts/load-env.js --win appx",
     "pack:linux": "npm run build && electron-builder --linux",
@@ -77,8 +77,7 @@
         {
           "target": "mas",
           "arch": [
-            "x64",
-            "arm64"
+            "universal"
           ]
         }
       ],

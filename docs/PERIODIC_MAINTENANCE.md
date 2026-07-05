@@ -14,11 +14,11 @@ release-flow updates.
 | Component | Location | Sync With |
 |-----------|----------|-----------|
 | App Version | `package.json` | All releases |
-| Codex CLI | `package.json`, `resources/codex/package.json`, `docker/Dockerfile`, `runtime-manager.ts`, `install-codex.js` | Each other |
-| Playwright MCP | `package.json`, `resources/codex/package.json`, `docker/Dockerfile`, `runtime-manager.ts`, `install-codex.js` | Each other |
+| Codex CLI | `package.json`, `resources/codex/package.json`, `docker/Dockerfile`, `runtime-manager.ts`, `install-codex.js`, `docs/codex-model-runtime.md` | Native runtime, Docker image, model failure handling |
+| Playwright MCP | `package.json`, `resources/codex/package.json`, `docker/Dockerfile`, `runtime-manager.ts`, `install-codex.js`, `docs/codex-model-runtime.md` | Native runtime, Docker image, browser automation |
 | Playwright Base | `docker/Dockerfile` | `package.json` Playwright |
 | Docker Image | `docker-manager.ts` | Auto-synced with app version |
-| AI Models | Inspect current code first: static fallbacks, any model registry, Codex CLI cache, and Codex spawn config | OpenAI Codex changelog and Codex CLI releases |
+| AI Models | Inspect current code first: static fallbacks, any model registry, Codex CLI cache, Codex spawn config, Docker API behavior, and `docs/codex-model-runtime.md` | OpenAI Codex docs/changelog, Codex CLI releases, native and Docker runtime pins |
 | Electron | `package.json`, `package-lock.json`, Electron API usage in `src/electron/main.ts` | Electron releases and breaking changes |
 | MCP SDK | `package.json`, `package-lock.json`, MCP integration points | MCP TypeScript SDK releases |
 | Node runtime | `scripts/download-node.js`, `src/core/runtime-manager.ts`, packaged `resources/runtime*` | Node.js release/security updates |
@@ -69,7 +69,7 @@ The workflow must remain non-release automation:
 - It does not update `docs/index.html` automatically; website version and
   download-link changes still require a scoped PR.
 - It should create maintenance work for Codex/owner review; deployment remains
-  owner-approved and tag/manual only.
+  owner-approved and tag-driven or manual only.
 
 ## Automated Store Status Watch
 
@@ -150,6 +150,16 @@ RUN npm install -g \
     @playwright/mcp@0.0.70 \
 ```
 
+Docker is not optional for Codex/runtime maintenance. When `@openai/codex`,
+`@playwright/mcp`, Playwright, Codex model behavior, or Playwright MCP behavior
+changes, update and verify the Docker path in the same task:
+
+- `docker/Dockerfile` global package pins and Playwright base image.
+- `docker/api-server.js` and `docker/api-server.ts` if execution or failure
+  classification changes.
+- `.github/workflows/docker.yml` if image build/publish behavior changes.
+- `docs/codex-model-runtime.md` if model/runtime fallback behavior changes.
+
 #### D. AI models and Codex capabilities
 Do not assume the model list is static. Inspect current code first.
 
@@ -171,7 +181,11 @@ or `config/models.json`:
 For both paths:
 - Read the OpenAI Codex changelog and Codex CLI release notes.
 - Check whether a new model requires a newer `@openai/codex` version.
+- Check Native mode and Docker/Virtual Mode separately. Native may use packaged
+  or userData runtime; Docker uses the Codex CLI baked into the sandbox image.
 - Check whether prompt, approval, sandbox, MCP, or auth behavior changed.
+- Update `docs/codex-model-runtime.md` with any changed fallback, retry,
+  runtime-update, or Docker image-update behavior.
 - Document any model access or subscription limitations as needs manual
   confirmation if code cannot prove them.
 
@@ -198,6 +212,18 @@ candidates, monitor the tag-triggered release and Docker workflows.
 Docker image is **automatically versioned** via:
 - `docker-manager.ts` reads version from `package.json`
 - GitHub Actions tags image with `v{semver}` on release
+
+For dependency maintenance, the Docker image must be updated with native runtime
+changes. A Codex CLI update is incomplete until:
+
+- `docker/Dockerfile` pins are updated to the intended Codex CLI and
+  Playwright MCP versions.
+- `npm run build:docker` passes locally when Docker is available, or the PR
+  documents why Docker was unavailable.
+- `.github/workflows/docker.yml` is expected to run on Docker path PRs and on
+  release tags.
+- The release candidate checks confirm the versioned GHCR sandbox image was
+  published and the app requests the matching tag.
 
 ---
 
@@ -239,11 +265,9 @@ git push && git push --tags
 # - Windows Store APPX/MSIX build and Partner Center upload
 # - Linux AppImage/DEB build
 # - Microsoft Store APPX/MSIX build and Partner Center upload
+# - Mac App Store universal package build and App Store Connect upload
 # - GitHub Release creation
 # - GHCR sandbox image publication
-
-# 6. Current local-only step when needed:
-npm run deploy:mas  # owner macOS machine only, uploads Mac App Store build
 ```
 
 Do not push release tags, submit store packages, or run `npm run deploy:mas`

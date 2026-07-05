@@ -18,6 +18,10 @@
 
 - TODO
 
+## Native and Docker impact
+
+- TODO
+
 ## Stale docs or conflicts found
 
 - TODO

@@ -89,8 +89,7 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
 
       # NOTE: MAS (Mac App Store) builds are NOT included in GitHub releases.
-      # MAS builds are done locally via `npm run deploy:mas` which builds and
-      # uploads to App Store Connect automatically. See scripts/deploy-mas.js.
+      # MAS upload is handled by the separate 'build-mas' job.
 
       # NOTE: APPX (Microsoft Store) builds are handled by the separate
       # 'build-msstore' job, which builds the APPX and uploads it to
@@ -123,6 +122,110 @@ jobs:
             release/*.AppImage
             release/*.deb
           if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────────────────────
+  # Mac App Store: Build universal MAS package and upload
+  # ─────────────────────────────────────────────────────────────
+  build-mas:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Inject build config
+        run: node scripts/inject-build-config.js
+        env:
+          BUILD_AUTHOR_NAME: ${{ secrets.BUILD_AUTHOR_NAME }}
+          BUILD_AUTHOR_EMAIL: ${{ secrets.BUILD_AUTHOR_EMAIL }}
+          BUILD_PUBLISHER_NAME: ${{ secrets.BUILD_PUBLISHER_NAME }}
+
+      # Python 3.12+ removed distutils, but setuptools provides it
+      - name: Install Python setuptools
+        run: pip3 install setuptools --break-system-packages
+
+      - name: Install MAS certificates and provisioning profile
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP_CERT_PATH="$RUNNER_TEMP/mas_application.p12"
+          INSTALLER_CERT_PATH="$RUNNER_TEMP/mas_installer.p12"
+          PROFILE_TEMP_PATH="$RUNNER_TEMP/GnuNae.provisionprofile"
+          KEYCHAIN_PATH="$RUNNER_TEMP/mas-signing.keychain-db"
+          PROFILE_INSTALL_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          PROFILE_INSTALL_PATH="$PROFILE_INSTALL_DIR/GnuNae.provisionprofile"
+
+          echo "$APPLE_CERTIFICATE_APPLICATION_P12" | base64 --decode > "$APP_CERT_PATH"
+          echo "$APPLE_CERTIFICATE_INSTALLER_P12" | base64 --decode > "$INSTALLER_CERT_PATH"
+          echo "$APPLE_PROVISIONING_PROFILE" | base64 --decode > "$PROFILE_TEMP_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$APP_CERT_PATH" -k "$KEYCHAIN_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
+          security import "$INSTALLER_CERT_PATH" -k "$KEYCHAIN_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+
+          mkdir -p "$PROFILE_INSTALL_DIR" certs
+          cp "$PROFILE_TEMP_PATH" "$PROFILE_INSTALL_PATH"
+          cp "$PROFILE_TEMP_PATH" certs/GnuNae.provisionprofile
+
+          echo "MAS_KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "MAS_PROVISION_PROFILE_PATH=$PROFILE_INSTALL_PATH" >> "$GITHUB_ENV"
+          echo "CSC_KEYCHAIN=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+        env:
+          APPLE_CERTIFICATE_APPLICATION_P12: ${{ secrets.APPLE_CERTIFICATE_APPLICATION_P12 }}
+          APPLE_CERTIFICATE_INSTALLER_P12: ${{ secrets.APPLE_CERTIFICATE_INSTALLER_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}-mas
+
+      - name: Build and upload Mac App Store package
+        run: npm run deploy:mas
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_PRIVATE_KEY: ${{ secrets.ASC_API_PRIVATE_KEY }}
+          ASC_API_PRIVATE_KEY_BASE64: ${{ secrets.ASC_API_PRIVATE_KEY_BASE64 }}
+
+      - name: MAS Summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Mac App Store Build Summary"
+            echo ""
+            if [ -d release ] && find release -maxdepth 3 -name '*.pkg' -print -quit | grep -q .; then
+              find release -maxdepth 3 -name '*.pkg' -print | sed 's/^/- Package: /'
+            else
+              echo "No MAS .pkg found"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clean up MAS keychain and provisioning profile
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "${MAS_KEYCHAIN_PATH:-}" ] && [ -f "$MAS_KEYCHAIN_PATH" ]; then
+            security delete-keychain "$MAS_KEYCHAIN_PATH" || true
+          fi
+          if [ -n "${MAS_PROVISION_PROFILE_PATH:-}" ] && [ -f "$MAS_PROVISION_PROFILE_PATH" ]; then
+            rm -f "$MAS_PROVISION_PROFILE_PATH"
+          fi
 
   # ─────────────────────────────────────────────────────────────
   # Microsoft Store: Build APPX and upload to Partner Center
