@@ -19,6 +19,8 @@ const execFileAsync = promisify(execFile);
 export interface DockerManagerConfig {
     /** Docker image name for sandbox containers */
     imageName: string;
+    /** Pull the configured image before creating each sandbox */
+    pullBeforeCreate: boolean;
     /** Preferred runtime: 'docker', 'podman', or 'auto' */
     preferredRuntime: ContainerRuntimeType | 'auto';
     /** Starting port for dynamic allocation */
@@ -142,29 +144,27 @@ export interface DockerManagerEvents {
     'runtime-unavailable': (reason: string) => void;
 }
 
+const DEFAULT_SANDBOX_IMAGE = 'ghcr.io/fkiller/gnunae/sandbox:latest';
+
 /**
- * Get Docker image name with version matching the app
- * Uses ghcr.io registry for production, falls back to local for development
+ * Get Docker image name used by the app.
+ *
+ * GnuNae currently tracks one rolling sandbox image. The manager pulls this tag
+ * before each sandbox start so Codex/Playwright fixes can land without waiting
+ * for a matching desktop app release.
  */
 function getDockerImageName(): string {
-    try {
-        const packageJson = require('../../package.json');
-        const version = packageJson.version;
-        // Use versioned image from GHCR (matches app version)
-        return `ghcr.io/fkiller/gnunae/sandbox:${version}`;
-    } catch {
-        // Fallback to latest if package.json not available
-        return 'ghcr.io/fkiller/gnunae/sandbox:latest';
-    }
+    return DEFAULT_SANDBOX_IMAGE;
 }
 
 /**
  * Default configuration values
  */
 const DEFAULT_CONFIG: DockerManagerConfig = {
-    // Docker image from GHCR, version-matched to app
+    // Docker image from GHCR.
     // For local development, use: 'gnunae/sandbox:latest'
     imageName: getDockerImageName(),
+    pullBeforeCreate: true,
     preferredRuntime: 'auto',
     portRangeStart: 10000,
     portRangeEnd: 10999,
@@ -356,6 +356,10 @@ export class DockerManager extends EventEmitter {
 
         if (this.instances.size >= this.config.maxInstances) {
             throw new Error(`Maximum number of instances (${this.config.maxInstances}) reached`);
+        }
+
+        if (this.config.pullBeforeCreate) {
+            await this.ensureImageReady();
         }
 
         const instanceId = `sandbox-${this.nextInstanceId++}`;
@@ -762,6 +766,27 @@ export class DockerManager extends EventEmitter {
         );
 
         console.log(`[DockerManager] Image pulled successfully`);
+    }
+
+    /**
+     * Pull the configured image before launch, falling back to an existing local
+     * image only when the pull failed after a usable image was already present.
+     */
+    private async ensureImageReady(): Promise<void> {
+        const hadLocalImage = await this.isImageAvailable();
+
+        try {
+            await this.pullImage();
+        } catch (error: any) {
+            const message = error?.message || String(error);
+
+            if (hadLocalImage) {
+                console.warn(`[DockerManager] Failed to refresh sandbox image; using cached ${this.config.imageName}: ${message}`);
+                return;
+            }
+
+            throw new Error(`Failed to pull sandbox image ${this.config.imageName}: ${message}`);
+        }
     }
 
     /**

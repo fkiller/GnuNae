@@ -176,8 +176,9 @@ by exposing secret values to Codex.
 ## Post-release Checks
 
 - Confirm GitHub Release exists with expected artifacts and release notes.
-- Confirm Docker image tags exist in GHCR for the exact version and expected
-  major/minor or latest tags.
+- Confirm the GHCR Docker image `ghcr.io/fkiller/gnunae/sandbox:latest` was
+  refreshed by the approved release or main-branch Docker workflow. Treat
+  semver/branch/SHA tags as traceability only.
 - Confirm no standalone Windows EXE artifacts were published to the GitHub
   Release.
 - Confirm macOS artifacts are signed and notarized.

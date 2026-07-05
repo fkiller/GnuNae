@@ -209,9 +209,12 @@ candidates, monitor the tag-triggered release and Docker workflows.
 
 ### 4. Docker Image
 
-Docker image is **automatically versioned** via:
-- `docker-manager.ts` reads version from `package.json`
-- GitHub Actions tags image with `v{semver}` on release
+Docker image delivery currently uses one rolling runtime tag:
+`ghcr.io/fkiller/gnunae/sandbox:latest`.
+
+`docker-manager.ts` requests that tag and pulls it before each sandbox start.
+Release semver, branch, and SHA image tags may still be published by CI for
+traceability, but the desktop client does not request those tags today.
 
 For dependency maintenance, the Docker image must be updated with native runtime
 changes. A Codex CLI update is incomplete until:
@@ -222,26 +225,24 @@ changes. A Codex CLI update is incomplete until:
   documents why Docker was unavailable.
 - `.github/workflows/docker.yml` is expected to run on Docker path PRs and on
   release tags.
-- The release candidate checks confirm the versioned GHCR sandbox image was
-  published and the app requests the matching tag.
+- The release candidate checks confirm the GHCR `latest` sandbox image was
+  published from `main` or the approved `v*` release tag.
 
 ---
 
 ## Version Synchronization
 
-### Docker Image Versioning
+### Docker Image Update Policy
 
-When you push a version tag, GitHub Actions builds:
+When you push an approved release tag, GitHub Actions builds and publishes the
+runtime image:
 ```
-ghcr.io/fkiller/gnunae/sandbox:0.8.31
-ghcr.io/fkiller/gnunae/sandbox:0.8
 ghcr.io/fkiller/gnunae/sandbox:latest
 ```
 
-The app automatically requests the correct version via `docker-manager.ts`:
+The app automatically requests and refreshes that tag via `docker-manager.ts`:
 ```typescript
-// Reads package.json version and uses matching Docker image
-imageName: `ghcr.io/fkiller/gnunae/sandbox:${version}`
+imageName: 'ghcr.io/fkiller/gnunae/sandbox:latest'
 ```
 
 ---
@@ -280,6 +281,6 @@ without explicit owner release approval.
 | Issue | Solution |
 |-------|----------|
 | Docker image not found | Run `docker pull ghcr.io/fkiller/gnunae/sandbox:latest` |
-| Version mismatch | Check all files in "Update Files" section |
+| Stale Docker image | Confirm `.github/workflows/docker.yml` published `latest`; clients pull this tag before sandbox start |
 | Codex CLI upgrade breaks | Check changelog for breaking changes |
 | Playwright browser mismatch | Ensure Dockerfile base matches package.json |

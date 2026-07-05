@@ -16,8 +16,10 @@ Package install and builds:
 - `npm run build` - runs `build:electron` and `build:ui`.
 - `npm run dev` - starts Vite and Electron for local interactive smoke testing.
   It is not suitable as an unattended CI check because it is long-running.
-- `npm run build:docker` - builds `gnunae/sandbox:latest` from `docker/`.
-- `npm run build:docker:clean` - no-cache Docker sandbox build.
+- `npm run build:docker` - builds the sandbox image from `docker/` and tags it
+  as `gnunae/sandbox:latest` and `ghcr.io/fkiller/gnunae/sandbox:latest`.
+- `npm run build:docker:clean` - no-cache Docker sandbox build with the same
+  tags.
 
 Release and packaging checks:
 
@@ -150,8 +152,8 @@ Run these before larger merges or release candidates:
 - Confirm Codex CLI, Playwright MCP, Playwright, Docker base image, and bundled
   runtime versions are intentionally synchronized.
 - Run `npm ci` and `npm run build` on a clean checkout.
-- Run `npm run build:docker` and confirm the app version expects the matching
-  GHCR sandbox image tag.
+- Run `npm run build:docker` and confirm the app expects
+  `ghcr.io/fkiller/gnunae/sandbox:latest`, then pulls it before sandbox start.
 - Create a release candidate tag only when owner-approved.
 - Monitor all `release.yml` jobs on the tag.
 - Monitor `docker.yml` on the tag.

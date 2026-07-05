@@ -20,6 +20,10 @@ Current committed code uses a static model list:
 - Docker/Virtual Mode currently runs `codex exec` without a GnuNae model
   override, so the Codex CLI inside the image chooses its own default.
 - Docker image runtime pins live in `docker/Dockerfile`.
+- Docker image selection lives in `src/core/docker-manager.ts`; GnuNae uses
+  `ghcr.io/fkiller/gnunae/sandbox:latest` and pulls it before sandbox startup,
+  falling back to a cached image only when refresh fails after a local image
+  already exists.
 - Native runtime installation pins live in `src/core/runtime-manager.ts` and
   `scripts/install-codex.js`.
 
@@ -53,14 +57,18 @@ Docker/Virtual Mode:
    versions from `docker/Dockerfile`.
 2. The container API runs `codex exec --skip-git-repo-check` without an explicit
    model override.
-3. If the container CLI default model fails because the image has an outdated
+3. Before the container starts, GnuNae pulls
+   `ghcr.io/fkiller/gnunae/sandbox:latest`. If the pull fails and no cached
+   image exists, Virtual Mode does not start. If a cached image exists, GnuNae
+   can start it and the stale-image failure handling below still applies.
+4. If the container CLI default model fails because the image has an outdated
    Codex CLI or model catalog, `docker/api-server.js` reports that the sandbox
    image must be updated and suggests `npm run build:docker:clean` for local
    rebuilds.
-4. Docker mode does not silently run `npm install -g` inside a live container.
+5. Docker mode does not silently run `npm install -g` inside a live container.
    Container runtime mutation would be temporary and would not fix the pinned
    release image. The durable fix is updating `docker/Dockerfile` and publishing
-   a new sandbox image through CI/CD.
+   a new `latest` sandbox image through CI/CD.
 
 ## Required Repair Sequence
 
@@ -92,8 +100,8 @@ For Docker mode, cover the parallel path:
 
 1. Keep Dockerfile Codex CLI, Playwright MCP, and Playwright base-image pins in
    the same dependency maintenance task as the native runtime pins.
-2. Build the Docker image on Docker path PRs and publish the versioned image on
-   release tags through `.github/workflows/docker.yml`.
+2. Build the Docker image on Docker path PRs and publish the `latest` image on
+   `main` and approved release tags through `.github/workflows/docker.yml`.
 3. If a running sandbox reports outdated Codex/model-catalog failure, tell the
    user to pull or rebuild the sandbox image. Do not claim runtime auto-update
    fixed Docker mode unless the image itself is rebuilt and validated.
@@ -110,7 +118,7 @@ For Docker mode, cover the parallel path:
 | CLI too old for CLI default | Update native Codex runtime, revalidate, retry without model | Update Dockerfile/image; running container reports rebuild/pull instruction | Implemented |
 | Account lacks model access | Retry default only if the failure came from an explicit model; otherwise report access/subscription | Report access/subscription; do not rebuild image for account-only failures | Partially classified |
 | Auth token expired | Notify re-authentication; do not delete auth during refresh | Notify re-authentication; mounted auth may be refreshing | Partially classified |
-| Docker image lags native pins | Maintenance must update Dockerfile and rebuild image | CI must publish matching versioned image on tag | Maintenance watch checks Docker pins |
+| Docker image lags native pins | Maintenance must update Dockerfile and rebuild image | CI must publish refreshed `latest`; client pulls before sandbox start | Maintenance watch checks Docker pins |
 
 ## Documentation Checklist
 

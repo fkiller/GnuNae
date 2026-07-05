@@ -70,7 +70,9 @@ For release candidates, the Cloud/GitHub path is the tag-driven release flow:
    uploads the universal Mac App Store package through the `build-mas` job.
    Direct Windows NSIS/portable GitHub-release artifacts are intentionally
    skipped.
-5. `docker.yml` publishes the matching sandbox image to GHCR.
+5. `docker.yml` publishes the refreshed `latest` sandbox image to GHCR. Semver,
+   branch, and SHA tags are traceability only unless the app changes its image
+   selection policy.
 6. Codex can inspect workflow status and logs, but cannot view signing or store
    credentials.
 
@@ -262,8 +264,9 @@ Committed docs that need caution:
   OpenAI Codex changelog can all affect the correct update path.
 - `docs/codex-model-runtime.md` records the current Codex model/runtime failure
   behavior. It documents the native retry/update sequence for model and
-  outdated-CLI failures, while Docker mode reports outdated sandbox-image
-  failures and relies on Docker image rebuild/publish.
+  outdated-CLI failures, while Docker mode pulls the rolling `latest` sandbox
+  image before startup and reports outdated sandbox-image failures when the
+  image itself must be rebuilt/published.
 - `docs/CI_CD_PACKAGING.md` mostly matches the current workflow, but some
   Microsoft Store sections still describe local `pack:win` plus manual upload.
   Later sections correctly describe the automated `build-msstore` job. Verify

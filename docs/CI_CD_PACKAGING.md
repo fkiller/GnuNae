@@ -16,7 +16,7 @@ This document describes the complete CI/CD pipeline for building, signing, and d
 
 1. [Overview](#overview)
 2. [Architecture](#architecture)
-3. [Docker Image Versioning](#docker-image-versioning)
+3. [Docker Image Update Policy](#docker-image-update-policy)
 4. [Platform-Specific Packaging](#platform-specific-packaging)
    - [macOS Binary (DMG/ZIP)](#1-macos-binary-dmgzip)
    - [Mac App Store (PKG)](#2-mac-app-store-pkg)
@@ -127,54 +127,59 @@ The runtime is stored in the user's app data directory (Application Support/AppD
 
 ---
 
-## Docker Image Versioning
+## Docker Image Update Policy
 
-The sandbox Docker image is versioned to match the app version automatically.
-Codex CLI, Playwright MCP, Playwright, and model-runtime maintenance must update
-the Docker image path as well as the native runtime path. A native Codex update
-is not complete unless the Dockerfile pins and sandbox image build/publish path
-are considered.
+The desktop app currently uses one rolling sandbox image:
+`ghcr.io/fkiller/gnunae/sandbox:latest`.
+
+Before creating a sandbox, `docker-manager.ts` runs `docker pull` for that image
+so Codex CLI, Playwright MCP, Playwright, and model-runtime fixes can reach
+Virtual Mode without waiting for a desktop app version match. If the pull fails
+but a local image already exists, GnuNae falls back to the cached image. If no
+local image exists, sandbox creation fails with the pull error.
 
 ### Workflow Trigger
 
 The `docker.yml` workflow triggers on:
 - Push to `main` with changes in `docker/**`
-- **Version tags** (`v*`) - triggered by `npm version`
+- **Version tags** (`v*`) - release image publication
+- Manual dispatch
 
 ```yaml
 on:
   push:
     tags:
-      - 'v*'  # Triggers on npm version tags
+      - 'v*'
 ```
 
 ### Tags Created
 
-When you run `npm version patch` (pushes `v0.8.33`):
+The runtime tag is `latest`. Other tags are useful for debugging and rollback,
+but the app does not request them today.
 
 | Docker Tag | Value |
 |------------|-------|
-| `ghcr.io/fkiller/gnunae/sandbox:0.8.33` | Exact version |
-| `ghcr.io/fkiller/gnunae/sandbox:0.8` | Major.minor |
-| `ghcr.io/fkiller/gnunae/sandbox:latest` | Latest stable |
+| `ghcr.io/fkiller/gnunae/sandbox:latest` | Runtime image used by GnuNae |
+| `ghcr.io/fkiller/gnunae/sandbox:<semver>` | Traceability/rollback on release tags |
+| `ghcr.io/fkiller/gnunae/sandbox:<branch-or-sha>` | CI traceability for non-release runs |
 
 ### App-Side Integration
 
-`docker-manager.ts` reads the app version from `package.json` and requests the matching Docker image:
+`docker-manager.ts` requests the rolling GHCR image and refreshes it before
+sandbox creation:
 
 ```typescript
-function getDockerImageName(): string {
-    const version = require('../../package.json').version;
-    return `ghcr.io/fkiller/gnunae/sandbox:${version}`;
-}
+const DEFAULT_SANDBOX_IMAGE = 'ghcr.io/fkiller/gnunae/sandbox:latest';
 ```
 
 ### Release Workflow
 
 1. Make changes to app and/or `docker/Dockerfile`
-2. Run `npm version patch`
-3. GitHub Actions builds app releases AND Docker image with matching version
-4. App v0.8.33 automatically requests Docker image `0.8.33`
+2. Run `npm version patch` when owner-approved for release
+3. GitHub Actions builds app releases and the Docker image
+4. The Docker workflow publishes `latest` from `main` and `v*` release tags
+5. Clients pull `ghcr.io/fkiller/gnunae/sandbox:latest` before starting Virtual
+   Mode
 
 ### Maintenance Rule
 
@@ -185,8 +190,8 @@ When periodic maintenance updates Codex CLI, Playwright MCP, or Playwright:
 2. Update Docker pins in `docker/Dockerfile`.
 3. Run `npm run build` and `npm run build:docker` when Docker is available.
 4. Let Docker path PRs exercise `.github/workflows/docker.yml`.
-5. On release tags, confirm the versioned GHCR sandbox image and `latest` tag
-   were published.
+5. On release tags or approved Docker deploys, confirm the GHCR `latest`
+   sandbox image was published. Keep semver/sha tags only as traceability.
 6. Update `docs/codex-model-runtime.md` if model/default-model or outdated-CLI
    failure behavior changed.
 

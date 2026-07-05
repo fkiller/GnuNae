@@ -192,7 +192,10 @@ Current workflows are defined under `.github/workflows/`.
     produced by the matrix build job. It currently depends on `build`, not on
     `build-msstore`.
 - `docker.yml` builds the sandbox image on Docker path PRs, selected branch
-  pushes, manual dispatch, and `v*` tags. Non-PR runs push to GHCR.
+  pushes, manual dispatch, and `v*` tags. Non-PR runs push to GHCR. The app
+  currently requests `ghcr.io/fkiller/gnunae/sandbox:latest` and pulls it before
+  sandbox startup; semver, branch, and SHA image tags are traceability unless
+  the runtime image selection policy changes.
 - The Docker image is part of Codex/runtime maintenance. Codex CLI,
   Playwright MCP, and Playwright updates must consider both native runtime pins
   and Dockerfile/image pins.

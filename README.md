@@ -176,10 +176,15 @@ npm run start
 
 ### Virtual Mode (Docker)
 
-To use Virtual Mode, you need Docker Desktop installed. This runs Codex and Playwright in an isolated container.
+To use Virtual Mode, you need Docker Desktop installed. This runs Codex and
+Playwright in an isolated container.
+
+GnuNae pulls `ghcr.io/fkiller/gnunae/sandbox:latest` before starting a sandbox.
+If that pull fails but a cached image already exists, it can continue with the
+cached image. Local Docker builds are mainly for development or manual recovery.
 
 ```bash
-# Build the Docker sandbox image
+# Build the Docker sandbox image locally
 npm run build:docker
 
 # Or build without cache (recommended after updates)
@@ -191,11 +196,11 @@ npm run build:all
 
 | Script | Description |
 |--------|-------------|
-| `build:docker` | Build the Docker sandbox image |
-| `build:docker:clean` | Build Docker image without cache |
+| `build:docker` | Build the Docker sandbox image and tag it as local + GHCR `latest` |
+| `build:docker:clean` | Build Docker image without cache and tag it as local + GHCR `latest` |
 | `build:all` | Build app + Docker image |
 
-Once built, enable Virtual Mode in Settings when Docker is detected.
+Enable Virtual Mode in Settings when Docker is detected.
 
 ## External Browsers & Chat Mode
 
@@ -372,8 +377,8 @@ docs/                     # GitHub Pages (gnunae.com)
   - Released by OpenAI on Feb 5, 2026
 - **macOS Runtime Bundling**
   - Node.js and Codex CLI now bundled for macOS builds (arm64 + x64)
-- **Docker Version Sync**
-  - Docker images now version-tagged to match app version
+- **Docker Image Refresh**
+  - GnuNae now pulls the rolling GHCR `latest` sandbox image before Virtual Mode startup
   - Created periodic maintenance documentation
 
 ### v0.8.0 (2026-01-12)
