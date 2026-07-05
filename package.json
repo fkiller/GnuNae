@@ -1,6 +1,6 @@
 {
   "name": "gnunae",
-  "version": "0.8.55",
+  "version": "0.8.56",
   "productName": "GnuNae",
   "main": "dist/electron/main.js",
   "author": {
@@ -73,6 +73,7 @@
       "category": "public.app-category.productivity",
       "icon": "assets/gnunae.png",
       "notarize": false,
+      "x64ArchFiles": "**/node_modules/node-pty/prebuilds/darwin-*/pty.node",
       "target": [
         {
           "target": "mas",
