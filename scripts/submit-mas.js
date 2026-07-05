@@ -378,13 +378,13 @@ function generateWhatsNew(targetVersion, sourceVersion) {
       : 'Updated Codex model and automation support.');
   }
   if (/intel|x64|universal|apple silicon|mac|mas|app store/.test(joined)) {
-    lines.push('Improved Mac App Store support for both Intel and Apple Silicon Macs.');
+    lines.push('Improved compatibility for both Intel and Apple Silicon Macs.');
   }
   if (/runtime|browser|automation|docker|sandbox|sidebar/.test(joined)) {
-    lines.push('Improved browser automation and embedded runtime reliability.');
+    lines.push('Improved browser automation reliability.');
   }
   if (/store|release|status|publish|submission|review/.test(joined)) {
-    lines.push('Improved release reliability for store-delivered builds.');
+    lines.push('Improved the Mac App Store update experience.');
   }
 
   if (lines.length === 0) {
@@ -725,8 +725,8 @@ async function waitForProcessedBuild(token, appId, targetVersion, waitMinutes) {
 }
 
 async function setBuildExportComplianceIfConfigured(token, buildId) {
-  if (!process.env.APP_STORE_USES_NON_EXEMPT_ENCRYPTION) return;
-  const value = !/^(false|0|no)$/i.test(process.env.APP_STORE_USES_NON_EXEMPT_ENCRYPTION);
+  const configuredValue = process.env.APP_STORE_USES_NON_EXEMPT_ENCRYPTION || 'false';
+  const value = !/^(false|0|no)$/i.test(configuredValue);
   await requestJson('PATCH', `/v1/builds/${buildId}`, token, {
     data: {
       type: 'builds',
