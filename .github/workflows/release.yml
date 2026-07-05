@@ -124,7 +124,7 @@ jobs:
           if-no-files-found: ignore
 
   # ─────────────────────────────────────────────────────────────
-  # Mac App Store: Build universal MAS package and upload
+  # Mac App Store: Build universal MAS package, upload, and submit for review
   # ─────────────────────────────────────────────────────────────
   build-mas:
     runs-on: macos-latest
@@ -132,6 +132,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -201,6 +203,18 @@ jobs:
           ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
           ASC_API_PRIVATE_KEY: ${{ secrets.ASC_API_PRIVATE_KEY }}
           ASC_API_PRIVATE_KEY_BASE64: ${{ secrets.ASC_API_PRIVATE_KEY_BASE64 }}
+
+      - name: Submit Mac App Store build for review
+        run: npm run submit:mas
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          ASC_API_PRIVATE_KEY: ${{ secrets.ASC_API_PRIVATE_KEY }}
+          ASC_API_PRIVATE_KEY_BASE64: ${{ secrets.ASC_API_PRIVATE_KEY_BASE64 }}
+          APP_STORE_CONNECT_APP_ID: ${{ secrets.APP_STORE_CONNECT_APP_ID }}
+          APP_STORE_CONNECT_BUNDLE_ID: ${{ secrets.APP_STORE_CONNECT_BUNDLE_ID }}
+          APP_STORE_USES_NON_EXEMPT_ENCRYPTION: ${{ secrets.APP_STORE_USES_NON_EXEMPT_ENCRYPTION }}
+          MAS_SUBMIT_WAIT_MINUTES: 90
 
       - name: MAS Summary
         if: always()
