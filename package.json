@@ -1,6 +1,6 @@
 {
   "name": "gnunae",
-  "version": "0.8.57",
+  "version": "0.8.58",
   "productName": "GnuNae",
   "main": "dist/electron/main.js",
   "author": {
@@ -73,7 +73,7 @@
       "category": "public.app-category.productivity",
       "icon": "assets/gnunae.png",
       "notarize": false,
-      "x64ArchFiles": "**/node_modules/node-pty/prebuilds/darwin-*/**",
+      "x64ArchFiles": "**/{node_modules/node-pty/prebuilds/darwin-*/**,Resources/runtime-darwin-*/**,Resources/codex/node_modules/@openai/codex-darwin-*/**}",
       "target": [
         {
           "target": "mas",
