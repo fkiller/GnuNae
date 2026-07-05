@@ -1,0 +1,54 @@
+name: Codex Models
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 9 * * 1'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: codex-models
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Update Codex model manifest
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update Codex models from official docs
+        run: npm run update:codex-models
+
+      - name: Check Codex model alignment
+        run: npm run check:codex-models
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: Update Codex model manifest
+          title: Update Codex model manifest
+          body: |
+            ## Summary
+            - Regenerate `src/core/codex-models.json` from https://developers.openai.com/codex/models.
+            - Run the Codex model alignment check.
+
+            ## Verification
+            - `npm run update:codex-models`
+            - `npm run check:codex-models`
+          branch: automation/update-codex-models
+          delete-branch: true

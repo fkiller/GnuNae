@@ -47,7 +47,7 @@ export interface ElectronAPI {
     executeJs: (script: string) => Promise<{ success: boolean; result?: any; error?: string }>;
 
     // Codex CLI
-    executeCodex: (prompt: string, mode?: string) => Promise<{ success: boolean; output?: string; errorOutput?: string; error?: string }>;
+    executeCodex: (prompt: string, mode?: string, model?: string) => Promise<{ success: boolean; output?: string; errorOutput?: string; error?: string }>;
     stopCodex: () => Promise<{ success: boolean }>;
     respondPdsRequest: (key: string, value: string) => Promise<{ success: boolean }>;
     onCodexOutput: (callback: (data: { type: string; data: string }) => void) => () => void;
@@ -236,7 +236,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     executeJs: (script: string) => ipcRenderer.invoke('browser:execute-js', script),
 
     // Codex CLI
-    executeCodex: (prompt: string, mode?: string) => ipcRenderer.invoke('codex:execute', prompt, mode),
+    executeCodex: (prompt: string, mode?: string, model?: string) => ipcRenderer.invoke('codex:execute', prompt, mode, model),
     stopCodex: () => ipcRenderer.invoke('codex:stop'),
     respondPdsRequest: (key: string, value: string) => ipcRenderer.invoke('codex:pds-respond', key, value),
     onCodexOutput: (callback: (data: { type: string; data: string }) => void) => {

@@ -51,6 +51,7 @@ function executeCodex(
         mode?: string;
         workDir?: string;
         prePrompt?: string;
+        model?: string;
         env?: Record<string, string>;
     },
     onData: (data: string) => void,
@@ -64,6 +65,10 @@ function executeCodex(
     }
 
     const args = ['exec', '--skip-git-repo-check'];
+
+    if (options.model) {
+        args.push('-c', `model=${options.model}`);
+    }
 
     const env = {
         ...process.env,
@@ -262,6 +267,7 @@ async function handleRequest(
                     mode: body.mode,
                     workDir: body.workDir,
                     prePrompt: body.prePrompt,
+                    model: body.model,
                     env: body.env,
                 },
                 (data) => {

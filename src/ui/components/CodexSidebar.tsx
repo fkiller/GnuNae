@@ -58,6 +58,7 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const logIdRef = useRef(0);
     const lastPromptRef = useRef<string>('');
+    const modelRef = useRef<CodexModel>(DEFAULT_MODEL);
     const taskModeRef = useRef(false);  // Track taskMode for callbacks
     const taskTabRef = useRef<string | null>(null);  // Track tab created for task execution
     const originalTabRef = useRef<string | null>(null);  // Track user's original tab to switch back
@@ -70,8 +71,9 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
     const [isInitializing, setIsInitializing] = useState(false);  // Track MCP initialization phase
     const [isRuntimeReady, setIsRuntimeReady] = useState(true);  // Track if Codex CLI is available (default true for dev mode)
 
-    // Keep taskModeRef in sync
+    // Keep refs in sync for long-lived event handlers
     useEffect(() => { taskModeRef.current = taskMode; }, [taskMode]);
+    useEffect(() => { modelRef.current = model; }, [model]);
 
     // Load model/mode from settings on mount
     useEffect(() => {
@@ -348,7 +350,7 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
                 await new Promise(resolve => setTimeout(resolve, 2000));
             }
 
-            (window as any).electronAPI?.executeCodex?.(data.prompt, data.mode);
+            (window as any).electronAPI?.executeCodex?.(data.prompt, data.mode, modelRef.current);
         });
 
         return () => {
@@ -428,9 +430,9 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
         if (lastPromptRef.current) {
             addLog('info', '🔄 Retrying with saved data...');
             setIsProcessing(true);
-            await (window as any).electronAPI?.executeCodex?.(lastPromptRef.current);
+            await (window as any).electronAPI?.executeCodex?.(lastPromptRef.current, mode, model);
         }
-    }, [pdsRequest, addLog]);
+    }, [pdsRequest, addLog, mode, model]);
 
     const handlePdsCancel = useCallback(() => {
         if (pdsRequest) {
@@ -493,8 +495,8 @@ You can read, process, or reference these files as needed.
         setAttachedFiles([]);
 
         addLog('info', `[${CODEX_MODES.find(m => m.value === mode)?.label}] Sending...`);
-        await (window as any).electronAPI?.executeCodex?.(userPrompt, mode);
-    }, [prompt, addLog, isAuthenticated, onRequestLogin, mode, taskMode, attachedFiles]);
+        await (window as any).electronAPI?.executeCodex?.(userPrompt, mode, model);
+    }, [prompt, addLog, isAuthenticated, onRequestLogin, mode, model, taskMode, attachedFiles]);
 
     const handleStopCodex = useCallback(async () => {
         console.log('[CodexSidebar] Stop button clicked, isProcessing:', isProcessing);
