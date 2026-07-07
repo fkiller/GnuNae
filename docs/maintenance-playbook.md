@@ -83,7 +83,9 @@ Store review/status tracking after release is separate from deployment:
   summary, and creates or updates one open GitHub Issue named `Store status
   watch`.
 - Windows status comes from the Microsoft Store Developer CLI `submission
-  status` command against the configured Partner Center product.
+  status` command against the configured Partner Center product. When the CLI
+  includes Partner Center certification report links, the report should preserve
+  them for owner review.
 - Mac App Store status comes from the App Store Connect API using the latest
   macOS build processing state and latest macOS App Store version review state.
 - The workflow is read-only. It must not build, upload, submit, publish, change
@@ -152,6 +154,10 @@ dispatch. It checks:
 The workflow updates one GitHub Issue named `Store status watch`. Use that issue
 to decide whether owner action is needed in Partner Center, TestFlight, or App
 Store Connect.
+
+For Windows certification failures, the issue should include any Partner Center
+certification report links emitted by `msstore submission status`, even when the
+CLI wraps the report URL across multiple table lines.
 
 Required GitHub Actions secrets for Windows status:
 

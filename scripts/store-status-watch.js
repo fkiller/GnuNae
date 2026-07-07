@@ -147,6 +147,44 @@ function parseMicrosoftSubmissionStatus(output) {
   return relevantLine || '';
 }
 
+function parseMicrosoftCertificationReports(output) {
+  const text = String(output || '');
+  const reports = [];
+  const lines = text.split(/\r?\n/);
+
+  const pushReport = (candidate) => {
+    const match = String(candidate || '').match(
+      /https:\/\/partner\.microsoft\.com\/dashboard\/products\/[A-Z0-9]+\/submissions\/[0-9]+/i,
+    );
+    if (match) reports.push(match[0]);
+  };
+
+  let wrappedReport = '';
+  for (const line of lines) {
+    const cells = line.split(/[│|]/);
+    const reportCell = cells.length >= 4 ? cells[2].trim().replace(/\s+/g, '') : '';
+
+    if (reportCell.includes('https://partner.microsoft.com/')) {
+      pushReport(wrappedReport);
+      wrappedReport = reportCell;
+      continue;
+    }
+
+    if (wrappedReport && /^[A-Za-z0-9/:._?=&%+-]+$/.test(reportCell)) {
+      wrappedReport += reportCell;
+      continue;
+    }
+
+    pushReport(wrappedReport);
+    wrappedReport = '';
+  }
+  pushReport(wrappedReport);
+
+  reports.push(...(text.match(/https:\/\/partner\.microsoft\.com\/dashboard\/products\/[A-Z0-9]+\/submissions\/[0-9]+/gi) || []));
+
+  return [...new Set(reports.filter(Boolean))];
+}
+
 function checkMicrosoftStore() {
   const envNames = [
     'MSSTORE_TENANT_ID',
@@ -195,6 +233,10 @@ function checkMicrosoftStore() {
   ]);
   const output = [status.stdout, status.stderr].filter(Boolean).join('\n');
   const submissionStatus = parseMicrosoftSubmissionStatus(output);
+  const certificationReports = parseMicrosoftCertificationReports(output);
+  const statusNotes = certificationReports.length
+    ? `Read-only Partner Center status query. Certification report(s): ${certificationReports.join(', ')}`
+    : 'Read-only Partner Center status query.';
 
   return {
     platform: 'Windows Store',
@@ -203,7 +245,7 @@ function checkMicrosoftStore() {
     status: status.status === 0 ? classifyMicrosoftStatus(submissionStatus) : 'needs attention',
     source: 'msstore submission status',
     notes: status.status === 0
-      ? 'Read-only Partner Center status query.'
+      ? statusNotes
       : [status.stderr, status.stdout, status.error].filter(Boolean).join('\n').slice(0, 2000),
     raw: output,
   };

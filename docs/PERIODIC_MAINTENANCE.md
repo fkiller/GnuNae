@@ -83,7 +83,8 @@ and creates or updates one GitHub Issue named `Store status watch`.
 The workflow checks:
 
 - Microsoft Store Partner Center submission status through `msstore submission
-  status`.
+  status`, including Partner Center certification report links when the CLI
+  includes them in failure output.
 - Mac App Store latest build processing state through the App Store Connect
   builds API.
 - Mac App Store latest app version review state through the App Store Connect

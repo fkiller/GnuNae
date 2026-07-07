@@ -53,8 +53,9 @@ Dependency automation:
   does not deploy or update files.
 - `.github/workflows/store-status-watch.yml` - six-hour/manual read-only store
   status scan that creates or updates a GitHub Issue for Microsoft Store
-  submission status and Mac App Store build/app-version review state. It does
-  not build, upload, submit, publish, or modify store metadata.
+  submission status, Microsoft certification report links when present, and Mac
+  App Store build/app-version review state. It does not build, upload, submit,
+  publish, or modify store metadata.
 
 ## Missing Checks
 
