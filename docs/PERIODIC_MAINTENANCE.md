@@ -80,6 +80,11 @@ an automatic deploy or submission step.
 dispatch. It runs `scripts/store-status-watch.js`, writes a workflow summary,
 and creates or updates one GitHub Issue named `Store status watch`.
 
+The workflow pins the MSStore Developer CLI setup step to the `v0.3.7` CLI
+release line, matching the locally validated status-query version. Do not move
+the workflow back to `latest` unless `msstore submission status` is validated in
+GitHub Actions with the newer CLI.
+
 The workflow checks:
 
 - Microsoft Store Partner Center submission status through `msstore submission

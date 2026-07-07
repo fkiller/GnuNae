@@ -85,7 +85,9 @@ Store review/status tracking after release is separate from deployment:
 - Windows status comes from the Microsoft Store Developer CLI `submission
   status` command against the configured Partner Center product. When the CLI
   includes Partner Center certification report links, the report should preserve
-  them for owner review.
+  them for owner review. The workflow pins the MSStore CLI setup step to the
+  `v0.3.7` CLI release line; update that pin only after a GitHub Actions
+  status-query run succeeds with the newer CLI.
 - Mac App Store status comes from the App Store Connect API using the latest
   macOS build processing state and latest macOS App Store version review state.
 - The workflow is read-only. It must not build, upload, submit, publish, change

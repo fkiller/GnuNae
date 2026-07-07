@@ -29,6 +29,12 @@ jobs:
 
       - name: Setup Microsoft Store Developer CLI
         uses: microsoft/microsoft-store-apppublisher@v1.3
+        with:
+          version: v0.3.7
+
+      - name: Check Microsoft Store Developer CLI version
+        shell: pwsh
+        run: msstore --version
 
       - name: Generate store status report
         shell: pwsh
