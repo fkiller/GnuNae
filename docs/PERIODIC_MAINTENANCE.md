@@ -97,7 +97,14 @@ The workflow checks:
 - Mac App Store latest app version review state through the App Store Connect
   app store versions API.
 
-The workflow must remain read-only:
+Manual dispatch can also set `appeal_mode=dry_run` to generate a Microsoft
+Store certification appeal email summary from `scripts/store-appeal-email.js`.
+Actual `appeal_mode=send` requires dedicated Microsoft Graph `MS365_*` secrets
+and `appeal_send_confirmation=SEND_TO_MICROSOFT_STORE`. Scheduled runs must
+never send appeal email.
+
+The scheduled status path must remain read-only. Manual appeal send mode is
+outbound email only and must not alter Store configuration:
 
 - It does not run when `npm run deploy:mas` is executed locally.
 - It does not push tags, sign, notarize, package release artifacts, upload to

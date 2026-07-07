@@ -43,7 +43,10 @@ source of truth.
 12. `.github/workflows/store-status-watch.yml` can be manually dispatched after
     Store upload/submission. It reads Microsoft Store and App Store Connect
     status and updates the `Store status watch` GitHub Issue. It does not upload
-    packages or submit store metadata.
+    packages or submit store metadata. Manual dispatch can also generate a
+    Microsoft Store appeal email in dry-run mode, or send it only when dedicated
+    Microsoft Graph mail secrets and an explicit send confirmation input are
+    present.
 
 Important current behavior: the GitHub Release job depends on `build`, not on
 `build-msstore` or `build-mas`. Store upload failure may require separate review
@@ -112,6 +115,11 @@ by exposing secret values to Codex.
   and availability before submission.
 - Manually run `Store Status Watch` after upload/submission and confirm the
   issue shows the expected Microsoft Store status.
+- For certification failures, use `Store Status Watch` `appeal_mode=dry_run` to
+  review any generated appeal email before sending. Actual send mode requires
+  dedicated `MS365_TENANT_ID`, `MS365_CLIENT_ID`, `MS365_CLIENT_SECRET`, and
+  optionally `MS365_SENDER_USER` GitHub Actions secrets with Graph `Mail.Send`
+  application permission and owner approval of the exact email content.
 - Manually smoke-test the Store package when available.
 
 ## Mac App Store Checks

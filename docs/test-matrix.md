@@ -58,7 +58,9 @@ Dependency automation:
   to the locally validated `v0.3.7` CLI release line and may run one additional
   verbose Microsoft status query to construct a certification report link after
   a failed status. It does not build, upload, submit, publish, or modify store
-  metadata.
+  metadata. Manual dispatch can additionally generate a Microsoft Store appeal
+  email dry-run; send mode requires dedicated Microsoft Graph mail secrets and
+  explicit send confirmation.
 
 ## Missing Checks
 

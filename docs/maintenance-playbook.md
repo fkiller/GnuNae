@@ -164,6 +164,13 @@ reports a failure without a link, the monitor may run one additional read-only
 verbose status query to recover the pending submission id and construct the
 Partner Center report URL.
 
+On manual dispatch only, the workflow can also generate a Microsoft Store appeal
+email from `scripts/store-appeal-email.js`. The default `appeal_mode` is `none`;
+`dry_run` writes the email body to the workflow summary without mail
+credentials; `send` posts through Microsoft Graph only when the required
+`MS365_*` secrets are configured and `appeal_send_confirmation` is exactly
+`SEND_TO_MICROSOFT_STORE`. Scheduled runs must never send appeal email.
+
 Required GitHub Actions secrets for Windows status:
 
 - `MSSTORE_TENANT_ID`
@@ -185,6 +192,20 @@ Optional Mac App Store status secrets:
 
 If App Store Connect API credentials are absent, the workflow reports Mac status
 as manual review instead of submitting anything or failing release automation.
+
+Required GitHub Actions secrets for Microsoft Store appeal email send mode:
+
+- `MS365_TENANT_ID`
+- `MS365_CLIENT_ID`
+- `MS365_CLIENT_SECRET`
+
+Optional appeal email secret:
+
+- `MS365_SENDER_USER` (defaults to `wdong@bigdad.us` when omitted)
+
+The Microsoft Graph app registration used for appeal email must have `Mail.Send`
+application permission with admin consent. Keep this separate from Azure signing
+credentials unless the owner explicitly approves sharing that credential scope.
 
 ## How To Scope Codex Tasks
 

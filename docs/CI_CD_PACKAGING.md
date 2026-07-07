@@ -692,6 +692,18 @@ In your GitHub repository, go to **Settings → Secrets and variables → Action
 - `MSSTORE_SELLER_ID` (from Partner Center → Account settings → Identifiers)
 - `MSSTORE_PRODUCT_ID` (your app's Store Product ID)
 
+#### Microsoft 365 Appeal Email Secrets
+- `MS365_TENANT_ID`
+- `MS365_CLIENT_ID`
+- `MS365_CLIENT_SECRET`
+- `MS365_SENDER_USER` (optional; defaults to `wdong@bigdad.us`)
+
+The manual `store-status-watch.yml` dispatch can generate a Microsoft Store
+appeal email dry-run. Actual send mode uses Microsoft Graph `sendMail` and
+requires a dedicated app registration with `Mail.Send` application permission
+and admin consent, plus the `appeal_send_confirmation` input set to
+`SEND_TO_MICROSOFT_STORE`. Scheduled status runs never send email.
+
 ### Base64 Encoding Certificates
 
 ```bash

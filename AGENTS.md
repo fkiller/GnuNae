@@ -220,7 +220,11 @@ Current workflows are defined under `.github/workflows/`.
   query to recover the pending submission id. The workflow pins the MSStore CLI
   setup action to the `v0.3.7` CLI release line because that is the local-good
   status-query version; update the pin only after validating `submission
-  status` in GitHub Actions.
+  status` in GitHub Actions. On manual dispatch only, the same workflow can
+  generate a Microsoft Store certification appeal email in dry-run mode, or send
+  it through Microsoft Graph when dedicated `MS365_*` mail secrets are
+  configured and the dispatch input explicitly confirms sending. Scheduled runs
+  must never send email.
 - `dependabot.yml` opens weekly npm dependency updates.
 - Mac App Store packaging/upload is handled by the tag-triggered `build-mas`
   workflow job when required GitHub Actions secrets are configured. The
@@ -275,6 +279,14 @@ secrets already configured in GitHub Actions, but must never print secret
 values. Mac App Store status polling requires `ASC_API_KEY_ID`,
 `ASC_API_ISSUER_ID`, and either `ASC_API_PRIVATE_KEY_BASE64` or
 `ASC_API_PRIVATE_KEY`.
+
+For Microsoft Store appeal email automation, Codex may generate a dry-run email
+body in GitHub Actions without mail credentials. Actual email sending requires
+dedicated GitHub Actions secrets `MS365_TENANT_ID`, `MS365_CLIENT_ID`,
+`MS365_CLIENT_SECRET`, and optionally `MS365_SENDER_USER`; the app registration
+must have Microsoft Graph `Mail.Send` application permission with admin consent.
+Do not reuse Azure signing credentials for mail unless the owner explicitly
+approves that credential scope.
 
 ## Cloud Verification Limits
 

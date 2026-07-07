@@ -4,6 +4,23 @@ on:
   schedule:
     - cron: '17 */6 * * *'
   workflow_dispatch:
+    inputs:
+      appeal_mode:
+        description: 'Generate or send the Microsoft Store certification appeal email.'
+        type: choice
+        default: none
+        options:
+          - none
+          - dry_run
+          - send
+      appeal_recipient:
+        description: 'Appeal recipient.'
+        type: string
+        default: reportapp@microsoft.com
+      appeal_send_confirmation:
+        description: 'Required for send mode: SEND_TO_MICROSOFT_STORE'
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -80,3 +97,25 @@ jobs:
               --title $issueTitle `
               --body-file store-status-report.md
           }
+
+      - name: Generate Microsoft Store appeal email
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.appeal_mode != 'none' }}
+        shell: pwsh
+        env:
+          STORE_APPEAL_RECIPIENT: ${{ inputs.appeal_recipient }}
+          STORE_APPEAL_SEND_CONFIRM: ${{ inputs.appeal_send_confirmation }}
+          MS365_TENANT_ID: ${{ secrets.MS365_TENANT_ID }}
+          MS365_CLIENT_ID: ${{ secrets.MS365_CLIENT_ID }}
+          MS365_CLIENT_SECRET: ${{ secrets.MS365_CLIENT_SECRET }}
+          MS365_SENDER_USER: ${{ secrets.MS365_SENDER_USER }}
+        run: |
+          $mode = '${{ inputs.appeal_mode }}'
+          $appealArgs = @('--output', 'store-appeal-email.md', '--json', 'store-appeal-email.json')
+          if ($mode -eq 'send') {
+            $appealArgs = @('--send') + $appealArgs
+          } else {
+            $appealArgs = @('--dry-run') + $appealArgs
+          }
+
+          node scripts/store-appeal-email.js @appealArgs
+          Get-Content store-appeal-email.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
