@@ -149,7 +149,8 @@ graph TB
 - Node.js 18+
 - npm or yarn
 - **ChatGPT Pro or Plus subscription** (required for Codex CLI)
-  - Free ChatGPT accounts cannot use Codex features
+  - Browser navigation works without OpenAI sign-in
+  - Free ChatGPT accounts may not be able to use Codex features
   - Upgrade at: https://chat.openai.com/settings/subscription
 
 ### Setup
@@ -162,9 +163,6 @@ cd GnuNae
 # Install dependencies
 npm install
 
-# IMPORTANT: Authenticate with OpenAI (first-time only)
-npx codex auth openai
-
 # Build the application
 npm run build
 
@@ -172,7 +170,7 @@ npm run build
 npm run start
 ```
 
-> ⚠️ **First-time users**: You must run `npx codex auth openai` to authenticate with OpenAI before using the app. This is a one-time setup.
+> First-time users can browse without signing in. Use the in-app OpenAI sign-in button when you want Codex AI features.
 
 ### Virtual Mode (Docker)
 
@@ -214,8 +212,8 @@ GnuNae can now control your existing external browsers (Chrome, Edge, Brave, Ope
 ## Usage
 
 1. **Launch the app** - A browser window opens with a sidebar
-2. **Sign in** - Click "Sign in to OpenAI" in the sidebar
-3. **Navigate** - Use the address bar to visit any website
+2. **Navigate** - Use "Browse without Codex" or the address bar to visit any website
+3. **Sign in for Codex** - Click "Sign in to OpenAI" when you want AI features
 4. **Ask Codex** - Type a prompt in the sidebar (e.g., "list all links on this page")
 5. **Get results** - Codex analyzes the page and responds
 

@@ -221,23 +221,26 @@
 
         <!-- Auth - Moved up -->
         <section class="auth-section">
-            <h2>🔑 Sign In to Get Started</h2>
+            <h2>Browser Ready</h2>
             <p class="description">
-                GnuNae uses OpenAI Codex for AI features. Sign in with your ChatGPT account.
+                Browse normally without signing in. Sign in with OpenAI only when you want Codex AI features.
             </p>
             <div class="auth-buttons">
-                <a href="gnunae://login" id="sign-in-btn" class="btn btn-primary btn-disabled">
-                    ⏳ Preparing...
+                <a href="https://www.google.com" id="browse-btn" class="btn btn-primary">
+                    Browse without Codex
+                </a>
+                <a href="gnunae://login" id="sign-in-btn" class="btn btn-secondary btn-disabled">
+                    Preparing OpenAI sign-in...
                 </a>
                 <a href="gnunae://signup" id="sign-up-btn" class="btn btn-secondary btn-disabled">
-                    📝 Create Account
+                    Create OpenAI account
                 </a>
             </div>
             <p id="status-message" class="description"
                 style="margin-top: 12px; font-size: 12px; color: var(--text-muted);"></p>
             <p id="help-message" class="description" style="margin-top: 8px; font-size: 11px; display: none;">
-                Hint: If the page doesn't load, you can also sign in directly using the <b>Sign In</b> button in the
-                right sidebar.
+                Codex requires an OpenAI account with ChatGPT Pro/Plus or Codex access. Browser navigation remains
+                available without OpenAI sign-in.
             </p>
         </section>
 
@@ -261,7 +264,7 @@
                 const helpMsg = document.getElementById('help-message');
 
                 if (ready) {
-                    signInBtn.innerHTML = '🔐 Sign in with OpenAI';
+                    signInBtn.innerHTML = 'Sign in with OpenAI';
                     signInBtn.classList.remove('btn-disabled');
                     signInBtn.style.pointerEvents = 'auto';
                     signInBtn.style.opacity = '1';
@@ -275,7 +278,7 @@
                     if (statusMsg) statusMsg.textContent = '';
                     if (helpMsg) helpMsg.style.display = 'block';
                 } else {
-                    signInBtn.innerHTML = '⏳ Preparing...';
+                    signInBtn.innerHTML = 'Preparing OpenAI sign-in...';
                     signInBtn.classList.add('btn-disabled');
                     signInBtn.style.pointerEvents = 'none';
                     signInBtn.style.opacity = '0.6';
@@ -286,7 +289,7 @@
                         signUpBtn.style.opacity = '0.6';
                     }
 
-                    if (statusMsg) statusMsg.textContent = 'Installing Codex CLI, please wait...';
+                    if (statusMsg) statusMsg.textContent = 'Preparing the bundled Codex CLI for AI features. Browser navigation is available now.';
                     if (helpMsg) helpMsg.style.display = 'none';
                 }
             }
@@ -341,7 +344,7 @@
         </section>
 
         <footer class="footer">
-            GnuNae v0.0.1 • Built with ❤️ for AI-powered browsing
+            GnuNae v__APP_VERSION__ &bull; AI-powered browsing
         </footer>
     </div>
 </body>

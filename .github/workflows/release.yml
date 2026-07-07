@@ -302,8 +302,13 @@ jobs:
         env:
           MSSTORE_PUBLISHER_CN: ${{ secrets.MSSTORE_PUBLISHER_CN }}
 
-      # Upload APPX to Partner Center
-      - name: Upload to Microsoft Store
+      - name: Generate Microsoft Store certification notes
+        run: node scripts/msstore-certification.js --write-notes release/msstore-certification-notes.txt --dry-run
+
+      # Upload APPX/MSIX to Partner Center, patch certification notes, then publish.
+      # The no-commit publish creates or updates the draft so certification notes can
+      # be applied to the same submission before it is sent to review.
+      - name: Upload and submit to Microsoft Store
         shell: pwsh
         run: |
           # List what was built for debugging
@@ -321,12 +326,39 @@ jobs:
             exit 1
           }
 
-          Write-Host "=== Publishing to Microsoft Store ==="
+          Write-Host "=== Creating Microsoft Store draft ==="
           Write-Host "Product ID: $env:MSSTORE_PRODUCT_ID"
           Write-Host "Input Directory: ${{ github.workspace }}/release"
-          msstore publish . -id $env:MSSTORE_PRODUCT_ID -i "${{ github.workspace }}/release" -v
+          $publishOutput = & msstore publish . -id $env:MSSTORE_PRODUCT_ID -i "${{ github.workspace }}/release" -nc -v 2>&1
+          $publishExit = $LASTEXITCODE
+          $publishOutput | ForEach-Object { Write-Host $_ }
+          if ($publishExit -ne 0) {
+            exit $publishExit
+          }
+
+          $publishText = $publishOutput -join "`n"
+          $submissionMatch = [regex]::Match($publishText, '/submissions/([0-9]+)')
+          if (-not $submissionMatch.Success) {
+            $submissionMatch = [regex]::Match($publishText, '(?i)(?:submissionId|submission\s+id|id)\s*[:=]\s*([0-9]{8,})')
+          }
+          if ($submissionMatch.Success) {
+            $env:MSSTORE_SUBMISSION_ID = $submissionMatch.Groups[$submissionMatch.Groups.Count - 1].Value
+            Write-Host "Resolved Microsoft Store submission ID from publish output."
+          } else {
+            Write-Host "No submission ID found in publish output; certification script will resolve the pending submission."
+          }
+
+          Write-Host "=== Updating certification notes and verifying package version ==="
+          node scripts/msstore-certification.js --patch-pending --verify-package-version
+
+          Write-Host "=== Publishing Microsoft Store draft ==="
+          msstore submission publish $env:MSSTORE_PRODUCT_ID -v
         env:
+          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
           MSSTORE_PRODUCT_ID: ${{ secrets.MSSTORE_PRODUCT_ID }}
+          MSSTORE_CERTIFICATION_TEST_ACCOUNT_NOTE: ${{ secrets.MSSTORE_CERTIFICATION_TEST_ACCOUNT_NOTE }}
 
       - name: MS Store Summary
         if: always()

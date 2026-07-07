@@ -61,6 +61,16 @@ Dependency automation:
   metadata. Manual dispatch can additionally generate a Microsoft Store appeal
   email dry-run; send mode requires dedicated Microsoft Graph mail secrets and
   explicit send confirmation.
+- `.github/workflows/store-status-watch.yml` manual dispatch with
+  `certification_dry_run=true` - read-only Microsoft Store certification-note
+  validation. It checks `scripts/msstore-certification.js`, generates the notes
+  preview, and performs a dry-run Partner Center read of the pending submission
+  without uploading, publishing, or changing metadata.
+- `.github/workflows/release.yml` - tag-triggered release workflow. Its
+  `build-msstore` job builds APPX/MSIX, creates a no-commit Partner Center
+  draft, patches certification notes through `scripts/msstore-certification.js`,
+  verifies the pending Store package version against `package.json`, and then
+  publishes the draft.
 
 ## Missing Checks
 
@@ -165,6 +175,10 @@ Run these before larger merges or release candidates:
 - Monitor `docker.yml` on the tag.
 - Manually dispatch `Store Status Watch` after Store upload/submission and
   inspect the `Store status watch` issue.
+- Manually dispatch `Store Status Watch` with `certification_dry_run=true`
+  before resubmitting a failed Windows Store package to verify cloud
+  credentials, generated certification notes, and pending package-version
+  detection.
 - Treat GitHub Actions as the Cloud end-to-end path for signed/notarized macOS
   direct-download artifacts, Linux artifacts, Microsoft Store upload, Mac App
   Store upload, and Docker image publication. Codex can inspect logs but cannot
@@ -173,7 +187,8 @@ Run these before larger merges or release candidates:
 - Verify Linux artifacts launch.
 - Verify macOS DMG/ZIP signature and notarization status.
 - Confirm Microsoft Store upload result in Partner Center and in the `Store
-  status watch` issue.
+  status watch` issue, including certification notes and the package version
+  verified by `scripts/msstore-certification.js`.
 - Confirm the `build-mas` job uploaded the universal Mac App Store package.
 - Confirm Mac App Store/TestFlight processing and app version review status in
   App Store Connect and in the `Store status watch` issue when API secrets are
@@ -190,6 +205,9 @@ These cannot be fully verified in Codex Cloud:
   store status workflow can report Partner Center status, but cannot install or
   validate the package.
 - Microsoft Store install/update/uninstall behavior.
+- First-run Microsoft Store behavior when signed out: browser navigation should
+  work without OpenAI sign-in, and Codex should clearly explain the OpenAI
+  account requirement.
 - Tray menu, run-in-background, launch-at-startup, and hidden startup.
 - External browser shortcuts for Chrome, Edge, Brave, Opera, and related icons.
 - Docker Desktop `host.docker.internal` behavior.

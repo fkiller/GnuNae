@@ -484,15 +484,32 @@ At runtime, the embedded runtime is migrated to `%LOCALAPPDATA%/GnuNae/` for sta
 #### Local Build Command
 ```bash
 npm run pack:win
-# This builds NSIS, Portable, and APPX targets
-# Upload the .appx file to MS Store Partner Center
+# This builds the APPX target for Microsoft Store distribution
 ```
+
+The tag-triggered `build-msstore` workflow builds the APPX/MSIX package from
+the current `package.json` version, creates a Partner Center draft with
+`msstore publish --noCommit`, runs `scripts/msstore-certification.js` to add
+certification notes and verify the pending package version, then publishes the
+draft with `msstore submission publish`.
+
+Use `Store Status Watch` manual dispatch with `certification_dry_run=true`
+before resubmitting after a certification failure. It runs the same
+certification-note script in GitHub Actions with Partner Center credentials, but
+always uses dry-run mode and does not upload packages, publish submissions, or
+change Store metadata.
 
 #### Environment Variables
 
 | Variable | Description | GitHub Secret |
 |----------|-------------|---------------|
 | `MSSTORE_PUBLISHER_CN` | Publisher CN from Partner Center (e.g., "CN=12345678-1234-...") | ✅ |
+| `MSSTORE_TENANT_ID` | Partner Center Entra tenant ID | ✅ |
+| `MSSTORE_CLIENT_ID` | Partner Center app/client ID | ✅ |
+| `MSSTORE_CLIENT_SECRET` | Partner Center app/client secret | ✅ |
+| `MSSTORE_SELLER_ID` | Partner Center seller ID | ✅ |
+| `MSSTORE_PRODUCT_ID` | Microsoft Store product ID | ✅ |
+| `MSSTORE_CERTIFICATION_TEST_ACCOUNT_NOTE` | Optional secure reviewer-account note appended to Partner Center certification notes | Optional |
 | `CSC_IDENTITY_AUTO_DISCOVERY` | Set to `false` to disable signing | N/A |
 
 #### Getting Publisher CN
@@ -691,6 +708,8 @@ In your GitHub repository, go to **Settings → Secrets and variables → Action
 - `MSSTORE_CLIENT_SECRET`
 - `MSSTORE_SELLER_ID` (from Partner Center → Account settings → Identifiers)
 - `MSSTORE_PRODUCT_ID` (your app's Store Product ID)
+- `MSSTORE_CERTIFICATION_TEST_ACCOUNT_NOTE` (optional; appended to Partner
+  Center certification notes without printing the content in workflow logs)
 
 #### Microsoft 365 Appeal Email Secrets
 - `MS365_TENANT_ID`

@@ -105,12 +105,23 @@ by exposing secret values to Codex.
 - Confirm `MSSTORE_PUBLISHER_CN`, `MSSTORE_TENANT_ID`, `MSSTORE_CLIENT_ID`,
   `MSSTORE_CLIENT_SECRET`, `MSSTORE_SELLER_ID`, and `MSSTORE_PRODUCT_ID` are
   configured as GitHub Actions secrets.
+- Optionally configure `MSSTORE_CERTIFICATION_TEST_ACCOUNT_NOTE` as a GitHub
+  Actions secret when Microsoft needs a secure reviewer-account note for
+  OpenAI/Codex feature testing.
 - These Microsoft Store secrets are consumed by `release.yml`; Codex Cloud can
   verify whether the workflow passed or failed, but cannot inspect their values.
 - Confirm `build/appx/*` assets are present and intentionally current.
 - Confirm the release workflow APPX publisher override is still present.
 - After tag workflow runs, inspect `build-msstore` logs.
-- Confirm the package was uploaded to Partner Center.
+- Confirm the Windows package version verified by
+  `scripts/msstore-certification.js` matches the current `package.json` version
+  as a four-part APPX/MSIX version.
+- Before resubmitting after a certification failure, manually run
+  `Store Status Watch` with `certification_dry_run=true` on the release branch
+  to verify the generated notes and cloud Partner Center credential path in
+  dry-run mode.
+- Confirm the package was uploaded to Partner Center and that certification
+  notes were applied before `msstore submission publish`.
 - Confirm Partner Center validation, age rating, listing, screenshots, pricing,
   and availability before submission.
 - Manually run `Store Status Watch` after upload/submission and confirm the
@@ -164,6 +175,8 @@ by exposing secret values to Codex.
 
 - App launches on Windows, macOS, and Linux artifacts where applicable.
 - First window opens with tab bar, address bar, browser area, and Codex panel.
+- When signed out, the first-run page allows browser navigation without OpenAI
+  sign-in and explains that Codex AI features require OpenAI/Codex access.
 - New tab, close tab, switch tab, navigation, back, forward, and reload work.
 - Settings open in full app and standalone/chat contexts.
 - Codex CLI runtime status is correct.

@@ -115,6 +115,12 @@ outbound email only and must not alter Store configuration:
 - Missing App Store Connect API credentials should produce a manual-review row,
   not a store submission attempt.
 
+`Store Status Watch` manual dispatch can also run with
+`certification_dry_run=true`. Use it after a certification failure to run
+`scripts/msstore-certification.js` in GitHub Actions, preview certification
+notes, and dry-run the pending submission lookup. It must not upload packages,
+publish submissions, or mutate Partner Center metadata.
+
 ---
 
 ## Maintenance Checklist

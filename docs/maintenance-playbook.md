@@ -254,8 +254,10 @@ Interpret workflows from `.github/workflows`, not from older docs alone.
 - `release.yml` is tag-triggered on `v*`, not a normal PR CI workflow.
 - `release.yml` builds app artifacts for macOS and Linux, then creates a GitHub
   Release from those artifacts.
-- The same workflow has a separate `build-msstore` job that builds APPX/MSIX
-  and uploads to Microsoft Partner Center.
+- The same workflow has a separate `build-msstore` job that builds APPX/MSIX,
+  creates a no-commit Microsoft Store draft, patches certification notes with
+  `scripts/msstore-certification.js`, verifies the pending package version
+  against `package.json`, and publishes the draft to Partner Center.
 - The same workflow has a separate `build-mas` job that builds and uploads the
   universal Mac App Store package to App Store Connect.
 - The GitHub Release job currently depends on the matrix `build` job, not on
@@ -267,6 +269,11 @@ Interpret workflows from `.github/workflows`, not from older docs alone.
 - `store-status-watch.yml` runs every six hours and by manual dispatch. It
   reads store review/status state and updates an advisory GitHub Issue, but it
   never builds, uploads, submits, publishes, or changes store metadata.
+- `store-status-watch.yml` manual dispatch can run with
+  `certification_dry_run=true`. That path validates the certification-note
+  script in GitHub Actions and performs a dry-run Partner Center read for the
+  pending Microsoft Store submission. It does not upload packages, publish
+  submissions, or change store metadata.
 - `dependabot.yml` opens weekly npm dependency updates grouped by dependency
   type.
 
@@ -277,9 +284,10 @@ publication remain tag-driven workflows.
 ## Build Script Notes
 
 `npm run build:ui` runs Vite and then `scripts/build-ui.js`. The helper copies
-`src/ui/login.html` and the root `assets/` directory into `dist/`, so renderer
-build changes that affect login UI, public assets, screenshots, icons, or media
-must account for both Vite output and this copy step.
+`src/ui/login.html` and the root `assets/` directory into `dist/`, and injects
+the current `package.json` version into copied static UI files. Renderer build
+changes that affect login UI, public assets, screenshots, icons, or media must
+account for both Vite output and this copy step.
 
 ## Stale Or Conflicting Docs Found
 

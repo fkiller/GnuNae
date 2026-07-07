@@ -186,8 +186,10 @@ Current workflows are defined under `.github/workflows/`.
   - Direct Windows NSIS/portable GitHub-release artifacts are intentionally not
     built or signed. Windows distribution is handled through Microsoft Store
     APPX/MSIX deployment.
-  - A separate `build-msstore` job builds an APPX/MSIX on Windows and uploads it
-    to Microsoft Partner Center with the `msstore` CLI.
+  - A separate `build-msstore` job builds an APPX/MSIX on Windows, creates a
+    no-commit Microsoft Store draft, patches certification notes with
+    `scripts/msstore-certification.js`, verifies the pending package version
+    against `package.json`, and publishes the draft to Partner Center.
   - The GitHub Release job creates a non-draft GitHub Release from artifacts
     produced by the matrix build job. It currently depends on `build`, not on
     `build-msstore`.
@@ -225,6 +227,11 @@ Current workflows are defined under `.github/workflows/`.
   it through Microsoft Graph when dedicated `MS365_*` mail secrets are
   configured and the dispatch input explicitly confirms sending. Scheduled runs
   must never send email.
+- On manual dispatch, `store-status-watch.yml` can also run
+  `certification_dry_run=true` to validate `scripts/msstore-certification.js`
+  in GitHub Actions, generate the Partner Center certification-note text, and
+  perform a dry-run read of the pending Microsoft Store submission. It must not
+  upload packages, publish submissions, or mutate Partner Center metadata.
 - `dependabot.yml` opens weekly npm dependency updates.
 - Mac App Store packaging/upload is handled by the tag-triggered `build-mas`
   workflow job when required GitHub Actions secrets are configured. The
