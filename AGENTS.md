@@ -215,10 +215,12 @@ Current workflows are defined under `.github/workflows/`.
   upload, submit, publish, change metadata, rotate secrets, or modify store
   configuration. When `msstore submission status` emits Partner Center
   certification report links, the report should preserve those links for owner
-  review even if the CLI table wraps them across lines. The workflow pins the
-  MSStore CLI setup action to the `v0.3.7` CLI release line because that is the
-  local-good status-query version; update the pin only after validating
-  `submission status` in GitHub Actions.
+  review even if the CLI table wraps them across lines. If a failed status omits
+  a report link, the script may run one additional read-only verbose status
+  query to recover the pending submission id. The workflow pins the MSStore CLI
+  setup action to the `v0.3.7` CLI release line because that is the local-good
+  status-query version; update the pin only after validating `submission
+  status` in GitHub Actions.
 - `dependabot.yml` opens weekly npm dependency updates.
 - Mac App Store packaging/upload is handled by the tag-triggered `build-mas`
   workflow job when required GitHub Actions secrets are configured. The

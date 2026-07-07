@@ -89,7 +89,9 @@ The workflow checks:
 
 - Microsoft Store Partner Center submission status through `msstore submission
   status`, including Partner Center certification report links when the CLI
-  includes them in failure output.
+  includes them in failure output. If a failed status omits the report link,
+  the script makes one additional read-only verbose status query to recover the
+  pending submission id and construct the Partner Center report URL.
 - Mac App Store latest build processing state through the App Store Connect
   builds API.
 - Mac App Store latest app version review state through the App Store Connect

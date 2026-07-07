@@ -185,6 +185,13 @@ function parseMicrosoftCertificationReports(output) {
   return [...new Set(reports.filter(Boolean))];
 }
 
+function parseMicrosoftPendingSubmissionId(output) {
+  const text = String(output || '');
+  const match = text.match(/Pending Submission with Id\s+'([0-9]+)'/i)
+    || text.match(/\/submissions\/([0-9]+)/i);
+  return match ? match[1] : '';
+}
+
 function checkMicrosoftStore() {
   const envNames = [
     'MSSTORE_TENANT_ID',
@@ -233,7 +240,31 @@ function checkMicrosoftStore() {
   ]);
   const output = [status.stdout, status.stderr].filter(Boolean).join('\n');
   const submissionStatus = parseMicrosoftSubmissionStatus(output);
-  const certificationReports = parseMicrosoftCertificationReports(output);
+  let certificationReports = parseMicrosoftCertificationReports(output);
+  let verboseOutput = '';
+
+  if (
+    status.status === 0
+    && certificationReports.length === 0
+    && classifyMicrosoftStatus(submissionStatus) === 'needs attention'
+  ) {
+    const verboseStatus = runCommand('msstore', [
+      'submission',
+      'status',
+      process.env.MSSTORE_PRODUCT_ID,
+      '--verbose',
+    ]);
+    verboseOutput = [verboseStatus.stdout, verboseStatus.stderr].filter(Boolean).join('\n');
+    certificationReports = parseMicrosoftCertificationReports(verboseOutput);
+
+    const submissionId = parseMicrosoftPendingSubmissionId(verboseOutput);
+    if (certificationReports.length === 0 && submissionId) {
+      certificationReports = [
+        `https://partner.microsoft.com/dashboard/products/${process.env.MSSTORE_PRODUCT_ID}/submissions/${submissionId}`,
+      ];
+    }
+  }
+
   const statusNotes = certificationReports.length
     ? `Read-only Partner Center status query. Certification report(s): ${certificationReports.join(', ')}`
     : 'Read-only Partner Center status query.';
@@ -247,7 +278,7 @@ function checkMicrosoftStore() {
     notes: status.status === 0
       ? statusNotes
       : [status.stderr, status.stdout, status.error].filter(Boolean).join('\n').slice(0, 2000),
-    raw: output,
+    raw: [output, verboseOutput].filter(Boolean).join('\n'),
   };
 }
 

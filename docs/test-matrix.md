@@ -55,8 +55,10 @@ Dependency automation:
   status scan that creates or updates a GitHub Issue for Microsoft Store
   submission status, Microsoft certification report links when present, and Mac
   App Store build/app-version review state. It pins the MSStore CLI setup step
-  to the locally validated `v0.3.7` CLI release line. It does not build, upload,
-  submit, publish, or modify store metadata.
+  to the locally validated `v0.3.7` CLI release line and may run one additional
+  verbose Microsoft status query to construct a certification report link after
+  a failed status. It does not build, upload, submit, publish, or modify store
+  metadata.
 
 ## Missing Checks
 

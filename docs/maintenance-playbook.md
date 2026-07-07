@@ -159,7 +159,10 @@ Store Connect.
 
 For Windows certification failures, the issue should include any Partner Center
 certification report links emitted by `msstore submission status`, even when the
-CLI wraps the report URL across multiple table lines.
+CLI wraps the report URL across multiple table lines. If the first status query
+reports a failure without a link, the monitor may run one additional read-only
+verbose status query to recover the pending submission id and construct the
+Partner Center report URL.
 
 Required GitHub Actions secrets for Windows status:
 
