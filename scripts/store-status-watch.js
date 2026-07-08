@@ -147,6 +147,51 @@ function parseMicrosoftSubmissionStatus(output) {
   return relevantLine || '';
 }
 
+function parseMicrosoftCertificationReports(output) {
+  const text = String(output || '');
+  const reports = [];
+  const lines = text.split(/\r?\n/);
+
+  const pushReport = (candidate) => {
+    const match = String(candidate || '').match(
+      /https:\/\/partner\.microsoft\.com\/dashboard\/products\/[A-Z0-9]+\/submissions\/[0-9]+/i,
+    );
+    if (match) reports.push(match[0]);
+  };
+
+  let wrappedReport = '';
+  for (const line of lines) {
+    const cells = line.split(/[│|]/);
+    const reportCell = cells.length >= 4 ? cells[2].trim().replace(/\s+/g, '') : '';
+
+    if (reportCell.includes('https://partner.microsoft.com/')) {
+      pushReport(wrappedReport);
+      wrappedReport = reportCell;
+      continue;
+    }
+
+    if (wrappedReport && /^[A-Za-z0-9/:._?=&%+-]+$/.test(reportCell)) {
+      wrappedReport += reportCell;
+      continue;
+    }
+
+    pushReport(wrappedReport);
+    wrappedReport = '';
+  }
+  pushReport(wrappedReport);
+
+  reports.push(...(text.match(/https:\/\/partner\.microsoft\.com\/dashboard\/products\/[A-Z0-9]+\/submissions\/[0-9]+/gi) || []));
+
+  return [...new Set(reports.filter(Boolean))];
+}
+
+function parseMicrosoftPendingSubmissionId(output) {
+  const text = String(output || '');
+  const match = text.match(/Pending Submission with Id\s+'([0-9]+)'/i)
+    || text.match(/\/submissions\/([0-9]+)/i);
+  return match ? match[1] : '';
+}
+
 function checkMicrosoftStore() {
   const envNames = [
     'MSSTORE_TENANT_ID',
@@ -195,6 +240,34 @@ function checkMicrosoftStore() {
   ]);
   const output = [status.stdout, status.stderr].filter(Boolean).join('\n');
   const submissionStatus = parseMicrosoftSubmissionStatus(output);
+  let certificationReports = parseMicrosoftCertificationReports(output);
+  let verboseOutput = '';
+
+  if (
+    status.status === 0
+    && certificationReports.length === 0
+    && classifyMicrosoftStatus(submissionStatus) === 'needs attention'
+  ) {
+    const verboseStatus = runCommand('msstore', [
+      'submission',
+      'status',
+      process.env.MSSTORE_PRODUCT_ID,
+      '--verbose',
+    ]);
+    verboseOutput = [verboseStatus.stdout, verboseStatus.stderr].filter(Boolean).join('\n');
+    certificationReports = parseMicrosoftCertificationReports(verboseOutput);
+
+    const submissionId = parseMicrosoftPendingSubmissionId(verboseOutput);
+    if (certificationReports.length === 0 && submissionId) {
+      certificationReports = [
+        `https://partner.microsoft.com/dashboard/products/${process.env.MSSTORE_PRODUCT_ID}/submissions/${submissionId}`,
+      ];
+    }
+  }
+
+  const statusNotes = certificationReports.length
+    ? `Read-only Partner Center status query. Certification report(s): ${certificationReports.join(', ')}`
+    : 'Read-only Partner Center status query.';
 
   return {
     platform: 'Windows Store',
@@ -203,9 +276,9 @@ function checkMicrosoftStore() {
     status: status.status === 0 ? classifyMicrosoftStatus(submissionStatus) : 'needs attention',
     source: 'msstore submission status',
     notes: status.status === 0
-      ? 'Read-only Partner Center status query.'
+      ? statusNotes
       : [status.stderr, status.stdout, status.error].filter(Boolean).join('\n').slice(0, 2000),
-    raw: output,
+    raw: [output, verboseOutput].filter(Boolean).join('\n'),
   };
 }
 

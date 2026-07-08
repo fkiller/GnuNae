@@ -4,6 +4,31 @@ on:
   schedule:
     - cron: '17 */6 * * *'
   workflow_dispatch:
+    inputs:
+      appeal_mode:
+        description: 'Generate or send the Microsoft Store certification appeal email.'
+        type: choice
+        default: none
+        options:
+          - none
+          - dry_run
+          - send
+      appeal_recipient:
+        description: 'Appeal recipient.'
+        type: string
+        default: reportapp@microsoft.com
+      appeal_send_confirmation:
+        description: 'Required for send mode: SEND_TO_MICROSOFT_STORE'
+        type: string
+        required: false
+      certification_dry_run:
+        description: 'Dry-run Microsoft Store certification notes against the pending submission.'
+        type: boolean
+        default: false
+      certification_submission_id:
+        description: 'Optional pending submission ID for certification dry run.'
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -29,6 +54,12 @@ jobs:
 
       - name: Setup Microsoft Store Developer CLI
         uses: microsoft/microsoft-store-apppublisher@v1.3
+        with:
+          version: v0.3.7
+
+      - name: Check Microsoft Store Developer CLI version
+        shell: pwsh
+        run: msstore --version
 
       - name: Generate store status report
         shell: pwsh
@@ -74,3 +105,45 @@ jobs:
               --title $issueTitle `
               --body-file store-status-report.md
           }
+
+      - name: Dry-run Microsoft Store certification notes
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.certification_dry_run }}
+        shell: pwsh
+        env:
+          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
+          MSSTORE_PRODUCT_ID: ${{ secrets.MSSTORE_PRODUCT_ID }}
+          MSSTORE_SUBMISSION_ID: ${{ inputs.certification_submission_id }}
+          MSSTORE_API_RETRIES: 2
+          MSSTORE_CERTIFICATION_TEST_ACCOUNT_NOTE: ${{ secrets.MSSTORE_CERTIFICATION_TEST_ACCOUNT_NOTE }}
+        run: |
+          node --check scripts/msstore-certification.js
+          node scripts/msstore-certification.js --write-notes msstore-certification-notes.txt --dry-run
+          node scripts/msstore-certification.js --patch-pending --dry-run --allow-version-mismatch --verify-package-version
+
+          "## Microsoft Store Certification Notes Dry Run" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          Get-Content msstore-certification-notes.txt | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+      - name: Generate Microsoft Store appeal email
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.appeal_mode != 'none' }}
+        shell: pwsh
+        env:
+          STORE_APPEAL_RECIPIENT: ${{ inputs.appeal_recipient }}
+          STORE_APPEAL_SEND_CONFIRM: ${{ inputs.appeal_send_confirmation }}
+          MS365_TENANT_ID: ${{ secrets.MS365_TENANT_ID }}
+          MS365_CLIENT_ID: ${{ secrets.MS365_CLIENT_ID }}
+          MS365_CLIENT_SECRET: ${{ secrets.MS365_CLIENT_SECRET }}
+          MS365_SENDER_USER: ${{ secrets.MS365_SENDER_USER }}
+        run: |
+          $mode = '${{ inputs.appeal_mode }}'
+          $appealArgs = @('--output', 'store-appeal-email.md', '--json', 'store-appeal-email.json')
+          if ($mode -eq 'send') {
+            $appealArgs = @('--send') + $appealArgs
+          } else {
+            $appealArgs = @('--dry-run') + $appealArgs
+          }
+
+          node scripts/store-appeal-email.js @appealArgs
+          Get-Content store-appeal-email.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append

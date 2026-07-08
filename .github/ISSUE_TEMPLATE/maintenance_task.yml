@@ -53,6 +53,17 @@ body:
         - label: Store packaging/upload scripts
         - label: Secrets or credential setup
         - label: None of the above
+  - type: checkboxes
+    id: coverage
+    attributes:
+      label: Required coverage review
+      description: Check the coverage areas that must be considered for this task.
+      options:
+        - label: Native mode impact has been considered
+        - label: Docker/Virtual Mode impact has been considered
+        - label: Codex model/runtime failure behavior has been checked against docs/codex-model-runtime.md
+        - label: Documentation update map in AGENTS.md has been checked
+        - label: Not applicable, with reason in scope or acceptance criteria
   - type: textarea
     id: acceptance
     attributes:
@@ -74,6 +85,6 @@ body:
     attributes:
       label: Manual owner intervention
       description: Note credentials, store portals, local OS hardware, or accounts needed.
-      placeholder: "Needs App Store Connect upload from owner macOS machine."
+      placeholder: "Needs App Store Connect/TestFlight confirmation or store portal action."
     validations:
       required: false

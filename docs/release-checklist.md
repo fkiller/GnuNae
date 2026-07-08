@@ -11,7 +11,10 @@ source of truth.
 2. Bump `package.json` version intentionally. The `postversion` script runs
    `git push && git push --tags`.
 3. Push a tag matching `v*`.
-4. `.github/workflows/release.yml` starts on the tag.
+4. `.github/workflows/release.yml` starts on the tag. For owner-approved
+   Microsoft Store-only resubmission after a certification issue, manually
+   dispatch `release.yml` with `release_mode=msstore-only` from the intended
+   branch instead of moving an existing release tag.
 5. The matrix `build` job runs on macOS and Ubuntu:
    - `npm ci`
    - `node scripts/inject-build-config.js`
@@ -28,21 +31,29 @@ source of truth.
      and `npm run build`.
    - Builds APPX, renames APPX to MSIX for the CLI, and uploads to Partner
      Center with `msstore publish`.
-8. The `release` job downloads matrix build artifacts and creates a GitHub
+8. The `build-mas` job runs on macOS:
+   - Imports the 3rd Party Mac Developer Application and Installer
+     certificates into a temporary keychain.
+   - Installs the Mac App Store provisioning profile.
+   - Runs `npm run deploy:mas`, which builds the universal MAS package and
+     uploads it to App Store Connect with the App Store Connect API key.
+9. The `release` job downloads matrix build artifacts and creates a GitHub
    Release with generated notes.
-9. `.github/workflows/docker.yml` also runs for `v*` tags and publishes the
+10. `.github/workflows/docker.yml` also runs for `v*` tags and publishes the
    sandbox image to GHCR.
-10. Mac App Store upload is local, not GitHub Actions: run `npm run deploy:mas`
-   on owner-controlled macOS hardware with required certificates, provisioning
-   profile, and App Store Connect API key.
-11. `.github/workflows/store-status-watch.yml` can be manually dispatched after
+11. `npm run deploy:mas` remains available for owner-controlled local macOS
+   uploads, but the normal tag release path is GitHub Actions.
+12. `.github/workflows/store-status-watch.yml` can be manually dispatched after
     Store upload/submission. It reads Microsoft Store and App Store Connect
     status and updates the `Store status watch` GitHub Issue. It does not upload
-    packages or submit store metadata.
+    packages or submit store metadata. Manual dispatch can also generate a
+    Microsoft Store appeal email in dry-run mode, or send it only when dedicated
+    Microsoft Graph mail secrets and an explicit send confirmation input are
+    present.
 
 Important current behavior: the GitHub Release job depends on `build`, not on
-`build-msstore`. Microsoft Store upload failure may require separate review even
-if the GitHub Release is created.
+`build-msstore` or `build-mas`. Store upload failure may require separate review
+even if the GitHub Release is created.
 
 Codex Cloud note: local `.env.local` and GitHub Actions secrets may both be
 configured, but Codex Cloud cannot read either. End-to-end signed/store release
@@ -68,6 +79,9 @@ by exposing secret values to Codex.
   across `package.json`, `resources/codex/package.json`, `scripts/install-codex.js`,
   `src/core/runtime-manager.ts`, and `docker/Dockerfile`.
 - Confirm Docker base image version matches the Playwright version policy.
+- For Codex model/runtime changes, confirm `docs/codex-model-runtime.md`
+  matches current Native and Docker behavior, including stale-model,
+  outdated-CLI, CLI-default, and Docker-image failure paths.
 - Run `npm ci`.
 - Run `npm run build`.
 - Confirm GitHub `CI` passes on Windows, macOS, and Linux for the PR before the
@@ -77,6 +91,8 @@ by exposing secret values to Codex.
 - Verify Native mode with a real Codex login.
 - Verify Virtual Mode with Docker if the release touches Docker, CDP, runtime,
   or Codex execution.
+- If Codex CLI/model behavior changed, verify one Native prompt and one Virtual
+  Mode prompt after the runtime/image updates.
 - Verify external browser chat mode if shortcuts, browser detection, CDP, or
   tray behavior changed.
 - Confirm release notes and website/store-facing claims match the actual build.
@@ -92,16 +108,32 @@ by exposing secret values to Codex.
 - Confirm `MSSTORE_PUBLISHER_CN`, `MSSTORE_TENANT_ID`, `MSSTORE_CLIENT_ID`,
   `MSSTORE_CLIENT_SECRET`, `MSSTORE_SELLER_ID`, and `MSSTORE_PRODUCT_ID` are
   configured as GitHub Actions secrets.
+- Optionally configure `MSSTORE_CERTIFICATION_TEST_ACCOUNT_NOTE` as a GitHub
+  Actions secret when Microsoft needs a secure reviewer-account note for
+  OpenAI/Codex feature testing.
 - These Microsoft Store secrets are consumed by `release.yml`; Codex Cloud can
   verify whether the workflow passed or failed, but cannot inspect their values.
 - Confirm `build/appx/*` assets are present and intentionally current.
 - Confirm the release workflow APPX publisher override is still present.
 - After tag workflow runs, inspect `build-msstore` logs.
-- Confirm the package was uploaded to Partner Center.
+- Confirm the Windows package version verified by
+  `scripts/msstore-certification.js` matches the current `package.json` version
+  as a four-part APPX/MSIX version.
+- Before resubmitting after a certification failure, manually run
+  `Store Status Watch` with `certification_dry_run=true` on the release branch
+  to verify the generated notes and cloud Partner Center credential path in
+  dry-run mode.
+- Confirm the package was uploaded to Partner Center and that certification
+  notes were applied before `msstore submission publish`.
 - Confirm Partner Center validation, age rating, listing, screenshots, pricing,
   and availability before submission.
 - Manually run `Store Status Watch` after upload/submission and confirm the
   issue shows the expected Microsoft Store status.
+- For certification failures, use `Store Status Watch` `appeal_mode=dry_run` to
+  review any generated appeal email before sending. Actual send mode requires
+  dedicated `MS365_TENANT_ID`, `MS365_CLIENT_ID`, `MS365_CLIENT_SECRET`, and
+  optionally `MS365_SENDER_USER` GitHub Actions secrets with Graph `Mail.Send`
+  application permission and owner approval of the exact email content.
 - Manually smoke-test the Store package when available.
 
 ## Mac App Store Checks
@@ -110,22 +142,14 @@ by exposing secret values to Codex.
   and `ElectronTeamID` behavior are unchanged unless owner-approved.
 - Confirm `build/entitlements.mas.plist` and
   `build/entitlements.mas.inherit.plist` are correct for sandboxed MAS builds.
-- Confirm `certs/GnuNae.provisionprofile` exists locally and is current.
-- Confirm 3rd Party Mac Developer Application and Installer certificates are in
-  Keychain.
-- Confirm `.env.local` contains `APPLE_TEAM_ID`, `APPLE_CERTIFICATE_PASSWORD`,
-  `ASC_API_KEY_ID`, and `ASC_API_ISSUER_ID`.
-- Confirm App Store Connect API key file exists at
-  `~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8`.
-- If GitHub Actions should track Mac App Store review status, confirm
-  `ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`, and either
-  `ASC_API_PRIVATE_KEY_BASE64` or `ASC_API_PRIVATE_KEY` are configured as
-  GitHub Actions secrets. `APP_STORE_CONNECT_APP_ID` may be set when bundle ID
-  lookup is not sufficient.
-- Run `npm run deploy:mas` only on owner-approved macOS hardware.
-- This is the current local-only release step. If the goal is full Cloud
-  release automation, create a separate owner-reviewed PR to move MAS packaging
-  and upload into GitHub Actions.
+- Confirm `APPLE_TEAM_ID`, `APPLE_CERTIFICATE_APPLICATION_P12`,
+  `APPLE_CERTIFICATE_INSTALLER_P12`, `APPLE_CERTIFICATE_PASSWORD`,
+  `APPLE_PROVISIONING_PROFILE`, `ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`, and
+  either `ASC_API_PRIVATE_KEY_BASE64` or `ASC_API_PRIVATE_KEY` are configured as
+  GitHub Actions secrets. `APP_STORE_CONNECT_APP_ID` may be set for status
+  lookup when bundle ID lookup is not sufficient.
+- After tag workflow runs, inspect `build-mas` logs.
+- Confirm the `build-mas` job produced and uploaded a universal MAS package.
 - Confirm the uploaded build appears in App Store Connect/TestFlight.
 - Manually run `Store Status Watch` after upload/submission and confirm the
   issue shows expected TestFlight build processing and App Store version review
@@ -154,12 +178,16 @@ by exposing secret values to Codex.
 
 - App launches on Windows, macOS, and Linux artifacts where applicable.
 - First window opens with tab bar, address bar, browser area, and Codex panel.
+- When signed out, the first-run page allows browser navigation without OpenAI
+  sign-in and explains that Codex AI features require OpenAI/Codex access.
 - New tab, close tab, switch tab, navigation, back, forward, and reload work.
 - Settings open in full app and standalone/chat contexts.
 - Codex CLI runtime status is correct.
 - Codex login flow completes with a real account.
 - Native mode can run a basic browser-reading prompt.
 - Virtual Mode can create a Docker sandbox and run a basic prompt.
+- Codex model/runtime failure handling matches `docs/codex-model-runtime.md`
+  for any changed behavior.
 - PDS request and store markers work.
 - Task creation, scheduling, running, stopping, and blocked state work.
 - Bottom Panel output and terminal work.
@@ -172,14 +200,16 @@ by exposing secret values to Codex.
 ## Post-release Checks
 
 - Confirm GitHub Release exists with expected artifacts and release notes.
-- Confirm Docker image tags exist in GHCR for the exact version and expected
-  major/minor or latest tags.
+- Confirm the GHCR Docker image `ghcr.io/fkiller/gnunae/sandbox:latest` was
+  refreshed by the approved release or main-branch Docker workflow. Treat
+  semver/branch/SHA tags as traceability only.
 - Confirm no standalone Windows EXE artifacts were published to the GitHub
   Release.
 - Confirm macOS artifacts are signed and notarized.
 - Confirm Linux artifacts are present and downloadable.
 - Confirm Microsoft Partner Center received the MSIX upload.
-- Confirm Mac App Store/TestFlight processing result after local upload.
+- Confirm Mac App Store/TestFlight processing result after the `build-mas`
+  upload.
 - Confirm the latest `Store status watch` issue reflects the expected Microsoft
   Store and Mac App Store status.
 - Download artifacts from public release links and run at least one smoke test.

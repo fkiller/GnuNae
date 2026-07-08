@@ -14,11 +14,11 @@ release-flow updates.
 | Component | Location | Sync With |
 |-----------|----------|-----------|
 | App Version | `package.json` | All releases |
-| Codex CLI | `package.json`, `resources/codex/package.json`, `docker/Dockerfile`, `runtime-manager.ts`, `install-codex.js` | Each other |
-| Playwright MCP | `package.json`, `resources/codex/package.json`, `docker/Dockerfile`, `runtime-manager.ts`, `install-codex.js` | Each other |
+| Codex CLI | `package.json`, `resources/codex/package.json`, `docker/Dockerfile`, `runtime-manager.ts`, `install-codex.js`, `docs/codex-model-runtime.md` | Native runtime, Docker image, model failure handling |
+| Playwright MCP | `package.json`, `resources/codex/package.json`, `docker/Dockerfile`, `runtime-manager.ts`, `install-codex.js`, `docs/codex-model-runtime.md` | Native runtime, Docker image, browser automation |
 | Playwright Base | `docker/Dockerfile` | `package.json` Playwright |
 | Docker Image | `docker-manager.ts` | Auto-synced with app version |
-| AI Models | Inspect current code first: static fallbacks, any model registry, Codex CLI cache, and Codex spawn config | OpenAI Codex changelog and Codex CLI releases |
+| AI Models | Inspect current code first: static fallbacks, any model registry, Codex CLI cache, Codex spawn config, Docker API behavior, and `docs/codex-model-runtime.md` | OpenAI Codex docs/changelog, Codex CLI releases, native and Docker runtime pins |
 | Electron | `package.json`, `package-lock.json`, Electron API usage in `src/electron/main.ts` | Electron releases and breaking changes |
 | MCP SDK | `package.json`, `package-lock.json`, MCP integration points | MCP TypeScript SDK releases |
 | Node runtime | `scripts/download-node.js`, `src/core/runtime-manager.ts`, packaged `resources/runtime*` | Node.js release/security updates |
@@ -69,7 +69,7 @@ The workflow must remain non-release automation:
 - It does not update `docs/index.html` automatically; website version and
   download-link changes still require a scoped PR.
 - It should create maintenance work for Codex/owner review; deployment remains
-  owner-approved and tag/manual only.
+  owner-approved and tag-driven or manual only.
 
 ## Automated Store Status Watch
 
@@ -80,16 +80,31 @@ an automatic deploy or submission step.
 dispatch. It runs `scripts/store-status-watch.js`, writes a workflow summary,
 and creates or updates one GitHub Issue named `Store status watch`.
 
+The workflow pins the MSStore Developer CLI setup step to the `v0.3.7` CLI
+release line, matching the locally validated status-query version. Do not move
+the workflow back to `latest` unless `msstore submission status` is validated in
+GitHub Actions with the newer CLI.
+
 The workflow checks:
 
 - Microsoft Store Partner Center submission status through `msstore submission
-  status`.
+  status`, including Partner Center certification report links when the CLI
+  includes them in failure output. If a failed status omits the report link,
+  the script makes one additional read-only verbose status query to recover the
+  pending submission id and construct the Partner Center report URL.
 - Mac App Store latest build processing state through the App Store Connect
   builds API.
 - Mac App Store latest app version review state through the App Store Connect
   app store versions API.
 
-The workflow must remain read-only:
+Manual dispatch can also set `appeal_mode=dry_run` to generate a Microsoft
+Store certification appeal email summary from `scripts/store-appeal-email.js`.
+Actual `appeal_mode=send` requires dedicated Microsoft Graph `MS365_*` secrets
+and `appeal_send_confirmation=SEND_TO_MICROSOFT_STORE`. Scheduled runs must
+never send appeal email.
+
+The scheduled status path must remain read-only. Manual appeal send mode is
+outbound email only and must not alter Store configuration:
 
 - It does not run when `npm run deploy:mas` is executed locally.
 - It does not push tags, sign, notarize, package release artifacts, upload to
@@ -99,6 +114,12 @@ The workflow must remain read-only:
   secret values.
 - Missing App Store Connect API credentials should produce a manual-review row,
   not a store submission attempt.
+
+`Store Status Watch` manual dispatch can also run with
+`certification_dry_run=true`. Use it after a certification failure to run
+`scripts/msstore-certification.js` in GitHub Actions, preview certification
+notes, and dry-run the pending submission lookup. It must not upload packages,
+publish submissions, or mutate Partner Center metadata.
 
 ---
 
@@ -150,6 +171,16 @@ RUN npm install -g \
     @playwright/mcp@0.0.70 \
 ```
 
+Docker is not optional for Codex/runtime maintenance. When `@openai/codex`,
+`@playwright/mcp`, Playwright, Codex model behavior, or Playwright MCP behavior
+changes, update and verify the Docker path in the same task:
+
+- `docker/Dockerfile` global package pins and Playwright base image.
+- `docker/api-server.js` and `docker/api-server.ts` if execution or failure
+  classification changes.
+- `.github/workflows/docker.yml` if image build/publish behavior changes.
+- `docs/codex-model-runtime.md` if model/runtime fallback behavior changes.
+
 #### D. AI models and Codex capabilities
 Do not assume the model list is static. Inspect current code first.
 
@@ -171,7 +202,11 @@ or `config/models.json`:
 For both paths:
 - Read the OpenAI Codex changelog and Codex CLI release notes.
 - Check whether a new model requires a newer `@openai/codex` version.
+- Check Native mode and Docker/Virtual Mode separately. Native may use packaged
+  or userData runtime; Docker uses the Codex CLI baked into the sandbox image.
 - Check whether prompt, approval, sandbox, MCP, or auth behavior changed.
+- Update `docs/codex-model-runtime.md` with any changed fallback, retry,
+  runtime-update, or Docker image-update behavior.
 - Document any model access or subscription limitations as needs manual
   confirmation if code cannot prove them.
 
@@ -195,27 +230,40 @@ candidates, monitor the tag-triggered release and Docker workflows.
 
 ### 4. Docker Image
 
-Docker image is **automatically versioned** via:
-- `docker-manager.ts` reads version from `package.json`
-- GitHub Actions tags image with `v{semver}` on release
+Docker image delivery currently uses one rolling runtime tag:
+`ghcr.io/fkiller/gnunae/sandbox:latest`.
+
+`docker-manager.ts` requests that tag and pulls it before each sandbox start.
+Release semver, branch, and SHA image tags may still be published by CI for
+traceability, but the desktop client does not request those tags today.
+
+For dependency maintenance, the Docker image must be updated with native runtime
+changes. A Codex CLI update is incomplete until:
+
+- `docker/Dockerfile` pins are updated to the intended Codex CLI and
+  Playwright MCP versions.
+- `npm run build:docker` passes locally when Docker is available, or the PR
+  documents why Docker was unavailable.
+- `.github/workflows/docker.yml` is expected to run on Docker path PRs and on
+  release tags.
+- The release candidate checks confirm the GHCR `latest` sandbox image was
+  published from `main` or the approved `v*` release tag.
 
 ---
 
 ## Version Synchronization
 
-### Docker Image Versioning
+### Docker Image Update Policy
 
-When you push a version tag, GitHub Actions builds:
+When you push an approved release tag, GitHub Actions builds and publishes the
+runtime image:
 ```
-ghcr.io/fkiller/gnunae/sandbox:0.8.31
-ghcr.io/fkiller/gnunae/sandbox:0.8
 ghcr.io/fkiller/gnunae/sandbox:latest
 ```
 
-The app automatically requests the correct version via `docker-manager.ts`:
+The app automatically requests and refreshes that tag via `docker-manager.ts`:
 ```typescript
-// Reads package.json version and uses matching Docker image
-imageName: `ghcr.io/fkiller/gnunae/sandbox:${version}`
+imageName: 'ghcr.io/fkiller/gnunae/sandbox:latest'
 ```
 
 ---
@@ -239,11 +287,9 @@ git push && git push --tags
 # - Windows Store APPX/MSIX build and Partner Center upload
 # - Linux AppImage/DEB build
 # - Microsoft Store APPX/MSIX build and Partner Center upload
+# - Mac App Store universal package build and App Store Connect upload
 # - GitHub Release creation
 # - GHCR sandbox image publication
-
-# 6. Current local-only step when needed:
-npm run deploy:mas  # owner macOS machine only, uploads Mac App Store build
 ```
 
 Do not push release tags, submit store packages, or run `npm run deploy:mas`
@@ -256,6 +302,6 @@ without explicit owner release approval.
 | Issue | Solution |
 |-------|----------|
 | Docker image not found | Run `docker pull ghcr.io/fkiller/gnunae/sandbox:latest` |
-| Version mismatch | Check all files in "Update Files" section |
+| Stale Docker image | Confirm `.github/workflows/docker.yml` published `latest`; clients pull this tag before sandbox start |
 | Codex CLI upgrade breaks | Check changelog for breaking changes |
 | Playwright browser mismatch | Ensure Dockerfile base matches package.json |

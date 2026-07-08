@@ -13,7 +13,9 @@ An Electron-based browser with an AI-powered Codex sidebar for intelligent web a
 > current build/release authority, and stale-doc handling, see
 > [`AGENTS.md`](AGENTS.md), [`docs/maintenance-playbook.md`](docs/maintenance-playbook.md),
 > [`docs/test-matrix.md`](docs/test-matrix.md), and
-> [`docs/release-checklist.md`](docs/release-checklist.md).
+> [`docs/release-checklist.md`](docs/release-checklist.md). For Codex model,
+> runtime, and Docker sandbox failure handling, see
+> [`docs/codex-model-runtime.md`](docs/codex-model-runtime.md).
 
 ## Architecture
 
@@ -147,7 +149,8 @@ graph TB
 - Node.js 18+
 - npm or yarn
 - **ChatGPT Pro or Plus subscription** (required for Codex CLI)
-  - Free ChatGPT accounts cannot use Codex features
+  - Browser navigation works without OpenAI sign-in
+  - Free ChatGPT accounts may not be able to use Codex features
   - Upgrade at: https://chat.openai.com/settings/subscription
 
 ### Setup
@@ -160,9 +163,6 @@ cd GnuNae
 # Install dependencies
 npm install
 
-# IMPORTANT: Authenticate with OpenAI (first-time only)
-npx codex auth openai
-
 # Build the application
 npm run build
 
@@ -170,14 +170,19 @@ npm run build
 npm run start
 ```
 
-> ⚠️ **First-time users**: You must run `npx codex auth openai` to authenticate with OpenAI before using the app. This is a one-time setup.
+> First-time users can browse without signing in. Use the in-app OpenAI sign-in button when you want Codex AI features.
 
 ### Virtual Mode (Docker)
 
-To use Virtual Mode, you need Docker Desktop installed. This runs Codex and Playwright in an isolated container.
+To use Virtual Mode, you need Docker Desktop installed. This runs Codex and
+Playwright in an isolated container.
+
+GnuNae pulls `ghcr.io/fkiller/gnunae/sandbox:latest` before starting a sandbox.
+If that pull fails but a cached image already exists, it can continue with the
+cached image. Local Docker builds are mainly for development or manual recovery.
 
 ```bash
-# Build the Docker sandbox image
+# Build the Docker sandbox image locally
 npm run build:docker
 
 # Or build without cache (recommended after updates)
@@ -189,11 +194,11 @@ npm run build:all
 
 | Script | Description |
 |--------|-------------|
-| `build:docker` | Build the Docker sandbox image |
-| `build:docker:clean` | Build Docker image without cache |
+| `build:docker` | Build the Docker sandbox image and tag it as local + GHCR `latest` |
+| `build:docker:clean` | Build Docker image without cache and tag it as local + GHCR `latest` |
 | `build:all` | Build app + Docker image |
 
-Once built, enable Virtual Mode in Settings when Docker is detected.
+Enable Virtual Mode in Settings when Docker is detected.
 
 ## External Browsers & Chat Mode
 
@@ -207,8 +212,8 @@ GnuNae can now control your existing external browsers (Chrome, Edge, Brave, Ope
 ## Usage
 
 1. **Launch the app** - A browser window opens with a sidebar
-2. **Sign in** - Click "Sign in to OpenAI" in the sidebar
-3. **Navigate** - Use the address bar to visit any website
+2. **Navigate** - Use "Browse without Codex" or the address bar to visit any website
+3. **Sign in for Codex** - Click "Sign in to OpenAI" when you want AI features
 4. **Ask Codex** - Type a prompt in the sidebar (e.g., "list all links on this page")
 5. **Get results** - Codex analyzes the page and responds
 
@@ -276,10 +281,13 @@ For detailed CI/CD pipeline documentation, code signing setup, and environment c
 
 GnuNae configures Codex CLI automatically at runtime via `-c` flags. **No manual configuration needed** - GnuNae works out of the box without modifying `~/.codex/config.toml`.
 
-If you have custom settings in `~/.codex/config.toml`, GnuNae will override them with:
-- Model: `gpt-5.1-codex-max` (or select GPT-5.3-Codex in the model dropdown)
-- Reasoning: `xhigh`
-- Playwright MCP with dynamic CDP endpoint
+If you have custom settings in `~/.codex/config.toml`, GnuNae overrides Codex
+spawn configuration for app-managed browser automation. Current committed code
+uses a static renderer model list, passes `model=gpt-5.4` with `xhigh`
+reasoning in Native mode, and lets Docker/Virtual Mode use the Codex CLI
+default model inside the sandbox image. See
+[`docs/codex-model-runtime.md`](docs/codex-model-runtime.md) for model/runtime
+failure handling and Docker parity requirements.
 
 ## Project Structure
 
@@ -367,8 +375,8 @@ docs/                     # GitHub Pages (gnunae.com)
   - Released by OpenAI on Feb 5, 2026
 - **macOS Runtime Bundling**
   - Node.js and Codex CLI now bundled for macOS builds (arm64 + x64)
-- **Docker Version Sync**
-  - Docker images now version-tagged to match app version
+- **Docker Image Refresh**
+  - GnuNae now pulls the rolling GHCR `latest` sandbox image before Virtual Mode startup
   - Created periodic maintenance documentation
 
 ### v0.8.0 (2026-01-12)

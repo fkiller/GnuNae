@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react';
 
+declare const __APP_VERSION__: string;
+
 interface AboutProps {
     isOpen: boolean;
     onClose: () => void;
@@ -27,7 +29,7 @@ const About: React.FC<AboutProps> = ({ isOpen, onClose }) => {
                 <div className="about-content">
                     <img className="about-logo-img" src="../assets/gnunae.ico" alt="GnuNae" />
                     <h1>GnuNae</h1>
-                    <p className="version">Version 0.3.0</p>
+                    <p className="version">Version {__APP_VERSION__}</p>
 
                     <p className="about-description">
                         AI-powered browser with Codex sidebar for intelligent web automation.

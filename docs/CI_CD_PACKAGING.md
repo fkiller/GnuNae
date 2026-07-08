@@ -4,8 +4,9 @@
 > This document is partially stale in places. Treat `package.json`,
 > `.github/workflows/release.yml`, `.github/workflows/docker.yml`, scripts, and
 > signing/store configuration as the source of truth. In particular, Microsoft
-> Store upload is automated by the current `build-msstore` workflow job, while
-> Mac App Store upload is still local through `npm run deploy:mas`. Standalone
+> Store upload is automated by the current `build-msstore` workflow job, and
+> Mac App Store upload is automated by the current `build-mas` workflow job when
+> the Apple signing and App Store Connect secrets are configured. Standalone
 > Windows NSIS/portable EXE signing and GitHub Release publication are
 > intentionally skipped; Windows distribution uses Microsoft Store APPX/MSIX.
 
@@ -15,7 +16,7 @@ This document describes the complete CI/CD pipeline for building, signing, and d
 
 1. [Overview](#overview)
 2. [Architecture](#architecture)
-3. [Docker Image Versioning](#docker-image-versioning)
+3. [Docker Image Update Policy](#docker-image-update-policy)
 4. [Platform-Specific Packaging](#platform-specific-packaging)
    - [macOS Binary (DMG/ZIP)](#1-macos-binary-dmgzip)
    - [Mac App Store (PKG)](#2-mac-app-store-pkg)
@@ -53,7 +54,7 @@ GnuNae requires Node.js, npm, and Codex CLI to function. Runtime provisioning di
 | Aspect | **Windows EXE** | **Windows APPX** | **macOS DMG/ZIP** | **macOS MAS** | **Linux** |
 |--------|-----------------|------------------|-------------------|---------------|-----------
 | **npm Build** | `pack:win` | `pack:win` | `pack:mac` | `pack:mac-mas` | `pack:linux` |
-| **GitHub Actions** | ✅ Yes | ✅ Yes (auto-upload) | ✅ Yes | ❌ Local (`deploy:mas`) | ✅ Yes |
+| **GitHub Actions** | ✅ Yes | ✅ Yes (auto-upload) | ✅ Yes | ✅ Yes (auto-upload) | ✅ Yes |
 | **Output Format** | `.exe` (NSIS) | `.appx` | `.dmg` `.zip` | `.pkg` | `.AppImage` `.deb` |
 | **Code Signing** | Azure Trusted Signing | Unsigned (MS Store signs) | Developer ID + Notarization | 3rd Party Mac Developer | GPG |
 | **Node.js** | ✅ Embedded | ✅ Embedded | ✅ Embedded | ✅ Embedded | ⬇️ Auto-download |
@@ -64,16 +65,18 @@ GnuNae requires Node.js, npm, and Codex CLI to function. Runtime provisioning di
 **Legend:** ✅ = Included/Yes, ⬇️ = Downloaded automatically on first run, ❌ = Not included
 
 > [!IMPORTANT]
-> **MAS is NOT built via GitHub Actions.** Build locally:
-> - **MAS**: `npm run deploy:mas` → Builds and uploads to App Store Connect automatically
->
-> **APPX is fully automated.** The `build-msstore` job in `release.yml` builds the APPX and uploads it to Partner Center using the `msstore` CLI.
+> **MAS and APPX are automated in `release.yml`.** The `build-mas` job builds a
+> universal Mac App Store package and uploads it to App Store Connect. The
+> `build-msstore` job builds the APPX/MSIX package and uploads it to Partner
+> Center using the `msstore` CLI.
 
 ### How Auto-Install Works
 
 On app startup, `RuntimeManager.ensureRuntime()` checks if runtime is ready:
 - **Windows**: Runtime is embedded, no download needed
-- **macOS/MAS/Linux**: If not ready, downloads Node.js from nodejs.org and runs `npm install @openai/codex`
+- **macOS/MAS packaged builds**: Runtime is embedded in the app resources
+- **Linux and development fallback paths**: If not ready, downloads Node.js
+  from nodejs.org and runs the pinned Codex install path
 
 The runtime is stored in the user's app data directory (Application Support/AppData), which is accessible in all sandbox environments including MAS.
 
@@ -107,67 +110,90 @@ The runtime is stored in the user's app data directory (Application Support/AppD
 │  │  │ (unsigned)   │                                                    │   │
 │  │  └──────────────┘                                                    │   │
 │  └──────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          LOCAL BUILDS (not in CI/CD)                         │
-├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  ┌──────────────┐                                                            │
-│  │ npm run      │                                                            │
-│  │ deploy:mas   │──→ xcrun altool ──→ App Store Connect                      │
-│  │ (PKG arm64)  │                                                            │
-│  └──────────────┘                                                            │
+│  ┌─── build-mas job (parallel) ─────────────────────────────────────────┐   │
+│  │                                                                      │   │
+│  │  ┌──────────────┐                                                    │   │
+│  │  │ macOS Runner │──→ xcrun altool ──→ App Store Connect              │   │
+│  │  │ Universal    │                                                    │   │
+│  │  │ MAS PKG      │                                                    │   │
+│  │  │ (3rd Party   │                                                    │   │
+│  │  │  Mac signed) │                                                    │   │
+│  │  └──────────────┘                                                    │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Docker Image Versioning
+## Docker Image Update Policy
 
-The sandbox Docker image is versioned to match the app version automatically.
+The desktop app currently uses one rolling sandbox image:
+`ghcr.io/fkiller/gnunae/sandbox:latest`.
+
+Before creating a sandbox, `docker-manager.ts` runs `docker pull` for that image
+so Codex CLI, Playwright MCP, Playwright, and model-runtime fixes can reach
+Virtual Mode without waiting for a desktop app version match. If the pull fails
+but a local image already exists, GnuNae falls back to the cached image. If no
+local image exists, sandbox creation fails with the pull error.
 
 ### Workflow Trigger
 
 The `docker.yml` workflow triggers on:
 - Push to `main` with changes in `docker/**`
-- **Version tags** (`v*`) - triggered by `npm version`
+- **Version tags** (`v*`) - release image publication
+- Manual dispatch
 
 ```yaml
 on:
   push:
     tags:
-      - 'v*'  # Triggers on npm version tags
+      - 'v*'
 ```
 
 ### Tags Created
 
-When you run `npm version patch` (pushes `v0.8.33`):
+The runtime tag is `latest`. Other tags are useful for debugging and rollback,
+but the app does not request them today.
 
 | Docker Tag | Value |
 |------------|-------|
-| `ghcr.io/fkiller/gnunae/sandbox:0.8.33` | Exact version |
-| `ghcr.io/fkiller/gnunae/sandbox:0.8` | Major.minor |
-| `ghcr.io/fkiller/gnunae/sandbox:latest` | Latest stable |
+| `ghcr.io/fkiller/gnunae/sandbox:latest` | Runtime image used by GnuNae |
+| `ghcr.io/fkiller/gnunae/sandbox:<semver>` | Traceability/rollback on release tags |
+| `ghcr.io/fkiller/gnunae/sandbox:<branch-or-sha>` | CI traceability for non-release runs |
 
 ### App-Side Integration
 
-`docker-manager.ts` reads the app version from `package.json` and requests the matching Docker image:
+`docker-manager.ts` requests the rolling GHCR image and refreshes it before
+sandbox creation:
 
 ```typescript
-function getDockerImageName(): string {
-    const version = require('../../package.json').version;
-    return `ghcr.io/fkiller/gnunae/sandbox:${version}`;
-}
+const DEFAULT_SANDBOX_IMAGE = 'ghcr.io/fkiller/gnunae/sandbox:latest';
 ```
 
 ### Release Workflow
 
 1. Make changes to app and/or `docker/Dockerfile`
-2. Run `npm version patch`
-3. GitHub Actions builds app releases AND Docker image with matching version
-4. App v0.8.33 automatically requests Docker image `0.8.33`
+2. Run `npm version patch` when owner-approved for release
+3. GitHub Actions builds app releases and the Docker image
+4. The Docker workflow publishes `latest` from `main` and `v*` release tags
+5. Clients pull `ghcr.io/fkiller/gnunae/sandbox:latest` before starting Virtual
+   Mode
+
+### Maintenance Rule
+
+When periodic maintenance updates Codex CLI, Playwright MCP, or Playwright:
+
+1. Update native runtime pins in `src/core/runtime-manager.ts` and
+   `scripts/install-codex.js`.
+2. Update Docker pins in `docker/Dockerfile`.
+3. Run `npm run build` and `npm run build:docker` when Docker is available.
+4. Let Docker path PRs exercise `.github/workflows/docker.yml`.
+5. On release tags or approved Docker deploys, confirm the GHCR `latest`
+   sandbox image was published. Keep semver/sha tags only as traceability.
+6. Update `docs/codex-model-runtime.md` if model/default-model or outdated-CLI
+   failure behavior changed.
 
 ---
 
@@ -245,7 +271,7 @@ npm run install-codex && npm run build && electron-builder --mac dmg zip
 - 3rd Party Mac Developer Application (signs the app)
 - 3rd Party Mac Developer Installer (signs the pkg)
 
-**Output:** `GnuNae-mac-{arch}.pkg`
+**Output:** `GnuNae-mac-universal.pkg`
 
 #### Certificates Required
 
@@ -289,11 +315,12 @@ npm run deploy:mas
 |----------|-------------|--------|
 | `APPLE_CERTIFICATE_APPLICATION_P12` | Base64-encoded 3rd Party Mac Developer Application .p12 | GitHub Secret |
 | `APPLE_CERTIFICATE_INSTALLER_P12` | Base64-encoded 3rd Party Mac Developer Installer .p12 | GitHub Secret |
-| `APPLE_CERTIFICATE_PASSWORD` | Password for .p12 files | `.env.local` |
+| `APPLE_CERTIFICATE_PASSWORD` | Password for .p12 files | `.env.local` or GitHub Secret |
 | `APPLE_PROVISIONING_PROFILE` | Base64-encoded .provisionprofile | GitHub Secret |
-| `APPLE_TEAM_ID` | 10-character Apple Team ID | `.env.local` |
-| `ASC_API_KEY_ID` | App Store Connect API Key ID | `.env.local` |
-| `ASC_API_ISSUER_ID` | App Store Connect Issuer ID | `.env.local` |
+| `APPLE_TEAM_ID` | 10-character Apple Team ID | `.env.local` or GitHub Secret |
+| `ASC_API_KEY_ID` | App Store Connect API Key ID | `.env.local` or GitHub Secret |
+| `ASC_API_ISSUER_ID` | App Store Connect Issuer ID | `.env.local` or GitHub Secret |
+| `ASC_API_PRIVATE_KEY_BASE64` or `ASC_API_PRIVATE_KEY` | App Store Connect `.p8` API key content | GitHub Secret |
 
 #### App Store Connect API Key Setup
 
@@ -303,8 +330,9 @@ The `deploy:mas` script uses `xcrun altool` with API Key authentication to uploa
 2. Generate a new key with **App Manager** role
 3. Note the **Key ID** and **Issuer ID**
 4. Download the `.p8` file (can only be downloaded once!)
-5. Save the `.p8` file to: `~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8`
-6. Add to `.env.local`:
+5. For local uploads, save the `.p8` file to: `~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8`
+6. For GitHub Actions, configure `ASC_API_PRIVATE_KEY_BASE64` or `ASC_API_PRIVATE_KEY` as a repository secret.
+7. Add to `.env.local` for local uploads:
    ```
    ASC_API_KEY_ID=YOUR_KEY_ID
    ASC_API_ISSUER_ID=YOUR_ISSUER_ID
@@ -334,16 +362,16 @@ MAS packages include **embedded Node.js and Codex CLI** so users don't need to d
 
 | Component | Build Step | Package Location |
 |-----------|------------|------------------|
-| Node.js + npm | `npm run download-node-darwin-{arch}` | `resources/runtime-darwin-{arch}/` |
-| Codex CLI | `npm run install-codex` | `resources/codex/` |
+| Node.js + npm | `npm run download-node-darwin-arm64` and `npm run download-node-darwin-x64` | `resources/runtime-darwin-{arch}/` |
+| Codex CLI | `npm run install-codex` | `resources/codex/` with Darwin arm64 and x64 optional packages |
 
 The `pack:mac-mas` script runs both before packaging:
 ```bash
 npm run download-node-darwin-arm64 && npm run download-node-darwin-x64 && \
-npm run install-codex && npm run build && electron-builder --mac mas
+npm run install-codex && npm run build && electron-builder --mac mas --universal
 ```
 
-The `afterPack.js` hook copies `node_modules` directories (which electron-builder excludes by default):
+The `afterPack.js` hook copies `node_modules` directories (which electron-builder excludes by default) and keeps both macOS runtimes side by side for the universal MAS build:
 ```javascript
 // scripts/afterPack.js
 exports.default = async function(context) {
@@ -456,15 +484,35 @@ At runtime, the embedded runtime is migrated to `%LOCALAPPDATA%/GnuNae/` for sta
 #### Local Build Command
 ```bash
 npm run pack:win
-# This builds NSIS, Portable, and APPX targets
-# Upload the .appx file to MS Store Partner Center
+# This builds the APPX target for Microsoft Store distribution
 ```
+
+The tag-triggered `build-msstore` workflow builds the APPX/MSIX package from
+the current `package.json` version, creates a Partner Center draft with
+`msstore publish --noCommit`, runs `scripts/msstore-certification.js` to add
+certification notes and verify the pending package version, then publishes the
+draft with `msstore submission publish`. The same workflow can be manually
+dispatched with `release_mode=msstore-only` for owner-approved Microsoft Store
+resubmission from the selected branch without moving an existing release tag.
+Manual `release_mode=full` runs the normal release jobs.
+
+Use `Store Status Watch` manual dispatch with `certification_dry_run=true`
+before resubmitting after a certification failure. It runs the same
+certification-note script in GitHub Actions with Partner Center credentials, but
+always uses dry-run mode and does not upload packages, publish submissions, or
+change Store metadata.
 
 #### Environment Variables
 
 | Variable | Description | GitHub Secret |
 |----------|-------------|---------------|
 | `MSSTORE_PUBLISHER_CN` | Publisher CN from Partner Center (e.g., "CN=12345678-1234-...") | ✅ |
+| `MSSTORE_TENANT_ID` | Partner Center Entra tenant ID | ✅ |
+| `MSSTORE_CLIENT_ID` | Partner Center app/client ID | ✅ |
+| `MSSTORE_CLIENT_SECRET` | Partner Center app/client secret | ✅ |
+| `MSSTORE_SELLER_ID` | Partner Center seller ID | ✅ |
+| `MSSTORE_PRODUCT_ID` | Microsoft Store product ID | ✅ |
+| `MSSTORE_CERTIFICATION_TEST_ACCOUNT_NOTE` | Optional secure reviewer-account note appended to Partner Center certification notes | Optional |
 | `CSC_IDENTITY_AUTO_DISCOVERY` | Set to `false` to disable signing | N/A |
 
 #### Getting Publisher CN
@@ -549,9 +597,9 @@ gpg --pinentry-mode loopback --armor --export-secret-keys YOUR_KEY_ID | base64 |
 #### App Store Connect (MAS upload)
 | Variable | Description | Local | GitHub |
 |----------|-------------|-------|--------|
-| `ASC_API_KEY_ID` | API Key ID (from App Store Connect) | `.env.local` | N/A |
-| `ASC_API_ISSUER_ID` | Issuer ID (from App Store Connect) | `.env.local` | N/A |
-| API Key `.p8` file | Stored at `~/.appstoreconnect/private_keys/` | File | N/A |
+| `ASC_API_KEY_ID` | API Key ID (from App Store Connect) | `.env.local` | Secret |
+| `ASC_API_ISSUER_ID` | Issuer ID (from App Store Connect) | `.env.local` | Secret |
+| API Key `.p8` file | Stored at `~/.appstoreconnect/private_keys/` | File | Use `ASC_API_PRIVATE_KEY_BASE64` or `ASC_API_PRIVATE_KEY` |
 
 #### Azure (Windows)
 | Variable | Description | Local | GitHub |
@@ -639,16 +687,15 @@ In your GitHub repository, go to **Settings → Secrets and variables → Action
 - `APPLE_CERTIFICATE_APPLICATION_P12` (base64)
 - `APPLE_CERTIFICATE_INSTALLER_P12` (base64)
 - `APPLE_PROVISIONING_PROFILE` (base64)
+- `ASC_API_KEY_ID`
+- `ASC_API_ISSUER_ID`
+- `ASC_API_PRIVATE_KEY_BASE64` or `ASC_API_PRIVATE_KEY`
 
 > [!NOTE]
-> Mac App Store upload remains local via `npm run deploy:mas`, so local
-> App Store Connect credentials (`ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`, `.p8`
-> key) are still required on the owner macOS machine. The read-only
-> `store-status-watch.yml` workflow can additionally use GitHub Actions secrets
-> `ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`, and either
-> `ASC_API_PRIVATE_KEY_BASE64` or `ASC_API_PRIVATE_KEY` to report App Store
-> Connect build/review status. That workflow does not upload or submit MAS
-> builds.
+> The tag-triggered `build-mas` job uses these secrets to build and upload the
+> universal MAS package. The read-only `store-status-watch.yml` workflow uses
+> the same App Store Connect API secrets to report build/review status; it does
+> not upload or submit MAS builds.
 
 #### Azure Secrets
 - `AZURE_TENANT_ID`
@@ -664,6 +711,20 @@ In your GitHub repository, go to **Settings → Secrets and variables → Action
 - `MSSTORE_CLIENT_SECRET`
 - `MSSTORE_SELLER_ID` (from Partner Center → Account settings → Identifiers)
 - `MSSTORE_PRODUCT_ID` (your app's Store Product ID)
+- `MSSTORE_CERTIFICATION_TEST_ACCOUNT_NOTE` (optional; appended to Partner
+  Center certification notes without printing the content in workflow logs)
+
+#### Microsoft 365 Appeal Email Secrets
+- `MS365_TENANT_ID`
+- `MS365_CLIENT_ID`
+- `MS365_CLIENT_SECRET`
+- `MS365_SENDER_USER` (optional; defaults to `wdong@bigdad.us`)
+
+The manual `store-status-watch.yml` dispatch can generate a Microsoft Store
+appeal email dry-run. Actual send mode uses Microsoft Graph `sendMail` and
+requires a dedicated app registration with `Mail.Send` application permission
+and admin consent, plus the `appeal_send_confirmation` input set to
+`SEND_TO_MICROSOFT_STORE`. Scheduled status runs never send email.
 
 ### Base64 Encoding Certificates
 
@@ -735,4 +796,4 @@ This is the standard approach for ChatGPT-integrated apps.
 4. [ ] Monitor GitHub Actions workflow
 5. [ ] Verify GitHub Release created with all artifacts (DMG, ZIP, EXE, AppImage, DEB)
 6. [ ] Verify APPX uploaded to MS Partner Center (check `build-msstore` job)
-7. [ ] Run `npm run deploy:mas` to build and upload MAS .pkg to App Store Connect
+7. [ ] Verify the `build-mas` job uploaded the universal MAS .pkg to App Store Connect

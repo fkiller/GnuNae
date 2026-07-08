@@ -1,8 +1,8 @@
 /**
  * Runtime Manager - Manages Node.js and Codex CLI installation/validation
  * 
- * Windows: Uses embedded Node.js from resources/node
- * macOS: Downloads to ~/Library/Application Support/GnuNae/node on first run
+ * Windows: Uses embedded Node.js from resources/runtime
+ * macOS: Uses embedded runtime in packaged builds, otherwise downloads on first run
  */
 
 import * as fs from 'fs';
@@ -62,27 +62,36 @@ class RuntimeManager {
     /**
      * Get the base directory for runtime files
      * Windows: resources/runtime (embedded in app)
-     * macOS (all packaged builds): resources/runtime (embedded in app)
+     * macOS packaged direct builds: resources/runtime (embedded in app)
+     * macOS packaged MAS universal builds: resources/runtime-darwin-{arch}
      * Linux: ~/.config/GnuNae (downloaded at runtime)
      */
     getRuntimeBaseDir(): string {
         const userDataDir = path.join(app.getPath('userData'), 'runtime');
         const resourcesDir = app.isPackaged
-            ? path.join(process.resourcesPath, 'runtime')
-            : path.join(__dirname, '../../resources/runtime');
+            ? process.resourcesPath
+            : path.join(__dirname, '../../resources');
+        const legacyRuntimeDir = path.join(resourcesDir, 'runtime');
 
         if (process.platform === 'win32') {
             // Check if stable userData copy exists, otherwise use resources
             const stableNode = path.join(userDataDir, 'node.exe');
             if (fs.existsSync(stableNode)) return userDataDir;
-            return resourcesDir;
+            return legacyRuntimeDir;
         } else if (process.platform === 'darwin') {
             // All packaged macOS builds have embedded runtime in resources
             if (app.isPackaged) {
-                const embeddedNode = path.join(resourcesDir, 'bin', 'node');
+                const embeddedArchRuntimeDir = path.join(resourcesDir, `runtime-darwin-${process.arch === 'arm64' ? 'arm64' : 'x64'}`);
+                const embeddedArchNode = path.join(embeddedArchRuntimeDir, 'bin', 'node');
+                if (fs.existsSync(embeddedArchNode)) {
+                    console.log('[RuntimeManager] macOS: Using embedded arch runtime from resources');
+                    return embeddedArchRuntimeDir;
+                }
+
+                const embeddedNode = path.join(legacyRuntimeDir, 'bin', 'node');
                 if (fs.existsSync(embeddedNode)) {
                     console.log('[RuntimeManager] macOS: Using embedded runtime from resources');
-                    return resourcesDir;
+                    return legacyRuntimeDir;
                 }
             }
             // Development or embedded not found: use userData (downloaded)
@@ -146,13 +155,12 @@ class RuntimeManager {
         } else {
             // macOS/Linux
 
-            // For macOS: Check embedded resources first (all packaged builds have embedded codex)
-            if (process.platform === 'darwin' && app.isPackaged) {
-                searchPaths.push(path.join(process.resourcesPath, 'codex', 'node_modules', '.bin', binName));
-            }
-
+            // Prefer userData so runtime upgrades override the bundled CLI.
             searchPaths.push(path.join(app.getPath('userData'), 'codex', 'node_modules', '.bin', binName));
             if (app.isPackaged) {
+                if (process.platform === 'darwin') {
+                    searchPaths.push(path.join(process.resourcesPath, 'codex', 'node_modules', '.bin', binName));
+                }
                 searchPaths.push(path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.bin', binName));
             }
             searchPaths.push(path.join(__dirname, '../../node_modules/.bin', binName));
@@ -187,12 +195,12 @@ class RuntimeManager {
             searchPaths.push(path.join(__dirname, '../../resources/codex', relativeMcpPath));
             searchPaths.push(path.join(__dirname, '../../', relativeMcpPath));
         } else {
-            // macOS: Check embedded resources first (all packaged builds have embedded codex)
-            if (process.platform === 'darwin' && app.isPackaged) {
-                searchPaths.push(path.join(process.resourcesPath, 'codex', relativeMcpPath));
-            }
+            // Prefer userData so runtime upgrades override the bundled MCP.
             searchPaths.push(path.join(app.getPath('userData'), 'codex', relativeMcpPath));
             if (app.isPackaged) {
+                if (process.platform === 'darwin') {
+                    searchPaths.push(path.join(process.resourcesPath, 'codex', relativeMcpPath));
+                }
                 searchPaths.push(path.join(process.resourcesPath, 'app.asar.unpacked', relativeMcpPath));
             }
             searchPaths.push(path.join(__dirname, '../../', relativeMcpPath));
@@ -613,6 +621,66 @@ class RuntimeManager {
 
             child.on('error', reject);
         });
+    }
+
+    /**
+     * Upgrade Codex CLI in userData. Used when the installed CLI is too old for
+     * the model catalog returned by the service.
+     */
+    async upgradeCodex(version: string = 'latest'): Promise<{ success: boolean; error?: string }> {
+        try {
+            console.log(`[RuntimeManager] Upgrading Codex CLI to ${version}...`);
+
+            const targetDir = app.getPath('userData');
+            const npmPath = this.getNpmPath();
+            if (!npmPath) {
+                return { success: false, error: 'npm not found' };
+            }
+
+            const codexDir = path.join(targetDir, 'codex');
+            if (!fs.existsSync(codexDir)) {
+                fs.mkdirSync(codexDir, { recursive: true });
+            }
+
+            const env = this.getEmbeddedNodeEnv();
+
+            return new Promise((resolve) => {
+                const child = spawn(npmPath, [
+                    'install',
+                    `@openai/codex@${version}`,
+                    `@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}`,
+                    '--prefix', codexDir,
+                    '--save',
+                ], {
+                    stdio: 'pipe',
+                    env: env as { [key: string]: string },
+                    cwd: codexDir,
+                });
+
+                let stderr = '';
+                child.stderr?.on('data', (data: Buffer) => {
+                    stderr += data.toString();
+                });
+
+                child.on('close', async (code) => {
+                    if (code === 0) {
+                        console.log('[RuntimeManager] Codex upgrade complete');
+                        await this.validateRuntime();
+                        resolve({ success: true });
+                    } else {
+                        const message = `npm install failed with code ${code}: ${stderr}`;
+                        console.error('[RuntimeManager] Codex upgrade failed:', message);
+                        resolve({ success: false, error: message });
+                    }
+                });
+
+                child.on('error', (err) => {
+                    resolve({ success: false, error: err.message });
+                });
+            });
+        } catch (err: any) {
+            return { success: false, error: err.message };
+        }
     }
 
 

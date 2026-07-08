@@ -408,7 +408,10 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
             if (data.success) {
                 addLog('info', '✅ Successfully logged in to OpenAI!');
             } else {
-                addLog('error', `❌ Login failed: ${data.error || 'Unknown error'}. Please try again.`);
+                addLog(
+                    'error',
+                    `OpenAI sign-in did not complete: ${data.error || 'Unknown error'}. Codex requires an OpenAI account with ChatGPT Pro/Plus or Codex access. Browser navigation remains available without sign-in.`,
+                );
             }
         });
 
@@ -445,7 +448,7 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
         if (!prompt.trim()) return;
 
         if (!isAuthenticated) {
-            addLog('error', '⚠ Please sign in to use Codex features.');
+            addLog('error', 'Sign in with OpenAI to use Codex AI features. Browser navigation works without Codex.');
             onRequestLogin();
             return;
         }
@@ -647,7 +650,7 @@ You can read, process, or reference these files as needed.
                         <div className="log-welcome">
                             <div className="welcome-icon">🚀</div>
                             <h3>Welcome to Codex</h3>
-                            <p>Type a prompt below to get started.</p>
+                            <p>{isAuthenticated ? 'Type a prompt below to get started.' : 'Sign in with OpenAI to use Codex AI features.'}</p>
                             <div className="welcome-hints">
                                 <div className="hint">💡 "Summarize this page"</div>
                                 <div className="hint">💡 "Find all links"</div>
@@ -743,7 +746,7 @@ You can read, process, or reference these files as needed.
                         onChange={(e) => { setPrompt(e.target.value); autoResize(); }}
                         onKeyDown={handleKeyDown}
                         placeholder={
-                            !isAuthenticated ? "Sign in to use Codex..." :
+                            !isAuthenticated ? "OpenAI sign-in required for Codex..." :
                                 isInitializing ? "Initializing MCP servers..." :
                                     isProcessing ? "Processing..." :
                                         taskMode ? "Describe task to automate..." :

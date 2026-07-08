@@ -1,6 +1,6 @@
 {
   "name": "gnunae",
-  "version": "0.8.54",
+  "version": "1.0.60",
   "productName": "GnuNae",
   "main": "dist/electron/main.js",
   "author": {
@@ -12,8 +12,8 @@
   "scripts": {
     "build:electron": "tsc",
     "build:ui": "vite build && node scripts/build-ui.js",
-    "build:docker": "docker build -t gnunae/sandbox:latest ./docker",
-    "build:docker:clean": "docker build --no-cache -t gnunae/sandbox:latest ./docker",
+    "build:docker": "docker build -t gnunae/sandbox:latest -t ghcr.io/fkiller/gnunae/sandbox:latest ./docker",
+    "build:docker:clean": "docker build --no-cache -t gnunae/sandbox:latest -t ghcr.io/fkiller/gnunae/sandbox:latest ./docker",
     "build": "npm run build:electron && npm run build:ui",
     "build:all": "npm run build && npm run build:docker:clean",
     "dev:ui": "vite --config vite.config.ts",
@@ -25,8 +25,9 @@
     "download-node-darwin-x64": "node scripts/download-node.js --platform darwin --arch x64",
     "install-codex": "node scripts/install-codex.js",
     "pack:mac": "npm run download-node-darwin-arm64 && npm run download-node-darwin-x64 && npm run install-codex && npm run build && node scripts/load-env.js --mac dmg zip",
-    "pack:mac-mas": "npm run download-node-darwin-arm64 && npm run download-node-darwin-x64 && npm run install-codex && npm run build && node scripts/load-env.js --mac mas",
+    "pack:mac-mas": "npm run download-node-darwin-arm64 && npm run download-node-darwin-x64 && npm run install-codex && npm run build && node scripts/load-env.js --mac mas --universal",
     "deploy:mas": "node scripts/deploy-mas.js",
+    "submit:mas": "node scripts/submit-mas.js",
     "pack:win": "npm run download-node && npm run install-codex && ping 127.0.0.1 -n 4 > nul && npm run build && node scripts/load-env.js --win appx",
     "pack:linux": "npm run build && electron-builder --linux",
     "pack:all": "npm run build && electron-builder --mac --win --linux",
@@ -76,12 +77,12 @@
       "category": "public.app-category.productivity",
       "icon": "assets/gnunae.png",
       "notarize": false,
+      "x64ArchFiles": "**/{node_modules/node-pty/prebuilds/darwin-*/**,Resources/runtime-darwin-*/**,Resources/codex/node_modules/@openai/codex-darwin-*/**}",
       "target": [
         {
           "target": "mas",
           "arch": [
-            "x64",
-            "arm64"
+            "universal"
           ]
         }
       ],

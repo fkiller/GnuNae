@@ -665,12 +665,19 @@ ${websiteSection}
 - Open narrow PRs for version changes. Do not combine dependency/runtime bumps
   with release workflow or signing changes unless owner-approved.
 - Run the standard PR build matrix before merge.
+- For Codex CLI, Playwright MCP, Playwright, or model behavior changes, update
+  both native runtime pins and Dockerfile/image pins, then verify
+  \`docs/codex-model-runtime.md\` still matches Native and Docker behavior.
+- Run \`npm run build:docker\` for Docker-related maintenance when Docker is
+  available, or document why Docker could not be run.
 - For release candidates, use the release checklist and owner-approved tag flow.
 - When the app version changes, update \`docs/index.html\` website version
   metadata/fallback text and confirm the latest GitHub Release assets match the
   website download links.
-- Keep Mac App Store upload local through \`npm run deploy:mas\` until a
-  separate owner-reviewed PR moves that flow into GitHub Actions.
+- Keep Mac App Store upload changes owner-reviewed. The tag-triggered
+  \`build-mas\` release job uses GitHub Actions secrets to build and upload the
+  universal MAS package; \`npm run deploy:mas\` remains available for
+  owner-controlled local uploads.
 
 ## Upstream References
 

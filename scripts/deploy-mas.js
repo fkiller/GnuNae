@@ -2,7 +2,7 @@
  * deploy-mas.js
  * 
  * Automated Mac App Store deployment script.
- * Builds MAS .pkg files for both architectures and uploads them
+ * Builds a universal MAS .pkg for Intel and Apple Silicon Macs and uploads it
  * to App Store Connect via `xcrun altool` using API Key authentication.
  * 
  * Usage: node scripts/deploy-mas.js
@@ -11,7 +11,8 @@
  * Prerequisites:
  *   1. App Store Connect API Key (.p8) placed in:
  *      ~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8
- *   2. .env.local must contain:
+ *      or provided via ASC_API_PRIVATE_KEY_BASE64 / ASC_API_PRIVATE_KEY.
+ *   2. Environment or .env.local must contain:
  *      - ASC_API_KEY_ID=<your key id>
  *      - ASC_API_ISSUER_ID=<your issuer id>
  *   3. 3rd Party Mac Developer certificates in Keychain
@@ -48,8 +49,8 @@ function run(cmd, opts = {}) {
 
 function loadEnvLocal() {
     if (!fs.existsSync(ENV_LOCAL_PATH)) {
-        console.error('❌ .env.local not found. Cannot load API credentials.');
-        process.exit(1);
+        console.log('No .env.local found; using existing environment variables.');
+        return;
     }
     const content = fs.readFileSync(ENV_LOCAL_PATH, 'utf8');
     for (const line of content.split('\n')) {
@@ -68,6 +69,26 @@ function loadEnvLocal() {
             }
         }
     }
+}
+
+function writeApiKeyFromEnv(keyId) {
+    const privateKeyBase64 = process.env.ASC_API_PRIVATE_KEY_BASE64;
+    const privateKey = process.env.ASC_API_PRIVATE_KEY;
+
+    if (!privateKeyBase64 && !privateKey) {
+        return null;
+    }
+
+    const privateKeysDir = path.join(process.env.HOME, '.appstoreconnect', 'private_keys');
+    const keyFilePath = path.join(privateKeysDir, `AuthKey_${keyId}.p8`);
+    fs.mkdirSync(privateKeysDir, { recursive: true, mode: 0o700 });
+
+    const keyContent = privateKeyBase64
+        ? Buffer.from(privateKeyBase64, 'base64').toString('utf8')
+        : privateKey.replace(/\\n/g, '\n');
+
+    fs.writeFileSync(keyFilePath, keyContent, { mode: 0o600 });
+    return keyFilePath;
 }
 
 function findPkgFilesRecursive(dir) {
@@ -114,13 +135,18 @@ function validateApiKeySetup() {
     const issuerId = process.env.ASC_API_ISSUER_ID;
 
     if (!keyId || !issuerId) {
-        console.error('❌ Missing App Store Connect API credentials in .env.local:');
+        console.error('❌ Missing App Store Connect API credentials:');
         if (!keyId) console.error('   - ASC_API_KEY_ID');
         if (!issuerId) console.error('   - ASC_API_ISSUER_ID');
-        console.error('\n   Add them to .env.local:');
+        console.error('\n   Add them to .env.local or GitHub Actions secrets:');
         console.error('   ASC_API_KEY_ID=YOUR_KEY_ID');
         console.error('   ASC_API_ISSUER_ID=YOUR_ISSUER_ID');
         process.exit(1);
+    }
+
+    const generatedKeyPath = writeApiKeyFromEnv(keyId);
+    if (generatedKeyPath) {
+        log('🔑', `API Key prepared: ${generatedKeyPath}`);
     }
 
     // Check for .p8 key file in known locations
@@ -185,20 +211,20 @@ async function main() {
     log('📦', `Version: ${pkg.version}`);
 
     // ── Step 1: Build ────────────────────────────────────────
-    log('⬇️ ', 'Step 1/4: Downloading Node.js runtime (arm64)...');
+    log('⬇️ ', 'Step 1/6: Downloading Node.js runtime (arm64)...');
     run('npm run download-node-darwin-arm64');
 
-    log('📥', 'Step 2/4: Installing Codex CLI...');
+    log('⬇️ ', 'Step 2/6: Downloading Node.js runtime (x64)...');
+    run('npm run download-node-darwin-x64');
+
+    log('📥', 'Step 3/6: Installing Codex CLI...');
     run('npm run install-codex');
 
-    log('🔨', 'Step 3/4: Building app...');
+    log('🔨', 'Step 4/6: Building app...');
     run('npm run build');
 
     // ── Step 2: Package ──────────────────────────────────────
-    // Only arm64 is uploaded to App Store — Apple warns about x64-only
-    // binaries missing arm64 (ITMS-91167). Intel Mac users can use the
-    // DMG/ZIP downloads from the website instead.
-    log('📦', 'Step 4/5: Packaging MAS .pkg (arm64)...');
+    log('📦', 'Step 5/6: Packaging universal MAS .pkg (arm64 + x64)...');
 
     // Clean previous MAS builds (search recursively)
     const existingPkgs = findPkgFiles();
@@ -210,10 +236,10 @@ async function main() {
         });
     }
 
-    run('node scripts/load-env.js --mac mas --arm64');
+    run('node scripts/load-env.js --mac mas --universal');
 
     // ── Step 3: Upload ───────────────────────────────────────
-    log('🚀', 'Step 5/5: Uploading to App Store Connect...');
+    log('🚀', 'Step 6/6: Uploading to App Store Connect...');
 
     const pkgFiles = findPkgFiles();
     if (pkgFiles.length === 0) {

@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 
 const projectRoot = path.join(__dirname, '..');
+const packageJson = require(path.join(projectRoot, 'package.json'));
 
 // Source and destination paths
 const sources = [
@@ -39,7 +40,9 @@ function copyDir(src, dest) {
  */
 function copyFile(src, dest) {
     fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.copyFileSync(src, dest);
+    let content = fs.readFileSync(src, 'utf8');
+    content = content.replace(/__APP_VERSION__/g, packageJson.version || '0.0.0');
+    fs.writeFileSync(dest, content, 'utf8');
 }
 
 // Run the copy operations

@@ -53,6 +53,44 @@ fully current until checked against code and workflows. If a stale doc conflicts
 with source truth, mention the conflict and prefer marking it historical,
 stale, or superseded instead of deleting it.
 
+## Documentation Update Rule
+
+Every code, workflow, packaging, runtime, Docker, or user-facing behavior change
+must include a documentation impact pass before the work is considered complete.
+Update the mapped docs in the same PR, or state explicitly in the PR why each
+mapped doc is not applicable.
+
+Documentation map:
+
+- Codex CLI, model selection, model registry, spawn flags, auth, or runtime
+  repair: update `docs/codex-model-runtime.md`,
+  `docs/PERIODIC_MAINTENANCE.md`, `docs/test-matrix.md`, and user-facing
+  notes in `README.md` when behavior changes.
+- Native Codex runtime, Node/npm runtime, or packaged runtime files: update
+  `docs/CI_CD_PACKAGING.md`, `docs/PERIODIC_MAINTENANCE.md`,
+  `docs/test-matrix.md`, and `resources/runtime/README.md` if runtime layout
+  changes.
+- Docker/Virtual Mode, Dockerfile pins, sandbox API, CDP networking, or Docker
+  image tags: update `docs/CI_CD_PACKAGING.md`,
+  `docs/PERIODIC_MAINTENANCE.md`, `docs/test-matrix.md`, and
+  `docs/codex-model-runtime.md` when Codex behavior is involved.
+- Release workflows, store uploads, signing, notarization, package targets, or
+  app identity: update `docs/CI_CD_PACKAGING.md`,
+  `docs/release-checklist.md`, `docs/maintenance-playbook.md`, and this file.
+  Treat these as release-sensitive and get owner review.
+- Maintenance automation or issue/PR process: update
+  `docs/PERIODIC_MAINTENANCE.md`, `docs/maintenance-playbook.md`,
+  `.github/ISSUE_TEMPLATE/maintenance_task.yml`, and this file.
+- Renderer UX, settings, shortcuts, task workflows, or user-visible setup:
+  update `README.md` and `docs/test-matrix.md`; update feature-specific docs if
+  present.
+
+Native and Docker parity rule: any change that affects Codex execution,
+supported models, runtime updates, Playwright MCP, browser automation, auth, or
+maintenance dependency pins must inspect both Native mode and Docker/Virtual
+Mode. If one mode cannot or should not use the same behavior, document the
+reason and the fallback path.
+
 ## Package Manager And Commands
 
 The repository uses npm. `package-lock.json` is present; no pnpm or Yarn config
@@ -140,7 +178,10 @@ Tests and lint:
 
 Current workflows are defined under `.github/workflows/`.
 
-- `release.yml` runs on pushed tags matching `v*`.
+- `release.yml` runs on pushed tags matching `v*`. It also supports manual
+  dispatch with `release_mode=msstore-only` for owner-approved Microsoft Store
+  resubmission from the selected branch without moving an existing release tag.
+  Manual `release_mode=full` runs the same release jobs as a tag workflow.
   - Matrix build job runs on macOS and Ubuntu.
   - It runs `npm ci`, injects build config, runs `npm run build`, then packages:
     macOS DMG/ZIP with Developer ID signing and notarization, and Linux
@@ -148,13 +189,21 @@ Current workflows are defined under `.github/workflows/`.
   - Direct Windows NSIS/portable GitHub-release artifacts are intentionally not
     built or signed. Windows distribution is handled through Microsoft Store
     APPX/MSIX deployment.
-  - A separate `build-msstore` job builds an APPX/MSIX on Windows and uploads it
-    to Microsoft Partner Center with the `msstore` CLI.
+  - A separate `build-msstore` job builds an APPX/MSIX on Windows, creates a
+    no-commit Microsoft Store draft, patches certification notes with
+    `scripts/msstore-certification.js`, verifies the pending package version
+    against `package.json`, and publishes the draft to Partner Center.
   - The GitHub Release job creates a non-draft GitHub Release from artifacts
     produced by the matrix build job. It currently depends on `build`, not on
     `build-msstore`.
 - `docker.yml` builds the sandbox image on Docker path PRs, selected branch
-  pushes, manual dispatch, and `v*` tags. Non-PR runs push to GHCR.
+  pushes, manual dispatch, and `v*` tags. Non-PR runs push to GHCR. The app
+  currently requests `ghcr.io/fkiller/gnunae/sandbox:latest` and pulls it before
+  sandbox startup; semver, branch, and SHA image tags are traceability unless
+  the runtime image selection policy changes.
+- The Docker image is part of Codex/runtime maintenance. Codex CLI,
+  Playwright MCP, and Playwright updates must consider both native runtime pins
+  and Dockerfile/image pins.
 - `ci.yml` runs `npm ci` and `npm run build` on Windows, macOS, and Linux for
   PRs and selected pushes. It is a non-release build check and does not sign,
   notarize, package, or upload store artifacts.
@@ -169,11 +218,29 @@ Current workflows are defined under `.github/workflows/`.
   creates or updates a GitHub Issue named `Store status watch`. It can read
   store API credentials from GitHub Actions secrets, but it must not build,
   upload, submit, publish, change metadata, rotate secrets, or modify store
-  configuration.
+  configuration. When `msstore submission status` emits Partner Center
+  certification report links, the report should preserve those links for owner
+  review even if the CLI table wraps them across lines. If a failed status omits
+  a report link, the script may run one additional read-only verbose status
+  query to recover the pending submission id. The workflow pins the MSStore CLI
+  setup action to the `v0.3.7` CLI release line because that is the local-good
+  status-query version; update the pin only after validating `submission
+  status` in GitHub Actions. On manual dispatch only, the same workflow can
+  generate a Microsoft Store certification appeal email in dry-run mode, or send
+  it through Microsoft Graph when dedicated `MS365_*` mail secrets are
+  configured and the dispatch input explicitly confirms sending. Scheduled runs
+  must never send email.
+- On manual dispatch, `store-status-watch.yml` can also run
+  `certification_dry_run=true` to validate `scripts/msstore-certification.js`
+  in GitHub Actions, generate the Partner Center certification-note text, and
+  perform a dry-run read of the pending Microsoft Store submission. It must not
+  upload packages, publish submissions, or mutate Partner Center metadata.
 - `dependabot.yml` opens weekly npm dependency updates.
-- Mac App Store packaging/upload is not handled by GitHub Actions. The current
-  repo script is `npm run deploy:mas`, which must run locally on macOS with
-  App Store Connect credentials, certificates, and provisioning profile.
+- Mac App Store packaging/upload is handled by the tag-triggered `build-mas`
+  workflow job when required GitHub Actions secrets are configured. The
+  `npm run deploy:mas` script remains available for owner-controlled local
+  macOS uploads with App Store Connect credentials, certificates, and
+  provisioning profile.
 
 ## Store And Release Safety Rules
 
@@ -222,6 +289,14 @@ secrets already configured in GitHub Actions, but must never print secret
 values. Mac App Store status polling requires `ASC_API_KEY_ID`,
 `ASC_API_ISSUER_ID`, and either `ASC_API_PRIVATE_KEY_BASE64` or
 `ASC_API_PRIVATE_KEY`.
+
+For Microsoft Store appeal email automation, Codex may generate a dry-run email
+body in GitHub Actions without mail credentials. Actual email sending requires
+dedicated GitHub Actions secrets `MS365_TENANT_ID`, `MS365_CLIENT_ID`,
+`MS365_CLIENT_SECRET`, and optionally `MS365_SENDER_USER`; the app registration
+must have Microsoft Graph `Mail.Send` application permission with admin consent.
+Do not reuse Azure signing credentials for mail unless the owner explicitly
+approves that credential scope.
 
 ## Cloud Verification Limits
 
@@ -276,6 +351,9 @@ Use this structure in PR descriptions:
 - Not run: reason
 
 ## Release and store impact
+- ...
+
+## Native and Docker impact
 - ...
 
 ## Stale docs or conflicts found

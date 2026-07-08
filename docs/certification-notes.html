@@ -291,29 +291,32 @@
 
         <main class="content">
             <h1>Certification Notes</h1>
-            <span class="version-badge">v0.8.1</span>
+            <span class="version-badge">v1.0.60</span>
 
             <div class="section">
                 <h2>Overview</h2>
-                <p>GnuNae is an AI-powered browser that integrates OpenAI's Codex CLI for intelligent web automation. It
-                    provides a sidebar interface for AI-assisted browsing, task automation, and page analysis.</p>
+                <p>GnuNae is a desktop browser that integrates OpenAI's Codex CLI for intelligent web automation. It
+                    provides normal browser navigation without sign-in and a sidebar interface for authenticated
+                    AI-assisted browsing, task automation, and page analysis.</p>
             </div>
 
             <div class="info-box warning">
-                <h3>⚠️ Test Account Requirements</h3>
+                <h3>⚠️ Codex Test Account Requirements</h3>
                 <p>Testing AI features requires a <strong>ChatGPT Pro or Plus subscription</strong> from OpenAI. Free
-                    ChatGPT accounts cannot use Codex features. You can upgrade at <a
+                    ChatGPT accounts may not be able to use Codex features. You can upgrade at <a
                         href="https://chat.openai.com/settings/subscription"
-                        style="color: var(--accent-primary);">chat.openai.com</a>.</p>
+                        style="color: var(--accent-primary);">chat.openai.com</a>. Browser navigation can be tested
+                    without OpenAI authentication.</p>
             </div>
 
             <div class="section">
                 <h2>Authentication Steps</h2>
                 <ol class="steps-list">
                     <li>Launch GnuNae</li>
+                    <li>Use "Browse without Codex" or the address bar to verify normal browser navigation</li>
                     <li>Click "Sign in to OpenAI" in the sidebar</li>
                     <li>Complete the OAuth flow with your OpenAI credentials</li>
-                    <li>After authentication, the sidebar will show "Ready"</li>
+                    <li>After authentication, enter a Codex prompt such as "Summarize this page"</li>
                 </ol>
             </div>
 
@@ -370,7 +373,7 @@
                 <h2>Known Limitations</h2>
                 <ul>
                     <li>AI features require active internet connection</li>
-                    <li>Full AI functionality requires ChatGPT Pro/Plus subscription</li>
+                    <li>Full AI functionality requires ChatGPT Pro/Plus or Codex access</li>
                     <li>Virtual Mode requires Docker Desktop (optional)</li>
                 </ul>
             </div>
