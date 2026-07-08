@@ -339,12 +339,16 @@ function updateRequestFromSubmission(submission) {
     hasExternalInAppProducts: Boolean(submission.hasExternalInAppProducts),
     meetAccessibilityGuidelines: Boolean(submission.meetAccessibilityGuidelines),
     notesForCertification: submission.notesForCertification || '',
-    applicationPackages: (submission.applicationPackages || []).map((pkg) => ({
-      fileName: pkg.fileName,
-      fileStatus: pkg.fileStatus,
-      minimumDirectXVersion: pkg.minimumDirectXVersion || 'None',
-      minimumSystemRam: pkg.minimumSystemRam || 'None',
-    })),
+    applicationPackages: (submission.applicationPackages || []).map((pkg) => {
+      const requestPackage = {
+        fileName: pkg.fileName,
+        fileStatus: pkg.fileStatus,
+        minimumDirectXVersion: pkg.minimumDirectXVersion || 'None',
+        minimumSystemRam: pkg.minimumSystemRam || 'None',
+      };
+      if (pkg.id) requestPackage.id = pkg.id;
+      return requestPackage;
+    }),
     packageDeliveryOptions: submission.packageDeliveryOptions,
     enterpriseLicensing: submission.enterpriseLicensing,
     allowMicrosoftDecideAppAvailabilityToFutureDeviceFamilies:
