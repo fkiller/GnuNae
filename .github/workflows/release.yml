@@ -4,12 +4,23 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_mode:
+        description: 'Release jobs to run'
+        required: true
+        default: 'msstore-only'
+        type: choice
+        options:
+          - msstore-only
+          - full
 
 permissions:
   contents: write
 
 jobs:
   build:
+    if: ${{ github.event_name == 'push' || inputs.release_mode == 'full' }}
     strategy:
       fail-fast: false
       matrix:
@@ -127,6 +138,7 @@ jobs:
   # Mac App Store: Build universal MAS package, upload, and submit for review
   # ─────────────────────────────────────────────────────────────
   build-mas:
+    if: ${{ github.event_name == 'push' || inputs.release_mode == 'full' }}
     runs-on: macos-latest
 
     steps:
@@ -245,6 +257,7 @@ jobs:
   # Microsoft Store: Build APPX and upload to Partner Center
   # ─────────────────────────────────────────────────────────────
   build-msstore:
+    if: ${{ github.event_name == 'push' || inputs.release_mode == 'full' || inputs.release_mode == 'msstore-only' }}
     # Keep MSIX packaging on the known-good Windows toolchain until native
     # rebuilds support VS2026 runners.
     runs-on: windows-2022
@@ -375,6 +388,7 @@ jobs:
 
   release:
     needs: build
+    if: ${{ github.event_name == 'push' || inputs.release_mode == 'full' }}
     runs-on: ubuntu-latest
 
     steps:

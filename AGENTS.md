@@ -178,7 +178,10 @@ Tests and lint:
 
 Current workflows are defined under `.github/workflows/`.
 
-- `release.yml` runs on pushed tags matching `v*`.
+- `release.yml` runs on pushed tags matching `v*`. It also supports manual
+  dispatch with `release_mode=msstore-only` for owner-approved Microsoft Store
+  resubmission from the selected branch without moving an existing release tag.
+  Manual `release_mode=full` runs the same release jobs as a tag workflow.
   - Matrix build job runs on macOS and Ubuntu.
   - It runs `npm ci`, injects build config, runs `npm run build`, then packages:
     macOS DMG/ZIP with Developer ID signing and notarization, and Linux

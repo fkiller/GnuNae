@@ -70,7 +70,9 @@ Dependency automation:
   `build-msstore` job builds APPX/MSIX, creates a no-commit Partner Center
   draft, patches certification notes through `scripts/msstore-certification.js`,
   verifies the pending Store package version against `package.json`, and then
-  publishes the draft.
+  publishes the draft. Manual dispatch with `release_mode=msstore-only` runs
+  the Microsoft Store job from the selected branch without moving an existing
+  release tag.
 
 ## Missing Checks
 
