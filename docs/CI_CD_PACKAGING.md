@@ -490,11 +490,14 @@ npm run pack:win
 The tag-triggered `build-msstore` workflow builds the APPX/MSIX package from
 the current `package.json` version, creates a Partner Center draft with
 `msstore publish --noCommit`, runs `scripts/msstore-certification.js` to add
-certification notes and verify the pending package version, then publishes the
-draft with `msstore submission publish`. The same workflow can be manually
-dispatched with `release_mode=msstore-only` for owner-approved Microsoft Store
-resubmission from the selected branch without moving an existing release tag.
-Manual `release_mode=full` runs the normal release jobs.
+certification notes, verifies the built APPX/MSIX manifest version against
+`package.json`, then publishes the draft with `msstore submission publish`.
+Partner Center submission reads before ingestion can still show the copied
+previous package version, so release submission treats that API package-version
+read as advisory after local manifest verification. The same workflow can be
+manually dispatched with `release_mode=msstore-only` for owner-approved
+Microsoft Store resubmission from the selected branch without moving an
+existing release tag. Manual `release_mode=full` runs the normal release jobs.
 
 Use `Store Status Watch` manual dispatch with `certification_dry_run=true`
 before resubmitting after a certification failure. It runs the same

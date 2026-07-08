@@ -191,8 +191,11 @@ Current workflows are defined under `.github/workflows/`.
     APPX/MSIX deployment.
   - A separate `build-msstore` job builds an APPX/MSIX on Windows, creates a
     no-commit Microsoft Store draft, patches certification notes with
-    `scripts/msstore-certification.js`, verifies the pending package version
-    against `package.json`, and publishes the draft to Partner Center.
+    `scripts/msstore-certification.js`, verifies the built APPX/MSIX manifest
+    version against `package.json`, and publishes the draft to Partner Center.
+    Partner Center submission reads before ingestion can still show the copied
+    previous package version, so those API package-version reads are advisory
+    during release submission.
   - The GitHub Release job creates a non-draft GitHub Release from artifacts
     produced by the matrix build job. It currently depends on `build`, not on
     `build-msstore`.

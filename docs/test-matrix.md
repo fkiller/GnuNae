@@ -69,10 +69,12 @@ Dependency automation:
 - `.github/workflows/release.yml` - tag-triggered release workflow. Its
   `build-msstore` job builds APPX/MSIX, creates a no-commit Partner Center
   draft, patches certification notes through `scripts/msstore-certification.js`,
-  verifies the pending Store package version against `package.json`, and then
-  publishes the draft. Manual dispatch with `release_mode=msstore-only` runs
-  the Microsoft Store job from the selected branch without moving an existing
-  release tag.
+  verifies the built APPX/MSIX manifest version against `package.json`, and
+  then publishes the draft. Partner Center submission reads before ingestion
+  can still show the copied previous package version, so that API package
+  version is advisory during release submission. Manual dispatch with
+  `release_mode=msstore-only` runs the Microsoft Store job from the selected
+  branch without moving an existing release tag.
 
 ## Missing Checks
 
@@ -179,8 +181,8 @@ Run these before larger merges or release candidates:
   inspect the `Store status watch` issue.
 - Manually dispatch `Store Status Watch` with `certification_dry_run=true`
   before resubmitting a failed Windows Store package to verify cloud
-  credentials, generated certification notes, and pending package-version
-  detection.
+  credentials, generated certification notes, and read-only pending submission
+  access.
 - Treat GitHub Actions as the Cloud end-to-end path for signed/notarized macOS
   direct-download artifacts, Linux artifacts, Microsoft Store upload, Mac App
   Store upload, and Docker image publication. Codex can inspect logs but cannot

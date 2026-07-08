@@ -259,8 +259,11 @@ Interpret workflows from `.github/workflows`, not from older docs alone.
   Release from those artifacts.
 - The same workflow has a separate `build-msstore` job that builds APPX/MSIX,
   creates a no-commit Microsoft Store draft, patches certification notes with
-  `scripts/msstore-certification.js`, verifies the pending package version
-  against `package.json`, and publishes the draft to Partner Center.
+  `scripts/msstore-certification.js`, verifies the built APPX/MSIX manifest
+  version against `package.json`, and publishes the draft to Partner Center.
+  Partner Center submission reads before ingestion can still show the copied
+  previous package version, so the API package-version read is advisory during
+  release submission.
 - The same workflow has a separate `build-mas` job that builds and uploads the
   universal Mac App Store package to App Store Connect.
 - The GitHub Release job currently depends on the matrix `build` job, not on

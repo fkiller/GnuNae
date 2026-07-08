@@ -29,8 +29,12 @@ source of truth.
    - Configures Microsoft Store Developer CLI.
    - Runs `npm ci`, build config injection, runtime download, Codex install,
      and `npm run build`.
-   - Builds APPX, renames APPX to MSIX for the CLI, and uploads to Partner
-     Center with `msstore publish`.
+   - Builds APPX, verifies the manifest version against `package.json`, renames
+     APPX to MSIX for the CLI, and uploads to Partner Center with
+     `msstore publish`.
+   - Adds certification notes before publishing. The Partner Center API may
+     still show the copied previous package version before ingestion, so the
+     built manifest check is the release-time package-version gate.
 8. The `build-mas` job runs on macOS:
    - Imports the 3rd Party Mac Developer Application and Installer
      certificates into a temporary keychain.

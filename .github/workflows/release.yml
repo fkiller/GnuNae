@@ -331,6 +331,37 @@ jobs:
           # Find APPX file and rename to .msix (msstore CLI expects .msix extension)
           $appx = Get-ChildItem -Path release -Filter *.appx | Select-Object -First 1
           if ($appx) {
+            $expectedPackageVersion = node -p "const parts = require('./package.json').version.split('.'); while (parts.length < 4) parts.push('0'); parts.slice(0, 4).join('.')"
+            if ($LASTEXITCODE -ne 0) {
+              exit $LASTEXITCODE
+            }
+
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $archive = [System.IO.Compression.ZipFile]::OpenRead($appx.FullName)
+            try {
+              $manifestEntry = $archive.GetEntry('AppxManifest.xml')
+              if (-not $manifestEntry) {
+                Write-Error "AppxManifest.xml was not found in $($appx.Name)"
+                exit 1
+              }
+
+              $reader = New-Object System.IO.StreamReader($manifestEntry.Open())
+              try {
+                [xml]$manifest = $reader.ReadToEnd()
+              } finally {
+                $reader.Dispose()
+              }
+            } finally {
+              $archive.Dispose()
+            }
+
+            $actualPackageVersion = $manifest.Package.Identity.Version
+            if ($actualPackageVersion -ne $expectedPackageVersion) {
+              Write-Error "APPX package version mismatch: expected $expectedPackageVersion, found $actualPackageVersion"
+              exit 1
+            }
+            Write-Host "Verified Windows package version: $actualPackageVersion"
+
             $msixName = $appx.Name -replace '\.appx$', '.msix'
             Rename-Item -Path $appx.FullName -NewName $msixName
             Write-Host "Renamed $($appx.Name) -> $msixName"
@@ -361,11 +392,19 @@ jobs:
             Write-Host "No submission ID found in publish output; certification script will resolve the pending submission."
           }
 
-          Write-Host "=== Updating certification notes and verifying package version ==="
-          node scripts/msstore-certification.js --patch-pending --verify-package-version
+          Write-Host "=== Updating certification notes ==="
+          node scripts/msstore-certification.js --patch-pending --verify-package-version --allow-version-mismatch
+          $certificationExit = $LASTEXITCODE
+          if ($certificationExit -ne 0) {
+            exit $certificationExit
+          }
 
           Write-Host "=== Publishing Microsoft Store draft ==="
           msstore submission publish $env:MSSTORE_PRODUCT_ID -v
+          $submissionExit = $LASTEXITCODE
+          if ($submissionExit -ne 0) {
+            exit $submissionExit
+          }
         env:
           MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
           MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
