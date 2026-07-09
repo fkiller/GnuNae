@@ -15,10 +15,12 @@ Current committed code uses a static model list:
 
 - Renderer options live in `src/ui/constants/codex.ts`.
 - The saved default lives in `src/core/settings.ts`.
-- Native Codex execution currently passes `model=gpt-5.4` and
-  `model_reasoning_effort=xhigh` from `src/electron/main.ts`.
-- Docker/Virtual Mode currently runs `codex exec` without a GnuNae model
-  override, so the Codex CLI inside the image chooses its own default.
+- Native Codex execution passes the selected model from
+  `src/core/codex-models.json` plus `model_reasoning_effort=xhigh` from
+  `src/electron/main.ts`. The generated default is passed explicitly; GnuNae
+  does not rely on the Codex CLI account default.
+- Docker/Virtual Mode receives the same selected model from the renderer and
+  passes it to `codex exec` inside the sandbox.
 - Docker image runtime pins live in `docker/Dockerfile`.
 - Docker image selection lives in `src/core/docker-manager.ts`; GnuNae uses
   `ghcr.io/fkiller/gnunae/sandbox:latest` and pulls it before sandbox startup,
@@ -35,19 +37,19 @@ order used by the app.
 
 Native mode:
 
-1. GnuNae spawns the host Codex CLI with the hardcoded model override.
+1. GnuNae spawns the host Codex CLI with the selected generated model.
 2. If the selected model is retired, unknown, inaccessible, or requires a newer
    Codex CLI, Codex exits non-zero before useful execution.
 3. If the failure text says the configured model or current CLI requires a
    newer Codex CLI, GnuNae upgrades the native app runtime Codex CLI under
-   userData, revalidates the executable path, then retries once without
-   `model=...`.
+   userData, revalidates the executable path, then retries once with the
+   recommended fallback model from the generated manifest.
 4. If the failure is a model-selection/catalog error that does not require a
-   newer CLI, GnuNae retries once without `model=...` so the CLI can use its
-   own default model.
-5. If that default-model retry also fails with model/outdated-CLI text, GnuNae
+   newer CLI, GnuNae retries once with the recommended fallback model from the
+   generated manifest instead of the hidden Codex CLI account default.
+5. If that fallback-model retry also fails with model/outdated-CLI text, GnuNae
    upgrades the native app runtime Codex CLI and retries once more without
-   `model=...`.
+   the original selected model.
 6. Subscription, account access, auth, and billing failures are not treated as
    image/runtime update failures.
 
@@ -55,16 +57,15 @@ Docker/Virtual Mode:
 
 1. The sandbox image contains pinned `@openai/codex` and `@playwright/mcp`
    versions from `docker/Dockerfile`.
-2. The container API runs `codex exec --skip-git-repo-check` without an explicit
-   model override.
+2. The container API runs `codex exec --skip-git-repo-check` with the selected
+   GnuNae model when one is provided by the renderer.
 3. Before the container starts, GnuNae pulls
    `ghcr.io/fkiller/gnunae/sandbox:latest`. If the pull fails and no cached
    image exists, Virtual Mode does not start. If a cached image exists, GnuNae
    can start it and the stale-image failure handling below still applies.
-4. If the container CLI default model fails because the image has an outdated
-   Codex CLI or model catalog, `docker/api-server.js` reports that the sandbox
-   image must be updated and suggests `npm run build:docker:clean` for local
-   rebuilds.
+4. If the selected container model fails because the image has an outdated Codex
+   CLI or model catalog, `docker/api-server.js` reports that the sandbox image
+   must be updated and suggests `npm run build:docker:clean` for local rebuilds.
 5. Docker mode does not silently run `npm install -g` inside a live container.
    Container runtime mutation would be temporary and would not fix the pinned
    release image. The durable fix is updating `docker/Dockerfile` and publishing
@@ -78,23 +79,21 @@ in Native mode:
 1. Validate the installed Codex CLI version before trusting model data.
 2. If reading Codex CLI model cache, reject cache written by a newer CLI than
    the CLI GnuNae will execute.
-3. Prefer running without `model=...` when the user chooses "Codex default" or
-   when the saved model is missing from the current compatible model list.
+3. Prefer the generated manifest default when the saved model is missing from
+   the current compatible model list. Pass that default explicitly.
 4. If an explicit model fails with "requires newer Codex", "unsupported model",
    "unknown model", "invalid model", "model not found", "deprecated", or model
-   access text, clear only the matching saved model and retry once without
-   `model=...`.
-5. If the no-model retry also fails with outdated-CLI text, update the native
+   access text, retry once with the generated fallback model.
+5. If the fallback retry also fails with outdated-CLI text, update the native
    app runtime Codex CLI, revalidate the executable path/version, reload model
-   metadata, and retry once more without `model=...`.
+   metadata, and retry once more with the generated fallback model.
 6. If runtime update fails because npm/network/runtime is unavailable, report
    the update failure and stop. Do not keep retrying in a loop.
 7. Auth, token refresh, subscription, billing, and account-access failures must
    not delete `~/.codex/auth.json` or mutate account state automatically.
 
-Current committed execution still uses a hardcoded native model override rather
-than a saved model setting, so saved-model clearing becomes applicable when the
-execution path is wired to the renderer/settings model selection.
+Current committed execution uses the renderer/settings model when it is present
+in the generated manifest, otherwise it falls back to the manifest default.
 
 For Docker mode, cover the parallel path:
 
@@ -112,11 +111,11 @@ For Docker mode, cover the parallel path:
 
 | Case | Native requirement | Docker requirement | Current status |
 |------|--------------------|--------------------|----------------|
-| Saved/static model retired | Retry once without `model=...`; clear matching saved model only when model settings are wired into execution | Usually unaffected unless image or API passes a model override | Static hardcoded-model retry implemented; saved-model clearing not applicable until execution uses saved models |
+| Saved/static model retired | Fall back to the generated default and retry model failures once with the generated fallback model | Receives the selected/generated model from the app; stale image failures remain Docker-image maintenance work | Implemented |
 | Cache from newer CLI lists unsupported models | Reject cache before showing/using those models | Do not mount host model cache into container unless compatibility is defined | No committed registry |
-| CLI too old for explicit model | Update native Codex runtime, revalidate, retry without model | Update Dockerfile/image; running container reports rebuild/pull instruction | Implemented |
-| CLI too old for CLI default | Update native Codex runtime, revalidate, retry without model | Update Dockerfile/image; running container reports rebuild/pull instruction | Implemented |
-| Account lacks model access | Retry default only if the failure came from an explicit model; otherwise report access/subscription | Report access/subscription; do not rebuild image for account-only failures | Partially classified |
+| CLI too old for explicit model | Update native Codex runtime, revalidate, retry with generated fallback model | Update Dockerfile/image; running container reports rebuild/pull instruction | Implemented |
+| Hidden CLI account default is unsupported | Avoid the CLI default by always passing the generated default explicitly | Avoided because the app passes the selected model into the sandbox request | Implemented |
+| Account lacks selected model access | Retry once with generated fallback model; report access/subscription only if fallback also fails | Report access/subscription; do not rebuild image for account-only failures | Implemented for Native, classified for Docker |
 | Auth token expired | Notify re-authentication; do not delete auth during refresh | Notify re-authentication; mounted auth may be refreshing | Partially classified |
 | Docker image lags native pins | Maintenance must update Dockerfile and rebuild image | CI must publish refreshed `latest`; client pulls before sandbox start | Maintenance watch checks Docker pins |
 

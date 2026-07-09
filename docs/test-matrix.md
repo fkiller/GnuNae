@@ -153,8 +153,8 @@ Run these before larger merges or release candidates:
 - Verify one basic prompt in Native mode against a normal web page.
 - Verify Virtual Mode can create a Docker sandbox and run a basic prompt.
 - For Codex model/runtime changes, verify the documented failure path in
-  `docs/codex-model-runtime.md`: stale explicit model, no-model default, and
-  outdated Docker image messaging where practical.
+  `docs/codex-model-runtime.md`: generated explicit default model, fallback
+  model retry, and outdated Docker image messaging where practical.
 - Verify tab creation, tab switching, navigation, and back/forward/reload.
 - Verify PDS request and PDS store flows.
 - Verify task creation, favorite/running/scheduled UI, and one scheduled task

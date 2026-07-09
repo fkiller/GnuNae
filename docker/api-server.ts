@@ -44,17 +44,8 @@ let requestCount = 0;
 
 function isModelOrOutdatedCodexFailure(output: string): boolean {
     const lower = output.toLowerCase();
-    if (
-        lower.includes('chatgpt') ||
-        lower.includes('subscription') ||
-        lower.includes('billing') ||
-        lower.includes('permission') ||
-        lower.includes('access denied')
-    ) {
-        return false;
-    }
-
-    return (
+    const hasModelOrOutdatedText = (
+        lower.includes('unsupported_model') ||
         lower.includes('requires a newer version of codex') ||
         lower.includes('unsupported model') ||
         lower.includes('unknown model') ||
@@ -69,6 +60,8 @@ function isModelOrOutdatedCodexFailure(output: string): boolean {
         lower.includes('update the codex cli') ||
         lower.includes('upgrade the codex cli') ||
         (lower.includes('model') && lower.includes('not supported')) ||
+        (lower.includes('model') && lower.includes('not available')) ||
+        (lower.includes('model') && lower.includes('not enabled')) ||
         (lower.includes('model') && lower.includes('deprecated')) ||
         (
             lower.includes('this version of codex') &&
@@ -79,6 +72,22 @@ function isModelOrOutdatedCodexFailure(output: string): boolean {
             )
         )
     );
+
+    if (!hasModelOrOutdatedText) {
+        return false;
+    }
+
+    if (
+        lower.includes('billing') ||
+        lower.includes('payment') ||
+        lower.includes('insufficient_quota') ||
+        lower.includes('rate_limit') ||
+        lower.includes('exceeded')
+    ) {
+        return false;
+    }
+
+    return true;
 }
 
 /**

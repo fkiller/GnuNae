@@ -283,9 +283,10 @@ GnuNae configures Codex CLI automatically at runtime via `-c` flags. **No manual
 
 If you have custom settings in `~/.codex/config.toml`, GnuNae overrides Codex
 spawn configuration for app-managed browser automation. Current committed code
-uses a static renderer model list, passes `model=gpt-5.4` with `xhigh`
-reasoning in Native mode, and lets Docker/Virtual Mode use the Codex CLI
-default model inside the sandbox image. See
+uses the generated model list in `src/core/codex-models.json`, passes the
+selected/default model explicitly with `xhigh` reasoning in Native mode, and
+sends the selected model to Docker/Virtual Mode instead of relying on the Codex
+CLI account default. See
 [`docs/codex-model-runtime.md`](docs/codex-model-runtime.md) for model/runtime
 failure handling and Docker parity requirements.
 

@@ -208,7 +208,7 @@ try {
 
     // Pin exact versions for compatibility (update during periodic maintenance)
     // Must match CODEX_VERSION and PLAYWRIGHT_MCP_VERSION in src/core/runtime-manager.ts
-    const CODEX_VERSION = '0.118.0';
+    const CODEX_VERSION = '0.143.0';
     const PLAYWRIGHT_MCP_VERSION = '0.0.70';
     const installTargets = getInstallTargets();
 
@@ -218,6 +218,7 @@ try {
             `@openai/codex@${CODEX_VERSION}`,
             `@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}`,
             '--save',
+            '--save-exact',
             ...target.npmArgs
         ];
 
