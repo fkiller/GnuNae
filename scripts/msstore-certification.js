@@ -11,6 +11,7 @@ const { spawnSync } = require('child_process');
 
 const ROOT_DIR = path.join(__dirname, '..');
 const PACKAGE_JSON_PATH = path.join(ROOT_DIR, 'package.json');
+const CODEX_MODELS_PATH = path.join(ROOT_DIR, 'src', 'core', 'codex-models.json');
 const ENV_LOCAL_PATH = path.join(ROOT_DIR, '.env.local');
 const WEBSITE_URL = 'https://www.gnunae.com';
 const PRIVACY_URL = 'https://www.gnunae.com/privacy.html';
@@ -94,6 +95,29 @@ function packageJson() {
   return JSON.parse(fs.readFileSync(PACKAGE_JSON_PATH, 'utf8'));
 }
 
+function codexModelInfo() {
+  const fallback = {
+    defaultModel: 'gpt-5.5',
+    fallbackModel: 'gpt-5.4-mini',
+  };
+
+  try {
+    const manifest = JSON.parse(fs.readFileSync(CODEX_MODELS_PATH, 'utf8'));
+    const models = Array.isArray(manifest.models) ? manifest.models.map((entry) => entry.value).filter(Boolean) : [];
+    const defaultModel = manifest.defaultModel || models[0] || fallback.defaultModel;
+    return {
+      defaultModel,
+      fallbackModel:
+        models.find((value) => value !== defaultModel && value.endsWith('-mini')) ||
+        models.find((value) => value !== defaultModel && !value.includes('spark')) ||
+        models.find((value) => value !== defaultModel) ||
+        fallback.fallbackModel,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 function expectedWindowsPackageVersion(version) {
   const parts = String(version || '').split('.');
   while (parts.length < 4) parts.push('0');
@@ -101,15 +125,18 @@ function expectedWindowsPackageVersion(version) {
 }
 
 function releaseNotes(version) {
+  const { defaultModel, fallbackModel } = codexModelInfo();
   return [
     `Version ${version}`,
     'Improved first-run browser access and OpenAI/Codex sign-in guidance for Microsoft Store certification.',
-    'Added certification notes to clarify that OpenAI authentication is required only for Codex AI features.',
+    `Pins Codex chat to the recommended ${defaultModel} model and retries with ${fallbackModel} if the selected model is unavailable for the signed-in account.`,
+    'Clarifies that OpenAI authentication is required only for Codex AI features.',
   ].join('\n');
 }
 
 function certificationNotes(version) {
   const optionalAccountNote = (process.env.MSSTORE_CERTIFICATION_TEST_ACCOUNT_NOTE || '').trim();
+  const { defaultModel, fallbackModel } = codexModelInfo();
   const lines = [
     `GnuNae ${version} certification notes`,
     '',
@@ -120,6 +147,7 @@ function certificationNotes(version) {
     'OpenAI/Codex authentication:',
     'GnuNae does not operate a first-party login or sign-up system. The Sign in and Create account buttons open the OpenAI/Codex authentication flow used by the bundled Codex CLI.',
     'Codex AI features require an OpenAI account with ChatGPT Pro/Plus or Codex access. Free OpenAI accounts may not be able to complete full Codex feature testing.',
+    `GnuNae pins Codex chat to the recommended ${defaultModel} model instead of relying on the Codex CLI account default. If the selected model is unavailable for the signed-in account, GnuNae retries once with ${fallbackModel}.`,
     '',
     'Recommended certification test path:',
     '1. Launch GnuNae.',

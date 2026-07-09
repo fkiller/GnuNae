@@ -71,17 +71,8 @@ function getEmbeddedNodeEnv(): NodeJS.ProcessEnv {
 
 function isModelSelectionFailure(output: string): boolean {
     const lower = output.toLowerCase();
-    if (
-        lower.includes('chatgpt') ||
-        lower.includes('subscription') ||
-        lower.includes('billing') ||
-        lower.includes('permission') ||
-        lower.includes('access denied')
-    ) {
-        return false;
-    }
-
-    return (
+    const hasModelSelectionText = (
+        lower.includes('unsupported_model') ||
         lower.includes('requires a newer version of codex') ||
         lower.includes('unsupported model') ||
         lower.includes('unknown model') ||
@@ -90,8 +81,26 @@ function isModelSelectionFailure(output: string): boolean {
         lower.includes('model does not exist') ||
         lower.includes('model is not supported') ||
         (lower.includes('model') && lower.includes('not supported')) ||
+        (lower.includes('model') && lower.includes('not available')) ||
+        (lower.includes('model') && lower.includes('not enabled')) ||
         (lower.includes('model') && lower.includes('deprecated'))
     );
+
+    if (!hasModelSelectionText) {
+        return false;
+    }
+
+    if (
+        lower.includes('billing') ||
+        lower.includes('payment') ||
+        lower.includes('insufficient_quota') ||
+        lower.includes('rate_limit') ||
+        lower.includes('exceeded')
+    ) {
+        return false;
+    }
+
+    return true;
 }
 
 function isOutdatedCodexFailure(output: string): boolean {
@@ -128,6 +137,15 @@ function withoutModelConfigArgs(args: string[]): string[] {
         filtered.push(args[i]);
     }
     return filtered;
+}
+
+function recommendedFallbackModel(excludedModel?: string): string | undefined {
+    const models = codexModelManifest.models.map((entry) => entry.value);
+    return (
+        models.find((value) => value !== excludedModel && value.endsWith('-mini')) ||
+        models.find((value) => value !== excludedModel && !value.includes('spark')) ||
+        models.find((value) => value !== excludedModel)
+    );
 }
 
 
@@ -2469,8 +2487,9 @@ function setupIpcHandlers(): void {
         const requestedModel = model || settingsService.get('codex')?.model;
         const supportedModels = new Set(codexModelManifest.models.map((entry) => entry.value));
         const selectedModel = requestedModel && supportedModels.has(requestedModel) ? requestedModel : codexModelManifest.defaultModel;
-        const cliModel = selectedModel === codexModelManifest.defaultModel ? undefined : selectedModel;
-        console.log('[Main] Executing Codex (chat) in mode:', mode, 'model:', cliModel || `${selectedModel} (Codex default)`, 'prompt:', prompt.substring(0, 50) + '...');
+        const fallbackModel = recommendedFallbackModel(selectedModel);
+        const cliModel = selectedModel;
+        console.log('[Main] Executing Codex (chat) in mode:', mode, 'model:', cliModel, 'prompt:', prompt.substring(0, 50) + '...');
 
         // Capture sender window for all output messages
         const senderWindow = BrowserWindow.fromWebContents(event.sender);
@@ -2769,8 +2788,6 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
             // This makes GnuNae work without depending on ~/.codex/config.toml
 
             // Model configuration
-            // Do not pass the generated default explicitly; letting Codex choose its own
-            // default provides a safe fallback when an app build ages out.
             if (cliModel) {
                 codexArgs.push('-c', `model=${cliModel}`);
             }
@@ -2994,7 +3011,7 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
 
                 senderWindow?.webContents.send('codex:output', {
                     type: 'stderr',
-                    data: `\n${reason}\nUpdating Codex CLI, then retrying with the CLI default model...\n`,
+                    data: `\n${reason}\nUpdating Codex CLI, then retrying with the recommended fallback model...\n`,
                 });
 
                 const upgradeResult = await getRuntimeManager().upgradeCodex();
@@ -3021,22 +3038,31 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
                 }
 
                 codexBin = upgradedCodexBin;
-                retryWithoutModelOverride(false, 'Retrying with the updated Codex CLI default model...');
+                retryWithFallbackModel(false, 'Retrying with the updated Codex CLI and the recommended fallback model...');
                 return true;
             }
 
-            function retryWithoutModelOverride(allowUpgradeOnFailure = true, notice?: string): void {
+            function retryWithFallbackModel(allowUpgradeOnFailure = true, notice?: string): void {
+                if (!fallbackModel) {
+                    completeCodexExecution(1, output, `${errorOutput}\nNo alternate Codex model is available for retry.`);
+                    return;
+                }
+
                 senderWindow?.webContents.send('codex:output', {
                     type: 'stderr',
                     data: notice
                         ? `\n${notice}\n`
-                        : '\nConfigured Codex model failed before execution. Retrying once with Codex CLI default model...\n',
+                        : `\nConfigured Codex model failed before execution. Retrying once with ${fallbackModel}...\n`,
                 });
 
                 output = '';
                 errorOutput = '';
 
-                const fallbackProcess = spawn(codexBin!, withoutModelConfigArgs(codexArgs), {
+                const fallbackArgs = withoutModelConfigArgs(codexArgs);
+                fallbackArgs.push('-c', `model=${fallbackModel}`);
+                fallbackArgs.push('-c', 'model_reasoning_effort=xhigh');
+
+                const fallbackProcess = spawn(codexBin!, fallbackArgs, {
                     shell: isWindows ? true : false,
                     cwd,
                     windowsHide: true,
@@ -3051,14 +3077,14 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
                 fallbackProcess.stdout?.on('data', (data: Buffer) => {
                     const chunk = data.toString('utf8');
                     output += chunk;
-                    console.log('[Codex default stdout]', chunk);
+                    console.log('[Codex fallback stdout]', chunk);
                     senderWindow?.webContents.send('codex:output', { type: 'stdout', data: chunk });
                 });
 
                 fallbackProcess.stderr?.on('data', (data: Buffer) => {
                     const chunk = data.toString('utf8');
                     errorOutput += chunk;
-                    console.log('[Codex default stderr]', chunk);
+                    console.log('[Codex fallback stderr]', chunk);
                     senderWindow?.webContents.send('codex:output', { type: 'stderr', data: chunk });
                 });
 
@@ -3070,7 +3096,7 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
                         (isOutdatedCodexFailure(fallbackFailure) || isModelSelectionFailure(fallbackFailure))
                     ) {
                         const handled = await upgradeCodexAndRetryDefault(
-                            'Codex CLI default model also failed. The installed CLI is likely too old for the current model catalog.',
+                            `${fallbackModel} also failed. The installed CLI may be too old for the current model catalog.`,
                         );
                         if (handled) return;
                     }
@@ -3079,7 +3105,7 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
                 });
 
                 fallbackProcess.on('error', (err) => {
-                    const userMessage = `Codex default-model retry failed: ${err.message}`;
+                    const userMessage = `Codex fallback-model retry failed: ${err.message}`;
                     senderWindow?.webContents.send('codex:error', { error: userMessage });
                     completeCodexExecution(1, output, `${errorOutput}\n${userMessage}`);
                 });
@@ -3102,7 +3128,7 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
                     }
 
                     if (isModelSelectionFailure(rawFailureOutput)) {
-                        retryWithoutModelOverride();
+                        retryWithFallbackModel();
                         return;
                     }
 
@@ -3122,7 +3148,7 @@ DO NOT use 'rg' (ripgrep) unless the user explicitly asks to search local FILES.
                     }
                     // Model access denied
                     else if (allOutput.includes('model') && (allOutput.includes('access') || allOutput.includes('permission') || allOutput.includes('denied'))) {
-                        helpMessage = '⚠️ Model access denied.\n\nYour OpenAI account does not have access to the required models. ChatGPT Pro/Plus subscription is required.';
+                        helpMessage = '⚠️ Codex model unavailable.\n\nThis OpenAI account cannot use the selected Codex model. Choose GPT-5.4 Mini in Settings > Codex Model and retry, or sign in with an account that has access to the selected model.';
                     }
                     // Authentication issues - token expired or refresh failed
                     else if (allOutput.includes('refresh token') ||
