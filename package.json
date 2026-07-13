@@ -34,7 +34,9 @@
     "postversion": "git push && git push --tags",
     "check:codex-models": "node scripts/check-codex-models.js",
     "update:codex-models": "node scripts/update-codex-models.js",
-    "check:codex-models-source": "node scripts/update-codex-models.js --check"
+    "check:codex-models-source": "node scripts/update-codex-models.js --check",
+    "update:openai-model-pipeline": "node scripts/update-openai-model-pipeline.js",
+    "check:openai-model-pipeline": "node scripts/update-openai-model-pipeline.js --check"
   },
   "build": {
     "appId": "com.gnunae.browser",
@@ -138,7 +140,7 @@
     }
   },
   "devDependencies": {
-    "@openai/codex": "0.143.0",
+    "@openai/codex": "0.144.3",
     "@types/node": "^25.5.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

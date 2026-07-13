@@ -208,7 +208,7 @@ try {
 
     // Pin exact versions for compatibility (update during periodic maintenance)
     // Must match CODEX_VERSION and PLAYWRIGHT_MCP_VERSION in src/core/runtime-manager.ts
-    const CODEX_VERSION = '0.143.0';
+    const CODEX_VERSION = '0.144.3';
     const PLAYWRIGHT_MCP_VERSION = '0.0.70';
     const installTargets = getInstallTargets();
 

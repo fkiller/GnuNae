@@ -51,6 +51,12 @@ Dependency automation:
   Playwright MCP, Electron, Node.js, Docker base image, and GitHub Actions
   review, plus GitHub Pages website version/domain/download-link signals. It
   does not deploy or update files.
+- `.github/workflows/codex-models.yml` - weekly/manual OpenAI model pipeline
+  task that regenerates the Codex model manifest, updates Native/package/Docker
+  `@openai/codex` pins together, refreshes lockfiles, validates alignment, and
+  opens a PR for owner review. Manual dispatch can pin a specific Codex CLI
+  version with the `codex_version` input. It does not sign, package, upload, or
+  submit store builds.
 - `.github/workflows/store-status-watch.yml` - six-hour/manual read-only store
   status scan that creates or updates a GitHub Issue for Microsoft Store
   submission status, Microsoft certification report links when present, and Mac
