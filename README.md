@@ -288,7 +288,11 @@ selected/default model explicitly with `xhigh` reasoning in Native mode, and
 sends the selected model to Docker/Virtual Mode instead of relying on the Codex
 CLI account default. See
 [`docs/codex-model-runtime.md`](docs/codex-model-runtime.md) for model/runtime
-failure handling and Docker parity requirements.
+failure handling and Docker parity requirements. Maintainers can run the
+OpenAI model pipeline task from GitHub Actions (`.github/workflows/codex-models.yml`)
+on demand or on its weekly schedule to regenerate the model manifest, update
+Codex CLI pins across Native/package/Docker paths, refresh lockfiles, and open
+a review PR.
 
 ## Project Structure
 

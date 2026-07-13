@@ -185,6 +185,12 @@ const DEFAULT_SANDBOX_IMAGE = 'ghcr.io/fkiller/gnunae/sandbox:latest';
 
 When periodic maintenance updates Codex CLI, Playwright MCP, or Playwright:
 
+The scheduled/manual OpenAI model pipeline task in `.github/workflows/codex-models.yml`
+can update Codex model manifests and `@openai/codex` pins by running
+`scripts/update-codex-models.js` and `scripts/update-openai-model-pipeline.js`,
+then opening a PR. Owner review, packaged-runtime checks, Docker validation, and
+release approval remain manual gates.
+
 1. Update native runtime pins in `src/core/runtime-manager.ts` and
    `scripts/install-codex.js`.
 2. Update Docker pins in `docker/Dockerfile`.
