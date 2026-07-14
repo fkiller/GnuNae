@@ -1,7 +1,12 @@
-name: Codex Models
+name: OpenAI Model Pipeline
 
 on:
   workflow_dispatch:
+    inputs:
+      codex_version:
+        description: 'Optional @openai/codex version to pin; leave blank to use latest npm release'
+        required: false
+        type: string
   schedule:
     - cron: '17 9 * * 1'
 
@@ -10,12 +15,12 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: codex-models
+  group: openai-model-pipeline
   cancel-in-progress: false
 
 jobs:
   update:
-    name: Update Codex model manifest
+    name: Update OpenAI model pipeline
     runs-on: ubuntu-latest
 
     steps:
@@ -34,21 +39,68 @@ jobs:
       - name: Update Codex models from official docs
         run: npm run update:codex-models
 
+      - name: Update Codex CLI runtime pins
+        env:
+          CODEX_VERSION: ${{ inputs.codex_version }}
+        run: npm run update:openai-model-pipeline
+
+      - name: Refresh root lockfile
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Refresh packaged Codex lockfile
+        working-directory: resources/codex
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Refresh legacy resources lockfile
+        working-directory: resources
+        run: npm install --package-lock-only --ignore-scripts
+
       - name: Check Codex model alignment
         run: npm run check:codex-models
+
+      - name: Check OpenAI model pipeline pins
+        run: npm run check:openai-model-pipeline
 
       - name: Create pull request
         uses: peter-evans/create-pull-request@v7
         with:
-          commit-message: Update Codex model manifest
-          title: Update Codex model manifest
+          commit-message: Update OpenAI model pipeline
+          title: Update OpenAI model pipeline
           body: |
             ## Summary
             - Regenerate `src/core/codex-models.json` from https://developers.openai.com/codex/models.
-            - Run the Codex model alignment check.
+            - Update the Native, packaged, and Docker `@openai/codex` pins to the latest npm release.
+            - Refresh package lockfiles for the updated Codex CLI pin.
+
+            ## What I inspected
+            - Official Codex model source at https://developers.openai.com/codex/models.
+            - Latest `@openai/codex` package version from npm.
+
+            ## Files changed
+            - Codex model manifest, runtime pins, Docker pin, package metadata, and lockfiles when upstream changed.
 
             ## Verification
-            - `npm run update:codex-models`
-            - `npm run check:codex-models`
-          branch: automation/update-codex-models
+            - `npm run update:codex-models` - passed
+            - `npm run update:openai-model-pipeline` - passed
+            - `npm install --package-lock-only --ignore-scripts` - passed
+            - `(cd resources/codex && npm install --package-lock-only --ignore-scripts)` - passed
+            - `(cd resources && npm install --package-lock-only --ignore-scripts)` - passed
+            - `npm run check:codex-models` - passed
+            - `npm run check:openai-model-pipeline` - passed
+
+            ## Release and store impact
+            - No signing, identity, entitlement, upload, or store workflow changes are made by this automation. Runtime/model changes still require owner review before release.
+
+            ## Native and Docker impact
+            - Native runtime pins and Docker sandbox pins are updated together for Codex parity.
+
+            ## Stale docs or conflicts found
+            - Review generated diffs for docs that mention older Codex models or runtime pins.
+
+            ## Manual confirmation needed
+            - Owner should manually verify real Codex login, model access, Docker browser automation, and packaged runtime behavior before release.
+
+            ## Recommended next Codex tasks
+            - Run full `npm run build` and Docker validation before merging if the automated PR changes runtime pins.
+          branch: automation/openai-model-pipeline
           delete-branch: true

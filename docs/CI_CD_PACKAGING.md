@@ -185,6 +185,12 @@ const DEFAULT_SANDBOX_IMAGE = 'ghcr.io/fkiller/gnunae/sandbox:latest';
 
 When periodic maintenance updates Codex CLI, Playwright MCP, or Playwright:
 
+The scheduled/manual OpenAI model pipeline task in `.github/workflows/codex-models.yml`
+can update Codex model manifests and `@openai/codex` pins by running
+`scripts/update-codex-models.js` and `scripts/update-openai-model-pipeline.js`,
+then opening a PR. Owner review, packaged-runtime checks, Docker validation, and
+release approval remain manual gates.
+
 1. Update native runtime pins in `src/core/runtime-manager.ts` and
    `scripts/install-codex.js`.
 2. Update Docker pins in `docker/Dockerfile`.
@@ -495,9 +501,11 @@ certification notes, verifies the built APPX/MSIX manifest version against
 Partner Center submission reads before ingestion can still show the copied
 previous package version, so release submission treats that API package-version
 read as advisory after local manifest verification. The same workflow can be
-manually dispatched with `release_mode=msstore-only` for owner-approved
-Microsoft Store resubmission from the selected branch without moving an
-existing release tag. Manual `release_mode=full` runs the normal release jobs.
+manually dispatched with `release_mode=stores-only` for owner-approved MAS plus
+Microsoft Store deployment from the selected branch
+without moving an existing release tag. Use `release_mode=msstore-only` for a
+Microsoft Store-only resubmission after certification feedback. Manual
+`release_mode=full` runs the normal release jobs.
 
 Use `Store Status Watch` manual dispatch with `certification_dry_run=true`
 before resubmitting after a certification failure. It runs the same

@@ -107,6 +107,13 @@ executes `scripts/maintenance-watch.js`, writes a report to the workflow
 summary, and creates or updates one open GitHub Issue titled `Periodic
 maintenance watch - YYYY-MM-DD`.
 
+For Codex model/runtime updates, `.github/workflows/codex-models.yml` is the
+scheduled/on-demand OpenAI model pipeline task. It regenerates the Codex model
+manifest, updates `@openai/codex` pins across Native/package/Docker paths,
+refreshes lockfiles, validates the alignment checks, and opens a scoped PR.
+Manual dispatch can set a specific `codex_version`; scheduled runs use the
+latest npm release.
+
 The report checks repository pins and public upstream metadata for:
 
 - npm dependencies and dev dependencies that matter to the desktop/runtime
@@ -252,8 +259,9 @@ what remains unverified, and the safest owner action.
 Interpret workflows from `.github/workflows`, not from older docs alone.
 
 - `release.yml` is tag-triggered on `v*`, not a normal PR CI workflow. It can
-  also be manually dispatched with `release_mode=msstore-only` for
-  owner-approved Microsoft Store resubmission from a selected branch without
+  also be manually dispatched with `release_mode=stores-only` for
+  owner-approved MAS plus Microsoft Store deployment from a selected branch, or
+  `release_mode=msstore-only` for Microsoft Store-only resubmission, without
   moving an existing release tag.
 - `release.yml` builds app artifacts for macOS and Linux, then creates a GitHub
   Release from those artifacts.

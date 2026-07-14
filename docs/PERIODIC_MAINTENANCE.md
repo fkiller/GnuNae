@@ -24,6 +24,7 @@ release-flow updates.
 | Node runtime | `scripts/download-node.js`, `src/core/runtime-manager.ts`, packaged `resources/runtime*` | Node.js release/security updates |
 | Release workflows | `.github/workflows/release.yml`, `.github/workflows/docker.yml`, `.github/workflows/ci.yml` | GitHub Actions behavior and store/signing requirements |
 | Maintenance watch | `.github/workflows/maintenance-watch.yml`, `scripts/maintenance-watch.js` | Advisory issue only; not deploy automation |
+| OpenAI model pipeline | `.github/workflows/codex-models.yml`, `scripts/update-codex-models.js`, `scripts/update-openai-model-pipeline.js` | Scheduled/manual PR automation for Codex model manifest and Codex CLI pins |
 | Store status watch | `.github/workflows/store-status-watch.yml`, `scripts/store-status-watch.js` | Read-only review/status issue only; not deploy automation |
 | Website | `docs/index.html`, `docs/CNAME`, GitHub Pages, GitHub Releases | Version, domain, HTTPS, Store/download links |
 
@@ -70,6 +71,22 @@ The workflow must remain non-release automation:
   download-link changes still require a scoped PR.
 - It should create maintenance work for Codex/owner review; deployment remains
   owner-approved and tag-driven or manual only.
+
+
+## Automated OpenAI Model Pipeline
+
+`.github/workflows/codex-models.yml` is the scheduled/on-demand task for OpenAI
+Codex model and runtime updates. It runs weekly and can be started manually from
+GitHub Actions. Manual dispatch accepts an optional `codex_version` input; when
+blank, `scripts/update-openai-model-pipeline.js` resolves the latest
+`@openai/codex` release from npm.
+
+The workflow updates the generated Codex model manifest from the official Codex
+models page, updates Native/package/Docker `@openai/codex` pins together,
+refreshes lockfiles, runs the Codex model checks, and opens a scoped PR through
+`peter-evans/create-pull-request`. It does not sign, package, submit to stores,
+push release tags, or change store identity. Owner review and manual runtime
+verification are still required before release.
 
 ## Automated Store Status Watch
 
@@ -149,14 +166,14 @@ Sync **exact** versions (no `^` caret) with main package.json:
 #### B2. src/core/runtime-manager.ts
 Update the pinned version constants (used for dynamic installation at runtime):
 ```typescript
-export const CODEX_VERSION = '0.143.0';
+export const CODEX_VERSION = '0.144.3';
 export const PLAYWRIGHT_MCP_VERSION = '0.0.70';
 ```
 
 #### B3. scripts/install-codex.js
 Update the pinned version constants (must match runtime-manager.ts):
 ```javascript
-const CODEX_VERSION = '0.143.0';
+const CODEX_VERSION = '0.144.3';
 const PLAYWRIGHT_MCP_VERSION = '0.0.70';
 ```
 
@@ -167,7 +184,7 @@ FROM mcr.microsoft.com/playwright:v1.59.1-jammy
 
 # Lines 57-58: Pin versions
 RUN npm install -g \
-    @openai/codex@0.143.0 \
+    @openai/codex@0.144.3 \
     @playwright/mcp@0.0.70 \
 ```
 
@@ -292,8 +309,9 @@ git push && git push --tags
 # - GHCR sandbox image publication
 ```
 
-Do not push release tags, submit store packages, or run `npm run deploy:mas`
-without explicit owner release approval.
+Do not push release tags, submit store packages, manually dispatch
+`release.yml` with `release_mode=stores-only`/`msstore-only`, or run
+`npm run deploy:mas` without explicit owner release approval.
 
 ---
 
