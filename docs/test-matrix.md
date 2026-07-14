@@ -79,8 +79,9 @@ Dependency automation:
   then publishes the draft. Partner Center submission reads before ingestion
   can still show the copied previous package version, so that API package
   version is advisory during release submission. Manual dispatch with
-  `release_mode=msstore-only` runs the Microsoft Store job from the selected
-  branch without moving an existing release tag.
+  `release_mode=stores-only` runs the MAS and Microsoft Store jobs from the
+  selected branch, and `release_mode=msstore-only` runs only the Microsoft Store
+  job without moving an existing release tag.
 
 ## Missing Checks
 

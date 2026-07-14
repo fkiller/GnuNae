@@ -179,9 +179,11 @@ Tests and lint:
 Current workflows are defined under `.github/workflows/`.
 
 - `release.yml` runs on pushed tags matching `v*`. It also supports manual
-  dispatch with `release_mode=msstore-only` for owner-approved Microsoft Store
-  resubmission from the selected branch without moving an existing release tag.
-  Manual `release_mode=full` runs the same release jobs as a tag workflow.
+  dispatch with `release_mode=stores-only` for owner-approved MAS plus
+  Microsoft Store deployment from the selected branch without moving an existing
+  release tag, and `release_mode=msstore-only` for Microsoft Store-only
+  resubmission. Manual `release_mode=full` runs the same release jobs as a tag
+  workflow.
   - Matrix build job runs on macOS and Ubuntu.
   - It runs `npm ci`, injects build config, runs `npm run build`, then packages:
     macOS DMG/ZIP with Developer ID signing and notarization, and Linux
@@ -240,7 +242,8 @@ Current workflows are defined under `.github/workflows/`.
   upload packages, publish submissions, or mutate Partner Center metadata.
 - `dependabot.yml` opens weekly npm dependency updates.
 - Mac App Store packaging/upload is handled by the tag-triggered `build-mas`
-  workflow job when required GitHub Actions secrets are configured. The
+  workflow job, or by manual `release_mode=stores-only`, when required GitHub
+  Actions secrets are configured. The
   `npm run deploy:mas` script remains available for owner-controlled local
   macOS uploads with App Store Connect credentials, certificates, and
   provisioning profile.

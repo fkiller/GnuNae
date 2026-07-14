@@ -501,9 +501,11 @@ certification notes, verifies the built APPX/MSIX manifest version against
 Partner Center submission reads before ingestion can still show the copied
 previous package version, so release submission treats that API package-version
 read as advisory after local manifest verification. The same workflow can be
-manually dispatched with `release_mode=msstore-only` for owner-approved
-Microsoft Store resubmission from the selected branch without moving an
-existing release tag. Manual `release_mode=full` runs the normal release jobs.
+manually dispatched with `release_mode=stores-only` for owner-approved MAS plus
+Microsoft Store deployment from the selected branch
+without moving an existing release tag. Use `release_mode=msstore-only` for a
+Microsoft Store-only resubmission after certification feedback. Manual
+`release_mode=full` runs the normal release jobs.
 
 Use `Store Status Watch` manual dispatch with `certification_dry_run=true`
 before resubmitting after a certification failure. It runs the same

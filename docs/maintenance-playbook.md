@@ -259,8 +259,9 @@ what remains unverified, and the safest owner action.
 Interpret workflows from `.github/workflows`, not from older docs alone.
 
 - `release.yml` is tag-triggered on `v*`, not a normal PR CI workflow. It can
-  also be manually dispatched with `release_mode=msstore-only` for
-  owner-approved Microsoft Store resubmission from a selected branch without
+  also be manually dispatched with `release_mode=stores-only` for
+  owner-approved MAS plus Microsoft Store deployment from a selected branch, or
+  `release_mode=msstore-only` for Microsoft Store-only resubmission, without
   moving an existing release tag.
 - `release.yml` builds app artifacts for macOS and Linux, then creates a GitHub
   Release from those artifacts.

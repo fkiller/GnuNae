@@ -309,8 +309,9 @@ git push && git push --tags
 # - GHCR sandbox image publication
 ```
 
-Do not push release tags, submit store packages, or run `npm run deploy:mas`
-without explicit owner release approval.
+Do not push release tags, submit store packages, manually dispatch
+`release.yml` with `release_mode=stores-only`/`msstore-only`, or run
+`npm run deploy:mas` without explicit owner release approval.
 
 ---
 
