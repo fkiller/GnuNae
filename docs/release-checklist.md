@@ -155,6 +155,9 @@ by exposing secret values to Codex.
   lookup when bundle ID lookup is not sufficient.
 - After tag workflow runs, inspect `build-mas` logs.
 - Confirm the `build-mas` job produced and uploaded a universal MAS package.
+- Confirm the log reports
+  `Verified App Store version ... release type: AFTER_APPROVAL` before review
+  submission. Treat a missing or different release type as a blocking failure.
 - Confirm the uploaded build appears in App Store Connect/TestFlight.
 - Manually run `Store Status Watch` after upload/submission and confirm the
   issue shows expected TestFlight build processing and App Store version review

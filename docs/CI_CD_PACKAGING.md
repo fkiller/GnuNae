@@ -66,7 +66,10 @@ GnuNae requires Node.js, npm, and Codex CLI to function. Runtime provisioning di
 
 > [!IMPORTANT]
 > **MAS and APPX are automated in `release.yml`.** The `build-mas` job builds a
-> universal Mac App Store package and uploads it to App Store Connect. The
+> universal Mac App Store package, uploads it to App Store Connect, and sets
+> and verifies `releaseType=AFTER_APPROVAL` before review submission so an
+> approved version releases automatically. This is enforced for newly created,
+> existing matching, and reused editable App Store versions. The
 > `build-msstore` job builds the APPX/MSIX package and uploads it to Partner
 > Center using the `msstore` CLI.
 

@@ -273,7 +273,10 @@ Interpret workflows from `.github/workflows`, not from older docs alone.
   previous package version, so the API package-version read is advisory during
   release submission.
 - The same workflow has a separate `build-mas` job that builds and uploads the
-  universal Mac App Store package to App Store Connect.
+  universal Mac App Store package to App Store Connect. Its review-submission
+  script sets and verifies `releaseType=AFTER_APPROVAL` for newly created,
+  existing matching, and reused editable App Store versions so an approved
+  submission releases automatically.
 - The GitHub Release job currently depends on the matrix `build` job, not on
   `build-msstore` or `build-mas`.
 - `docker.yml` runs for Docker path PRs, selected branch pushes, manual

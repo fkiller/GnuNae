@@ -243,7 +243,9 @@ Current workflows are defined under `.github/workflows/`.
 - `dependabot.yml` opens weekly npm dependency updates.
 - Mac App Store packaging/upload is handled by the tag-triggered `build-mas`
   workflow job, or by manual `release_mode=stores-only`, when required GitHub
-  Actions secrets are configured. The
+  Actions secrets are configured. The MAS review-submission script sets and
+  verifies `releaseType=AFTER_APPROVAL` for newly created, existing matching,
+  and reused editable App Store versions before review submission. The
   `npm run deploy:mas` script remains available for owner-controlled local
   macOS uploads with App Store Connect credentials, certificates, and
   provisioning profile.

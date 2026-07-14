@@ -17,6 +17,8 @@ const ENV_LOCAL_PATH = path.join(ROOT_DIR, '.env.local');
 const API_HOST = 'api.appstoreconnect.apple.com';
 const API_BASE = `https://${API_HOST}`;
 const PLATFORM = 'MAC_OS';
+const RELEASE_TYPE = 'AFTER_APPROVAL';
+const APP_STORE_VERSION_FIELDS = 'versionString,appStoreState,platform,createdDate,releaseType';
 const COMPLETE_SUBMISSION_STATES = new Set(['COMPLETE', 'CANCELED', 'CANCELING']);
 const SUBMITTED_SUBMISSION_STATES = new Set(['WAITING_FOR_REVIEW', 'IN_REVIEW', 'UNRESOLVED_ISSUES']);
 const EDITABLE_VERSION_STATES = new Set([
@@ -426,7 +428,7 @@ async function resolveAppId(token, packageJson) {
 async function listMacAppStoreVersions(token, appId) {
   return getAll(token, `/v1/apps/${appId}/appStoreVersions`, {
     'filter[platform]': PLATFORM,
-    'fields[appStoreVersions]': 'versionString,appStoreState,platform,createdDate',
+    'fields[appStoreVersions]': APP_STORE_VERSION_FIELDS,
     limit: '200',
   });
 }
@@ -435,30 +437,68 @@ async function getExactMacVersion(token, appId, versionString) {
   const versions = await getAll(token, `/v1/apps/${appId}/appStoreVersions`, {
     'filter[platform]': PLATFORM,
     'filter[versionString]': versionString,
-    'fields[appStoreVersions]': 'versionString,appStoreState,platform,createdDate',
+    'fields[appStoreVersions]': APP_STORE_VERSION_FIELDS,
     limit: '1',
   });
   return versions[0] || null;
 }
 
 async function patchVersionString(token, version, targetVersion) {
-  log(`Reusing editable App Store version ${version.attributes?.versionString} and changing it to ${targetVersion}`);
+  log(
+    `Reusing editable App Store version ${version.attributes?.versionString}, ` +
+    `changing it to ${targetVersion}, and setting release type to ${RELEASE_TYPE}`
+  );
   return requestJson('PATCH', `/v1/appStoreVersions/${version.id}`, token, {
     data: {
       type: 'appStoreVersions',
       id: version.id,
       attributes: {
         versionString: targetVersion,
+        releaseType: RELEASE_TYPE,
       },
     },
   });
+}
+
+async function ensureAutomaticRelease(token, version) {
+  let configured = version;
+  if (configured.attributes?.releaseType !== RELEASE_TYPE) {
+    const result = await requestJson('PATCH', `/v1/appStoreVersions/${configured.id}`, token, {
+      data: {
+        type: 'appStoreVersions',
+        id: configured.id,
+        attributes: {
+          releaseType: RELEASE_TYPE,
+        },
+      },
+    });
+    configured = result.data;
+  }
+
+  const verified = await requestJson(
+    'GET',
+    `/v1/appStoreVersions/${configured.id}`,
+    token,
+    null,
+    { 'fields[appStoreVersions]': APP_STORE_VERSION_FIELDS }
+  );
+  const actualReleaseType = verified.data?.attributes?.releaseType;
+  if (actualReleaseType !== RELEASE_TYPE) {
+    throw new Error(
+      `App Store version ${configured.id} release type is ${actualReleaseType || 'missing'}; ` +
+      `expected ${RELEASE_TYPE}`
+    );
+  }
+
+  log(`Verified App Store version ${configured.id} release type: ${actualReleaseType}`);
+  return verified.data;
 }
 
 async function findOrCreateAppStoreVersion(token, appId, targetVersion) {
   const exact = await getExactMacVersion(token, appId, targetVersion);
   if (exact) {
     log(`Using existing App Store version ${targetVersion} (${exact.id})`);
-    return exact;
+    return ensureAutomaticRelease(token, exact);
   }
 
   try {
@@ -468,6 +508,7 @@ async function findOrCreateAppStoreVersion(token, appId, targetVersion) {
         attributes: {
           platform: PLATFORM,
           versionString: targetVersion,
+          releaseType: RELEASE_TYPE,
         },
         relationships: {
           app: {
@@ -479,8 +520,8 @@ async function findOrCreateAppStoreVersion(token, appId, targetVersion) {
         },
       },
     });
-    log(`Created App Store version ${targetVersion} (${created.data.id})`);
-    return created.data;
+    log(`Created App Store version ${targetVersion} (${created.data.id}) with release type ${RELEASE_TYPE}`);
+    return ensureAutomaticRelease(token, created.data);
   } catch (error) {
     if (!(error instanceof ApiError) || error.statusCode !== 409) {
       throw error;
@@ -496,7 +537,7 @@ async function findOrCreateAppStoreVersion(token, appId, targetVersion) {
     }
 
     const patched = await patchVersionString(token, editable, targetVersion);
-    return patched.data;
+    return ensureAutomaticRelease(token, patched.data);
   }
 }
 
