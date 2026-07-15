@@ -75,10 +75,10 @@ Dependency automation:
 - `.github/workflows/release.yml` - tag-triggered release workflow. Its
   `build-msstore` job builds APPX/MSIX, creates a no-commit Partner Center
   draft, patches certification notes through `scripts/msstore-certification.js`,
-  verifies the built APPX/MSIX manifest version against `package.json`, and
-  then publishes the draft. Partner Center submission reads before ingestion
-  can still show the copied previous package version, so that API package
-  version is advisory during release submission. Manual dispatch with
+  verifies the built APPX/MSIX manifest version against `package.json`, waits
+  for Partner Center to report that exact package, verifies it again after the
+  metadata update, and then publishes the draft. A copied previous package
+  version blocks the release. Manual dispatch with
   `release_mode=stores-only` runs the MAS and Microsoft Store jobs from the
   selected branch, and `release_mode=msstore-only` runs only the Microsoft Store
   job without moving an existing release tag.

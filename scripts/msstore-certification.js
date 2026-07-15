@@ -18,6 +18,10 @@ const PRIVACY_URL = 'https://www.gnunae.com/privacy.html';
 const SUPPORT_CONTACT = 'contact@gnunae.com';
 const HTTP_TIMEOUT_MS = Number(process.env.MSSTORE_API_TIMEOUT_MS || 90000);
 const API_RETRIES = Number(process.env.MSSTORE_API_RETRIES || 3);
+const PACKAGE_POLL_INTERVAL_MS = Math.max(
+  1000,
+  Number(process.env.MSSTORE_PACKAGE_POLL_INTERVAL_MS || 30000),
+);
 
 function loadEnvLocal() {
   if (!fs.existsSync(ENV_LOCAL_PATH)) return;
@@ -48,6 +52,7 @@ function parseArgs(argv) {
     patchPending: false,
     verifyPackageVersion: false,
     allowVersionMismatch: false,
+    waitPackageVersionMinutes: Number(process.env.MSSTORE_PACKAGE_WAIT_MINUTES || 0),
     writeNotes: '',
     submissionId: process.env.MSSTORE_SUBMISSION_ID || '',
   };
@@ -62,6 +67,8 @@ function parseArgs(argv) {
       args.verifyPackageVersion = true;
     } else if (arg === '--allow-version-mismatch') {
       args.allowVersionMismatch = true;
+    } else if (arg === '--wait-package-version-minutes') {
+      args.waitPackageVersionMinutes = Number(argv[++i]);
     } else if (arg === '--write-notes') {
       args.writeNotes = argv[++i] || '';
     } else if (arg === '--submission-id') {
@@ -74,6 +81,13 @@ function parseArgs(argv) {
     }
   }
 
+  if (!Number.isFinite(args.waitPackageVersionMinutes) || args.waitPackageVersionMinutes < 0) {
+    throw new Error('--wait-package-version-minutes must be a non-negative number');
+  }
+  if (args.allowVersionMismatch && !args.dryRun) {
+    throw new Error('--allow-version-mismatch is permitted only with --dry-run');
+  }
+
   return args;
 }
 
@@ -84,7 +98,9 @@ Options:
   --write-notes <path>          Write generated certification notes to a file.
   --patch-pending               Patch the pending Partner Center submission.
   --verify-package-version      Require pending Store package version to match package.json.
-  --allow-version-mismatch      Warn instead of failing on Store package version mismatch.
+  --wait-package-version-minutes <minutes>
+                                Wait for Partner Center to ingest the expected package version.
+  --allow-version-mismatch      Dry-run only: warn instead of failing on a version mismatch.
   --submission-id <id>          Patch a specific submission instead of resolving pending submission.
   --dry-run                     Do not write to Partner Center.
   -h, --help                    Show help.
@@ -128,6 +144,7 @@ function releaseNotes(version) {
   const { defaultModel, fallbackModel } = codexModelInfo();
   return [
     `Version ${version}`,
+    'Corrects Microsoft Store package delivery so the installed app matches this release.',
     'Improved first-run browser access and OpenAI/Codex sign-in guidance for Microsoft Store certification.',
     `Pins Codex chat to the recommended ${defaultModel} model and retries with ${fallbackModel} if the selected model is unavailable for the signed-in account.`,
     'Clarifies that OpenAI authentication is required only for Codex AI features.',
@@ -386,16 +403,20 @@ function updateRequestFromSubmission(submission) {
   };
 }
 
-function verifyPackageVersion(submission, expectedVersion, allowMismatch) {
-  const versions = (submission.applicationPackages || [])
+function packageVersions(submission) {
+  return (submission.applicationPackages || [])
     .map((pkg) => pkg.version)
     .filter(Boolean);
+}
+
+function verifyPackageVersion(submission, expectedVersion, allowMismatch) {
+  const versions = packageVersions(submission);
 
   if (versions.length === 0) {
     const message = 'Pending submission has no package version to verify yet.';
     if (allowMismatch) {
       console.warn(`[msstore-certification] Warning: ${message}`);
-      return;
+      return false;
     }
     throw new Error(message);
   }
@@ -404,12 +425,44 @@ function verifyPackageVersion(submission, expectedVersion, allowMismatch) {
     const message = `Expected Windows package version ${expectedVersion}, found ${versions.join(', ')}`;
     if (allowMismatch) {
       console.warn(`[msstore-certification] Warning: ${message}`);
-      return;
+      return false;
     }
     throw new Error(message);
   }
 
   console.log(`[msstore-certification] Package version verified: ${expectedVersion}`);
+  return true;
+}
+
+async function waitForExpectedPackageVersion(token, submissionPath, expectedVersion, options) {
+  const deadline = Date.now() + (options.waitPackageVersionMinutes * 60 * 1000);
+
+  while (true) {
+    const submission = await apiJson('GET', submissionPath, token);
+    if (verifyPackageVersion(submission, expectedVersion, true)) {
+      return submission;
+    }
+
+    if (options.waitPackageVersionMinutes === 0) {
+      verifyPackageVersion(submission, expectedVersion, options.allowVersionMismatch);
+      return submission;
+    }
+
+    if (Date.now() >= deadline) {
+      const versions = packageVersions(submission);
+      throw new Error(
+        `Timed out waiting for Windows package ${expectedVersion}; ` +
+        `Partner Center still reports ${versions.join(', ') || 'no package version'}`
+      );
+    }
+
+    const delayMs = Math.min(PACKAGE_POLL_INTERVAL_MS, Math.max(1, deadline - Date.now()));
+    console.log(
+      `[msstore-certification] Waiting ${Math.ceil(delayMs / 1000)}s for Partner Center ` +
+      `to ingest package ${expectedVersion}.`
+    );
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
 }
 
 async function patchPendingSubmission(options, version, notes) {
@@ -419,12 +472,10 @@ async function patchPendingSubmission(options, version, notes) {
   const pendingId = await resolvePendingSubmissionId(token, options);
 
   const submissionPath = `/applications/${encodeURIComponent(process.env.MSSTORE_PRODUCT_ID)}/submissions/${encodeURIComponent(pendingId)}`;
-  const submission = await apiJson('GET', submissionPath, token);
   const expectedVersion = expectedWindowsPackageVersion(version);
-
-  if (options.verifyPackageVersion) {
-    verifyPackageVersion(submission, expectedVersion, options.allowVersionMismatch);
-  }
+  const submission = options.verifyPackageVersion
+    ? await waitForExpectedPackageVersion(token, submissionPath, expectedVersion, options)
+    : await apiJson('GET', submissionPath, token);
 
   patchListings(submission, version);
   submission.notesForCertification = notes;
@@ -442,6 +493,12 @@ async function patchPendingSubmission(options, version, notes) {
   const body = updateRequestFromSubmission(submission);
   await apiJson('PUT', submissionPath, token, body);
   console.log('[msstore-certification] Partner Center certification notes updated.');
+
+  if (options.verifyPackageVersion) {
+    const updated = await apiJson('GET', submissionPath, token);
+    verifyPackageVersion(updated, expectedVersion, false);
+    console.log('[msstore-certification] Package version remained correct after metadata update.');
+  }
 }
 
 async function main() {

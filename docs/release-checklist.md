@@ -33,9 +33,10 @@ source of truth.
    - Builds APPX, verifies the manifest version against `package.json`, renames
      APPX to MSIX for the CLI, and uploads to Partner Center with
      `msstore publish`.
-   - Adds certification notes before publishing. The Partner Center API may
-     still show the copied previous package version before ingestion, so the
-     built manifest check is the release-time package-version gate.
+   - Waits for Partner Center to report the expected package version, adds
+     certification notes while preserving that package, verifies the version
+     again, and only then publishes. A copied previous package version blocks
+     the release.
 8. The `build-mas` job runs on macOS:
    - Imports the 3rd Party Mac Developer Application and Installer
      certificates into a temporary keychain.

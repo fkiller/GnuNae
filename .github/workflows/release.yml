@@ -394,7 +394,7 @@ jobs:
           }
 
           Write-Host "=== Updating certification notes ==="
-          node scripts/msstore-certification.js --patch-pending --verify-package-version --allow-version-mismatch
+          node scripts/msstore-certification.js --patch-pending --verify-package-version --wait-package-version-minutes 30
           $certificationExit = $LASTEXITCODE
           if ($certificationExit -ne 0) {
             exit $certificationExit

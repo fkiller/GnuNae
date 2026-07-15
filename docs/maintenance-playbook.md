@@ -268,10 +268,9 @@ Interpret workflows from `.github/workflows`, not from older docs alone.
 - The same workflow has a separate `build-msstore` job that builds APPX/MSIX,
   creates a no-commit Microsoft Store draft, patches certification notes with
   `scripts/msstore-certification.js`, verifies the built APPX/MSIX manifest
-  version against `package.json`, and publishes the draft to Partner Center.
-  Partner Center submission reads before ingestion can still show the copied
-  previous package version, so the API package-version read is advisory during
-  release submission.
+  version against `package.json`, waits for Partner Center to report that exact
+  version, verifies it again after metadata changes, and publishes the draft.
+  A copied previous package version is a blocking release failure.
 - The same workflow has a separate `build-mas` job that builds and uploads the
   universal Mac App Store package to App Store Connect. Its review-submission
   script sets and verifies `releaseType=AFTER_APPROVAL` for newly created,
