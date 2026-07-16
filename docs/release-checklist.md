@@ -30,13 +30,13 @@ source of truth.
    - Configures Microsoft Store Developer CLI.
    - Runs `npm ci`, build config injection, runtime download, Codex install,
      and `npm run build`.
-   - Builds APPX, verifies the manifest version against `package.json`, renames
-     APPX to MSIX for the CLI, and uploads to Partner Center with
-     `msstore publish`.
-   - Waits for Partner Center to report the expected package version, adds
-     certification notes while preserving that package, verifies the version
-     again, and only then publishes. A copied previous package version blocks
-     the release.
+   - Builds APPX, verifies the manifest version against `package.json`, keeps
+     the APPX extension for the MSStore CLI Electron publisher, and uploads to
+     Partner Center with `msstore publish`.
+   - Requires the expected APPX filename to be present as `PendingUpload`, adds
+     certification notes while preserving that package entry, verifies it
+     again, and only then publishes. Do not use a copied previous package's
+     version as a pre-commit signal.
 8. The `build-mas` job runs on macOS:
    - Imports the 3rd Party Mac Developer Application and Installer
      certificates into a temporary keychain.
@@ -122,9 +122,10 @@ by exposing secret values to Codex.
 - Confirm `build/appx/*` assets are present and intentionally current.
 - Confirm the release workflow APPX publisher override is still present.
 - After tag workflow runs, inspect `build-msstore` logs.
-- Confirm the Windows package version verified by
-  `scripts/msstore-certification.js` matches the current `package.json` version
-  as a four-part APPX/MSIX version.
+- Confirm the built APPX manifest version matches the current `package.json`
+  version as a four-part version, and confirm
+  `scripts/msstore-certification.js` verifies that APPX filename as
+  `PendingUpload` before publishing.
 - Before resubmitting after a certification failure, manually run
   `Store Status Watch` with `certification_dry_run=true` on the release branch
   to verify the generated notes and cloud Partner Center credential path in

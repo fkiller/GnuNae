@@ -194,10 +194,11 @@ Current workflows are defined under `.github/workflows/`.
   - A separate `build-msstore` job builds an APPX/MSIX on Windows, creates a
     no-commit Microsoft Store draft, patches certification notes with
     `scripts/msstore-certification.js`, verifies the built APPX/MSIX manifest
-    version against `package.json`, waits for Partner Center to report that same
-    package version, patches metadata while preserving the verified package,
-    verifies it again, and only then publishes the draft. A copied previous
-    package version is a blocking mismatch, never advisory.
+    version against `package.json`, and keeps the `.appx` extension so the
+    MSStore CLI Electron publisher includes the package. Before and after the
+    metadata update, it requires the expected APPX filename to be present as a
+    `PendingUpload` package, then publishes the draft. The version on a copied
+    previous package is not a valid pre-commit verification signal.
   - The GitHub Release job creates a non-draft GitHub Release from artifacts
     produced by the matrix build job. It currently depends on `build`, not on
     `build-msstore`.

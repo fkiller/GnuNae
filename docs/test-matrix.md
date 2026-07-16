@@ -75,10 +75,10 @@ Dependency automation:
 - `.github/workflows/release.yml` - tag-triggered release workflow. Its
   `build-msstore` job builds APPX/MSIX, creates a no-commit Partner Center
   draft, patches certification notes through `scripts/msstore-certification.js`,
-  verifies the built APPX/MSIX manifest version against `package.json`, waits
-  for Partner Center to report that exact package, verifies it again after the
-  metadata update, and then publishes the draft. A copied previous package
-  version blocks the release. Manual dispatch with
+  verifies the built APPX/MSIX manifest version against `package.json`, keeps
+  the `.appx` extension for Electron CLI discovery, verifies the expected APPX
+  filename as `PendingUpload` before and after the metadata update, and then
+  publishes the draft. Manual dispatch with
   `release_mode=stores-only` runs the MAS and Microsoft Store jobs from the
   selected branch, and `release_mode=msstore-only` runs only the Microsoft Store
   job without moving an existing release tag.
@@ -199,7 +199,8 @@ Run these before larger merges or release candidates:
 - Verify macOS DMG/ZIP signature and notarization status.
 - Confirm Microsoft Store upload result in Partner Center and in the `Store
   status watch` issue, including certification notes and the package version
-  verified by `scripts/msstore-certification.js`.
+  processed by Partner Center. In the release log, confirm the local APPX
+  manifest version and both `PendingUpload` filename checks.
 - Confirm the `build-mas` job uploaded the universal Mac App Store package.
 - Confirm Mac App Store/TestFlight processing and app version review status in
   App Store Connect and in the `Store status watch` issue when API secrets are

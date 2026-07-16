@@ -329,7 +329,9 @@ jobs:
           Write-Host "=== Release directory contents ==="
           Get-ChildItem -Path release -Recurse | Format-Table Name, Length, FullName
 
-          # Find APPX file and rename to .msix (msstore CLI expects .msix extension)
+          # Keep the APPX extension. The MSStore CLI Electron publisher filters
+          # the input directory for .appx files; renaming this file to .msix
+          # produces an upload bundle with no new application package.
           $appx = Get-ChildItem -Path release -Filter *.appx | Select-Object -First 1
           if ($appx) {
             $expectedPackageVersion = node -p "const parts = require('./package.json').version.split('.'); while (parts.length < 4) parts.push('0'); parts.slice(0, 4).join('.')"
@@ -362,10 +364,7 @@ jobs:
               exit 1
             }
             Write-Host "Verified Windows package version: $actualPackageVersion"
-
-            $msixName = $appx.Name -replace '\.appx$', '.msix'
-            Rename-Item -Path $appx.FullName -NewName $msixName
-            Write-Host "Renamed $($appx.Name) -> $msixName"
+            Write-Host "Keeping APPX filename for MSStore CLI Electron discovery: $($appx.Name)"
           } else {
             Write-Error "No .appx file found in release/"
             exit 1
@@ -394,7 +393,7 @@ jobs:
           }
 
           Write-Host "=== Updating certification notes ==="
-          node scripts/msstore-certification.js --patch-pending --verify-package-version --wait-package-version-minutes 30
+          node scripts/msstore-certification.js --patch-pending --expected-package-file "$($appx.Name)"
           $certificationExit = $LASTEXITCODE
           if ($certificationExit -ne 0) {
             exit $certificationExit

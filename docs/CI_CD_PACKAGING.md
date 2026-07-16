@@ -500,10 +500,12 @@ The tag-triggered `build-msstore` workflow builds the APPX/MSIX package from
 the current `package.json` version, creates a Partner Center draft with
 `msstore publish --noCommit`, runs `scripts/msstore-certification.js` to add
 certification notes, verifies the built APPX/MSIX manifest version against
-`package.json`, and waits up to 30 minutes for the Partner Center submission to
-report that exact package version. It verifies the package again after updating
-metadata and only then publishes the draft with `msstore submission publish`.
-A copied previous package version blocks the release. The same workflow can be
+`package.json`, and leaves the package with its `.appx` extension so the
+MSStore CLI Electron publisher discovers it. The workflow requires the expected
+APPX filename to appear as `PendingUpload` before and after the certification
+metadata update, then publishes the draft with `msstore submission publish`.
+Partner Center can continue showing the copied previous package's version until
+commit, so that version is not used as a pre-commit gate. The same workflow can be
 manually dispatched with `release_mode=stores-only` for owner-approved MAS plus
 Microsoft Store deployment from the selected branch
 without moving an existing release tag. Use `release_mode=msstore-only` for a

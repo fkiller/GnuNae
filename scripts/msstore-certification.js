@@ -53,6 +53,7 @@ function parseArgs(argv) {
     verifyPackageVersion: false,
     allowVersionMismatch: false,
     waitPackageVersionMinutes: Number(process.env.MSSTORE_PACKAGE_WAIT_MINUTES || 0),
+    expectedPackageFile: '',
     writeNotes: '',
     submissionId: process.env.MSSTORE_SUBMISSION_ID || '',
   };
@@ -69,6 +70,8 @@ function parseArgs(argv) {
       args.allowVersionMismatch = true;
     } else if (arg === '--wait-package-version-minutes') {
       args.waitPackageVersionMinutes = Number(argv[++i]);
+    } else if (arg === '--expected-package-file') {
+      args.expectedPackageFile = argv[++i] || '';
     } else if (arg === '--write-notes') {
       args.writeNotes = argv[++i] || '';
     } else if (arg === '--submission-id') {
@@ -101,6 +104,8 @@ Options:
   --wait-package-version-minutes <minutes>
                                 Wait for Partner Center to ingest the expected package version.
   --allow-version-mismatch      Dry-run only: warn instead of failing on a version mismatch.
+  --expected-package-file <name>
+                                Require this package to be PendingUpload before and after metadata update.
   --submission-id <id>          Patch a specific submission instead of resolving pending submission.
   --dry-run                     Do not write to Partner Center.
   -h, --help                    Show help.
@@ -409,6 +414,29 @@ function packageVersions(submission) {
     .filter(Boolean);
 }
 
+function verifyPendingPackageFile(submission, expectedFile) {
+  const expected = path.basename(expectedFile).toLowerCase();
+  const packages = submission.applicationPackages || [];
+  const pending = packages.find((pkg) =>
+    path.basename(pkg.fileName || '').toLowerCase() === expected &&
+    String(pkg.fileStatus || '').toLowerCase() === 'pendingupload'
+  );
+
+  if (!pending) {
+    const packageSummary = packages
+      .map((pkg) => `${pkg.fileName || '<unnamed>'}:${pkg.fileStatus || '<unknown>'}`)
+      .join(', ');
+    throw new Error(
+      `Expected pending upload package ${expectedFile}; ` +
+      `Partner Center reports ${packageSummary || 'no application packages'}`
+    );
+  }
+
+  console.log(
+    `[msstore-certification] Pending upload package verified: ${pending.fileName}`
+  );
+}
+
 function verifyPackageVersion(submission, expectedVersion, allowMismatch) {
   const versions = packageVersions(submission);
 
@@ -477,13 +505,22 @@ async function patchPendingSubmission(options, version, notes) {
     ? await waitForExpectedPackageVersion(token, submissionPath, expectedVersion, options)
     : await apiJson('GET', submissionPath, token);
 
+  if (options.expectedPackageFile) {
+    verifyPendingPackageFile(submission, options.expectedPackageFile);
+  }
+
   patchListings(submission, version);
   submission.notesForCertification = notes;
 
   console.log(`[msstore-certification] Pending submission: ${pendingId}`);
   console.log(`[msstore-certification] Current status: ${submission.status || 'unknown'}`);
   console.log(`[msstore-certification] Certification notes length: ${notes.length}`);
-  console.log(`[msstore-certification] Expected Windows package version: ${expectedVersion}`);
+  if (options.verifyPackageVersion) {
+    console.log(`[msstore-certification] Expected Windows package version: ${expectedVersion}`);
+  }
+  if (options.expectedPackageFile) {
+    console.log(`[msstore-certification] Expected pending package: ${options.expectedPackageFile}`);
+  }
 
   if (options.dryRun) {
     console.log('[msstore-certification] Dry run; Partner Center submission was not updated.');
@@ -494,10 +531,16 @@ async function patchPendingSubmission(options, version, notes) {
   await apiJson('PUT', submissionPath, token, body);
   console.log('[msstore-certification] Partner Center certification notes updated.');
 
-  if (options.verifyPackageVersion) {
+  if (options.verifyPackageVersion || options.expectedPackageFile) {
     const updated = await apiJson('GET', submissionPath, token);
-    verifyPackageVersion(updated, expectedVersion, false);
-    console.log('[msstore-certification] Package version remained correct after metadata update.');
+    if (options.verifyPackageVersion) {
+      verifyPackageVersion(updated, expectedVersion, false);
+      console.log('[msstore-certification] Package version remained correct after metadata update.');
+    }
+    if (options.expectedPackageFile) {
+      verifyPendingPackageFile(updated, options.expectedPackageFile);
+      console.log('[msstore-certification] Pending upload package remained attached after metadata update.');
+    }
   }
 }
 
@@ -525,7 +568,14 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(`[msstore-certification] ${error.message}`);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(`[msstore-certification] ${error.message}`);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  updateRequestFromSubmission,
+  verifyPendingPackageFile,
+};
