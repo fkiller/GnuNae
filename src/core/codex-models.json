@@ -23,11 +23,6 @@
       "label": "GPT-5.3-Codex-Spark"
     }
   ],
-  "deprecated": [
-    "gpt-5.2",
-    "gpt-5.3-codex",
-    "gpt-5.4",
-    "gpt-5.4-mini"
-  ],
-  "updatedAt": "2026-07-13"
+  "deprecated": [],
+  "updatedAt": "2026-07-20"
 }

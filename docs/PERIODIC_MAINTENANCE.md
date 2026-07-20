@@ -166,14 +166,14 @@ Sync **exact** versions (no `^` caret) with main package.json:
 #### B2. src/core/runtime-manager.ts
 Update the pinned version constants (used for dynamic installation at runtime):
 ```typescript
-export const CODEX_VERSION = '0.144.3';
+export const CODEX_VERSION = '0.144.6';
 export const PLAYWRIGHT_MCP_VERSION = '0.0.70';
 ```
 
 #### B3. scripts/install-codex.js
 Update the pinned version constants (must match runtime-manager.ts):
 ```javascript
-const CODEX_VERSION = '0.144.3';
+const CODEX_VERSION = '0.144.6';
 const PLAYWRIGHT_MCP_VERSION = '0.0.70';
 ```
 
@@ -184,7 +184,7 @@ FROM mcr.microsoft.com/playwright:v1.59.1-jammy
 
 # Lines 57-58: Pin versions
 RUN npm install -g \
-    @openai/codex@0.144.3 \
+    @openai/codex@0.144.6 \
     @playwright/mcp@0.0.70 \
 ```
 

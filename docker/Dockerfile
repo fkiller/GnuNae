@@ -55,7 +55,7 @@ RUN useradd -m -s /bin/bash sandbox \
 
 # Install global Node.js packages (pinned versions for consistency)
 RUN npm install -g \
-    @openai/codex@0.144.3 \
+    @openai/codex@0.144.6 \
     @playwright/mcp@0.0.70 \
     typescript \
     ts-node \

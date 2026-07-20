@@ -13,7 +13,7 @@ import { execSync, spawn } from 'child_process';
 
 // Pinned versions for dynamic runtime installation
 // Update these during periodic maintenance (see docs/PERIODIC_MAINTENANCE.md)
-export const CODEX_VERSION = '0.144.3';
+export const CODEX_VERSION = '0.144.6';
 export const PLAYWRIGHT_MCP_VERSION = '0.0.70';
 
 export interface RuntimeStatus {
