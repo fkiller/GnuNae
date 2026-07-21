@@ -112,6 +112,15 @@ For documentation-only PRs:
 - Run `npm run build` when practical, especially if docs describe build or
   release behavior.
 
+For GitHub Pages website changes:
+
+- Serve `docs/` locally and inspect the landing page at desktop and mobile
+  widths.
+- Confirm every referenced asset returns successfully, including both MP4 demo
+  files.
+- Verify the hero video autoplays muted, advances to the second local video,
+  and both demo controls play the repository-hosted videos.
+
 For app code PRs:
 
 - Local: `npm ci`

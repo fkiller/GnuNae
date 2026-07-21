@@ -130,18 +130,18 @@
             overflow: hidden;
         }
 
-        .hero-video-bg iframe {
+        .hero-video-bg video {
             position: absolute;
             top: 50%;
             left: 50%;
             min-width: 100%;
             min-height: 100%;
-            width: 177.78vh;
-            /* 16:9 aspect ratio */
-            height: 100vh;
+            width: auto;
+            height: auto;
             transform: translate(-50%, -50%) scale(1.1);
+            object-fit: cover;
             opacity: 0.4;
-            pointer-events: none;
+            background: #000;
         }
 
         .hero-video-bg::after {
@@ -455,7 +455,6 @@
             </a>
             <nav class="nav-links">
                 <a href="https://github.com/fkiller/GnuNae">GitHub</a>
-                <a href="https://www.youtube.com/@GnuNae">YouTube</a>
                 <a href="https://github.com/fkiller/GnuNae/releases">Releases</a>
                 <a href="https://github.com/fkiller/GnuNae#readme">Docs</a>
             </nav>
@@ -464,13 +463,9 @@
         <main>
             <section class="hero">
                 <div class="hero-video-bg">
-                    <iframe id="heroVideo"
-                        src="https://www.youtube.com/embed/VwOk1_vD3vw?autoplay=1&mute=1&loop=1&playlist=VwOk1_vD3vw&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1"
-                        frameborder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowfullscreen
-                        style="position: absolute; top: 50%; left: 50%; min-width: 100%; min-height: 100%; width: auto; height: auto; transform: translate(-50%, -50%) scale(1.2); pointer-events: none;">
-                    </iframe>
+                    <video autoplay muted playsinline id="heroVideo">
+                        <source src="assets/GnuNae.UseCase.1.mp4" type="video/mp4">
+                    </video>
                 </div>
                 <img src="assets/gnunae.png" alt="GnuNae" class="hero-logo">
                 <div class="hero-content">
@@ -525,61 +520,26 @@
             <section class="videos">
                 <h2>See It in Action</h2>
                 <p class="section-desc">Watch how GnuNae transforms your browsing experience</p>
-                <div class="video-grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
+                <div class="video-grid">
                     <div class="video-card">
-                        <div style="position: relative; padding-bottom: 56.25%; height: 0;">
-                            <iframe
-                                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; border-radius: 16px 16px 0 0;"
-                                src="https://www.youtube.com/embed/VwOk1_vD3vw" title="GnuNae Use Case 1"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowfullscreen>
-                            </iframe>
-                        </div>
+                        <video controls preload="metadata">
+                            <source src="assets/GnuNae.UseCase.1.mp4" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
                         <div class="video-info">
-                            <h3>AI Web Automation</h3>
-                            <p>See how GnuNae automates web tasks with natural language commands.</p>
+                            <h3>Use Case 1: Smart Form Filling</h3>
+                            <p>Watch GnuNae intelligently identify and fill form fields using natural language commands.
+                            </p>
                         </div>
                     </div>
                     <div class="video-card">
-                        <div style="position: relative; padding-bottom: 56.25%; height: 0;">
-                            <iframe
-                                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; border-radius: 16px 16px 0 0;"
-                                src="https://www.youtube.com/embed/QGOXpMclgbo" title="GnuNae Use Case 2"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowfullscreen>
-                            </iframe>
-                        </div>
+                        <video controls preload="metadata">
+                            <source src="assets/GnuNae.UseCase.2.mp4" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
                         <div class="video-info">
-                            <h3>Smart Page Analysis</h3>
-                            <p>Watch GnuNae analyze and extract information from web pages.</p>
-                        </div>
-                    </div>
-                    <div class="video-card">
-                        <div style="position: relative; padding-bottom: 56.25%; height: 0;">
-                            <iframe
-                                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; border-radius: 16px 16px 0 0;"
-                                src="https://www.youtube.com/embed/cvK_fsA4cpk" title="GnuNae Use Case 3"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowfullscreen>
-                            </iframe>
-                        </div>
-                        <div class="video-info">
-                            <h3>Task Scheduling</h3>
-                            <p>Learn how to create and schedule automated tasks.</p>
-                        </div>
-                    </div>
-                    <div class="video-card">
-                        <div style="position: relative; padding-bottom: 56.25%; height: 0;">
-                            <iframe
-                                style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; border-radius: 16px 16px 0 0;"
-                                src="https://www.youtube.com/embed/1Wq6yL3nQ_w" title="New in GnuNae v0.7.0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowfullscreen>
-                            </iframe>
-                        </div>
-                        <div class="video-info">
-                            <h3>New in v0.7.0</h3>
-                            <p>External browser support with Chrome, Edge, Brave, and Opera integration.</p>
+                            <h3>Use Case 2: Page Analysis</h3>
+                            <p>See how GnuNae analyzes page content and helps you extract information efficiently.</p>
                         </div>
                     </div>
                 </div>
@@ -644,7 +604,6 @@
         <footer>
             <div class="footer-links">
                 <a href="https://github.com/fkiller/GnuNae">GitHub</a>
-                <a href="https://www.youtube.com/@GnuNae">YouTube</a>
                 <a href="https://github.com/fkiller/GnuNae/releases">Releases</a>
                 <a href="https://github.com/fkiller/GnuNae/issues">Issues</a>
                 <a href="https://github.com/fkiller/GnuNae/blob/main/LICENSE">License</a>
