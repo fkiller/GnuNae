@@ -2,7 +2,7 @@
 
 An Electron-based browser with an AI-powered Codex sidebar for intelligent web automation.
 
-🌐 **Website:** [www.gnunae.com](https://www.gnunae.com?utm_source=github) | 📺 **YouTube:** [@GnuNae](https://www.youtube.com/@GnuNae)
+🌐 **Website:** [www.gnunae.com](https://www.gnunae.com?utm_source=github)
 
 <a href="https://www.producthunt.com/products/gnunae?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-gnunae" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1053446&theme=light&t=1767570584390" alt="GnuNae - AI Browser with no limit | Product Hunt" width="250" height="54" /></a>
 
@@ -129,19 +129,11 @@ graph TB
 
 ### Use Case 1: AI Web Automation
 
-[![GnuNae Use Case 1](https://img.youtube.com/vi/VwOk1_vD3vw/maxresdefault.jpg)](https://youtu.be/VwOk1_vD3vw)
+[Watch GnuNae Use Case 1](assets/GnuNae.UseCase.1.mp4)
 
 ### Use Case 2: Smart Page Analysis
 
-[![GnuNae Use Case 2](https://img.youtube.com/vi/QGOXpMclgbo/maxresdefault.jpg)](https://youtu.be/QGOXpMclgbo)
-
-### Use Case 3: Task Scheduling
-
-[![GnuNae Use Case 3](https://img.youtube.com/vi/cvK_fsA4cpk/maxresdefault.jpg)](https://youtu.be/cvK_fsA4cpk)
-
-### Use Case 4: External Browser Support (v0.7.0)
-
-[![New in GnuNae v0.7.0](https://img.youtube.com/vi/1Wq6yL3nQ_w/maxresdefault.jpg)](https://youtube.com/shorts/1Wq6yL3nQ_w)
+[Watch GnuNae Use Case 2](assets/GnuNae.UseCase.2.mp4)
 
 ## Installation
 
