@@ -145,9 +145,11 @@ function fallbackModel(manifest, defaultModel) {
 }
 
 function latestPackageVersion(packageName) {
-  return execFileSync('npm', ['view', packageName, 'version'], {
+  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  return execFileSync(npmCommand, ['view', packageName, 'version'], {
     cwd: ROOT,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
+    shell: process.platform === 'win32',
   }).trim();
 }

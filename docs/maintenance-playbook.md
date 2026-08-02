@@ -146,6 +146,12 @@ When the accepted item changes Codex CLI, Playwright MCP, Playwright, or model
 behavior, the PR must update both native runtime pins and Docker image pins, or
 explain why one side is intentionally unchanged.
 
+When a packaged desktop app also copies runtime files into user data, verify
+the update path as well as the package contents. In particular, Windows Store
+updates must compare the bundled Codex package version with the existing
+`userData/codex` copy, and runtime repair must have a timeout so a failed npm or
+network operation cannot leave a chat execution pending forever.
+
 ## Store Status Automation
 
 Store status monitoring is advisory and post-submission oriented.

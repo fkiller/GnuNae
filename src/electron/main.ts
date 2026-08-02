@@ -113,6 +113,10 @@ function isOutdatedCodexFailure(output: string): boolean {
         lower.includes('please upgrade codex') ||
         lower.includes('update the codex cli') ||
         lower.includes('upgrade the codex cli') ||
+        // A newer Codex CLI can write effort values such as `max` into the
+        // shared models cache. Older CLIs fail before execution while parsing
+        // that cache, so treat this as the same outdated-runtime condition.
+        (lower.includes('failed to load models cache') && lower.includes('unknown variant')) ||
         (
             lower.includes('this version of codex') &&
             (

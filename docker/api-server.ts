@@ -59,6 +59,7 @@ function isModelOrOutdatedCodexFailure(output: string): boolean {
         lower.includes('please upgrade codex') ||
         lower.includes('update the codex cli') ||
         lower.includes('upgrade the codex cli') ||
+        (lower.includes('failed to load models cache') && lower.includes('unknown variant')) ||
         (lower.includes('model') && lower.includes('not supported')) ||
         (lower.includes('model') && lower.includes('not available')) ||
         (lower.includes('model') && lower.includes('not enabled')) ||
@@ -117,6 +118,7 @@ function executeCodex(
     if (options.model) {
         args.push('-c', `model=${options.model}`);
     }
+    args.push('-c', 'model_reasoning_effort=xhigh');
 
     const env = {
         ...process.env,

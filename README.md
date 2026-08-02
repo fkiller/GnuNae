@@ -286,6 +286,16 @@ on demand or on its weekly schedule to regenerate the model manifest, update
 Codex CLI pins across Native/package/Docker paths, refresh lockfiles, and open
 a review PR.
 
+On Windows Store updates, the bundled Node.js and Codex CLI are copied to
+stable app data so an app update cannot lose them. Existing copies are compared
+with the bundled version and refreshed when the Store package contains a newer
+CLI. If an older CLI reports a `models_cache` effort error such as
+`unknown variant \`max\``, GnuNae performs one bounded runtime update and then
+retries with the generated fallback model. A network or permission failure
+finishes with a visible error instead of leaving the chat in an endless
+“Updating Codex CLI” state. Virtual Mode uses the separately pinned Docker
+sandbox image and reports when that image needs to be rebuilt or pulled.
+
 ## Project Structure
 
 ```

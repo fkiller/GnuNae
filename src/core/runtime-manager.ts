@@ -13,8 +13,10 @@ import { execSync, spawn } from 'child_process';
 
 // Pinned versions for dynamic runtime installation
 // Update these during periodic maintenance (see docs/PERIODIC_MAINTENANCE.md)
-export const CODEX_VERSION = '0.144.3';
+export const CODEX_VERSION = '0.146.0';
 export const PLAYWRIGHT_MCP_VERSION = '0.0.70';
+
+const CODEX_UPGRADE_TIMEOUT_MS = 120_000;
 
 export interface RuntimeStatus {
     node: {
@@ -166,11 +168,36 @@ class RuntimeManager {
             searchPaths.push(path.join(__dirname, '../../node_modules/.bin', binName));
         }
 
-        for (const p of searchPaths) {
-            if (fs.existsSync(p)) return p;
+        const existingPaths = searchPaths.filter((p) => fs.existsSync(p));
+        if (existingPaths.length === 0) return null;
+
+        // A runtime upgrade may leave both the bundled CLI and an older
+        // userData copy on disk. Prefer the highest installed version so an
+        // app update cannot keep executing a stale CLI forever.
+        const versionedPaths = existingPaths
+            .map((p, index) => ({ path: p, index, version: this.getCodexPackageVersion(p) }))
+            .filter((entry): entry is { path: string; index: number; version: string } => !!entry.version)
+            .sort((a, b) => {
+                const versionOrder = compareVersions(b.version, a.version);
+                return versionOrder !== 0 ? versionOrder : a.index - b.index;
+            });
+
+        if (versionedPaths.length > 0) {
+            return versionedPaths[0].path;
         }
 
-        return null;
+        return existingPaths[0];
+    }
+
+    /** Read the npm package version associated with a Codex executable. */
+    private getCodexPackageVersion(codexPath: string): string | null {
+        const packagePath = path.join(path.dirname(codexPath), '..', '@openai', 'codex', 'package.json');
+        try {
+            const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+            return typeof packageJson.version === 'string' ? packageJson.version : null;
+        } catch {
+            return null;
+        }
     }
 
     /**
@@ -182,6 +209,16 @@ class RuntimeManager {
 
         // Base relative paths within the codex/root installation
         const relativeMcpPath = path.join('node_modules', '@playwright/mcp', 'cli.js');
+
+        // Keep Playwright MCP paired with the Codex installation selected by
+        // getCodexPath(). This prevents a newer CLI from using an older MCP
+        // copied to userData during a previous app release.
+        const selectedCodexPath = this.getCodexPath();
+        if (selectedCodexPath) {
+            const selectedCodexRoot = path.resolve(path.dirname(selectedCodexPath), '..', '..');
+            const selectedMcpPath = path.join(selectedCodexRoot, relativeMcpPath);
+            if (fs.existsSync(selectedMcpPath)) return selectedMcpPath;
+        }
 
         if (isWindows) {
             // 1. Stable location in userData
@@ -255,6 +292,13 @@ class RuntimeManager {
      */
     async validateRuntime(): Promise<RuntimeStatus> {
         console.log('[RuntimeManager] Validating runtime...');
+
+        // Windows Store updates can retain a prior userData copy of the
+        // embedded runtime. Refresh that copy before resolving executable
+        // paths, otherwise every new app version keeps running the old CLI.
+        if (process.platform === 'win32' && app.isPackaged) {
+            await this.migrateToStableStorage();
+        }
 
         // Detect Mac App Store build - process.mas is set to true in MAS builds
         const isMAS = !!(process as any).mas;
@@ -360,11 +404,6 @@ class RuntimeManager {
         this.status = status;
         this.notifyListeners();
 
-        // Blocking migration for Windows portable apps to prevent temp-deletion race
-        if (status.ready && isWindows && app.isPackaged) {
-            await this.migrateToStableStorage();
-        }
-
         return status;
     }
 
@@ -377,36 +416,46 @@ class RuntimeManager {
         const stableNodeDir = path.join(userDataDist, 'runtime');
         const stableCodexDir = path.join(userDataDist, 'codex');
 
-        // Check if we are currently running from resources
-        const currentNodePath = this.getNodePath();
-        if (currentNodePath && currentNodePath.includes(process.resourcesPath)) {
-            console.log('[RuntimeManager] Runtime detected in resources, checking stable storage...');
-
-            // Copy runtime (Node.js) if not already there
-            const resourceNodeDir = path.join(process.resourcesPath, 'runtime');
-            if (fs.existsSync(resourceNodeDir) && !fs.existsSync(path.join(stableNodeDir, 'node.exe'))) {
-                console.log('[RuntimeManager] Migrating Node.js to stable storage...');
-                try {
-                    fs.mkdirSync(stableNodeDir, { recursive: true });
-                    fs.cpSync(resourceNodeDir, stableNodeDir, { recursive: true });
-                    console.log('[RuntimeManager] Node.js migrated to stable storage');
-                } catch (e) {
-                    console.error('[RuntimeManager] Failed to migrate Node.js:', e);
-                }
+        const resourceNodeDir = path.join(process.resourcesPath, 'runtime');
+        if (fs.existsSync(resourceNodeDir) && !fs.existsSync(path.join(stableNodeDir, 'node.exe'))) {
+            console.log('[RuntimeManager] Migrating Node.js to stable storage...');
+            try {
+                fs.mkdirSync(stableNodeDir, { recursive: true });
+                fs.cpSync(resourceNodeDir, stableNodeDir, { recursive: true });
+                console.log('[RuntimeManager] Node.js migrated to stable storage');
+            } catch (e) {
+                console.error('[RuntimeManager] Failed to migrate Node.js:', e);
             }
+        }
 
-            // Copy codex if not already there
-            const resourceCodexDir = path.join(process.resourcesPath, 'codex');
-            const binName = process.platform === 'win32' ? 'codex.cmd' : 'codex';
-            if (fs.existsSync(resourceCodexDir) && !fs.existsSync(path.join(stableCodexDir, 'node_modules', '.bin', binName))) {
-                console.log('[RuntimeManager] Migrating Codex to stable storage...');
-                try {
-                    fs.mkdirSync(stableCodexDir, { recursive: true });
-                    fs.cpSync(resourceCodexDir, stableCodexDir, { recursive: true });
-                    console.log('[RuntimeManager] Codex migrated to stable storage');
-                } catch (e) {
-                    console.error('[RuntimeManager] Failed to migrate Codex:', e);
-                }
+        const resourceCodexDir = path.join(process.resourcesPath, 'codex');
+        const resourceCodexBin = path.join(
+            resourceCodexDir,
+            'node_modules',
+            '.bin',
+            'codex.cmd',
+        );
+        const stableCodexBin = path.join(stableCodexDir, 'node_modules', '.bin', 'codex.cmd');
+        const resourceCodexVersion = fs.existsSync(resourceCodexBin)
+            ? this.getCodexPackageVersion(resourceCodexBin)
+            : null;
+        const stableCodexVersion = fs.existsSync(stableCodexBin)
+            ? this.getCodexPackageVersion(stableCodexBin)
+            : null;
+        const shouldRefreshCodex = fs.existsSync(resourceCodexDir) && (
+            !fs.existsSync(stableCodexBin) ||
+            !stableCodexVersion ||
+            (!!resourceCodexVersion && compareVersions(resourceCodexVersion, stableCodexVersion) > 0)
+        );
+
+        if (shouldRefreshCodex) {
+            console.log(`[RuntimeManager] Migrating bundled Codex CLI to stable storage (${resourceCodexVersion || 'unknown version'})...`);
+            try {
+                fs.mkdirSync(stableCodexDir, { recursive: true });
+                fs.cpSync(resourceCodexDir, stableCodexDir, { recursive: true, force: true });
+                console.log('[RuntimeManager] Bundled Codex CLI migrated to stable storage');
+            } catch (e) {
+                console.error('[RuntimeManager] Failed to migrate bundled Codex CLI:', e);
             }
         }
     }
@@ -627,7 +676,7 @@ class RuntimeManager {
      * Upgrade Codex CLI in userData. Used when the installed CLI is too old for
      * the model catalog returned by the service.
      */
-    async upgradeCodex(version: string = 'latest'): Promise<{ success: boolean; error?: string }> {
+    async upgradeCodex(version: string = CODEX_VERSION): Promise<{ success: boolean; error?: string }> {
         try {
             console.log(`[RuntimeManager] Upgrading Codex CLI to ${version}...`);
 
@@ -645,37 +694,77 @@ class RuntimeManager {
             const env = this.getEmbeddedNodeEnv();
 
             return new Promise((resolve) => {
-                const child = spawn(npmPath, [
-                    'install',
-                    `@openai/codex@${version}`,
-                    `@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}`,
-                    '--prefix', codexDir,
-                    '--save',
-                ], {
-                    stdio: 'pipe',
-                    env: env as { [key: string]: string },
-                    cwd: codexDir,
-                });
+                let settled = false;
+                let timeoutHandle: NodeJS.Timeout | null = null;
+                const finish = (result: { success: boolean; error?: string }) => {
+                    if (settled) return;
+                    settled = true;
+                    if (timeoutHandle) clearTimeout(timeoutHandle);
+                    resolve(result);
+                };
+
+                let child: ReturnType<typeof spawn>;
+                try {
+                    child = spawn(npmPath, [
+                        'install',
+                        `@openai/codex@${version}`,
+                        `@playwright/mcp@${PLAYWRIGHT_MCP_VERSION}`,
+                        '--prefix', codexDir,
+                        '--save',
+                        '--save-exact',
+                        '--no-audit',
+                        '--no-fund',
+                    ], {
+                        stdio: 'pipe',
+                        env: env as { [key: string]: string },
+                        cwd: codexDir,
+                        shell: process.platform === 'win32',
+                        windowsHide: true,
+                    });
+                } catch (error: any) {
+                    finish({ success: false, error: error?.message || 'Failed to start npm' });
+                    return;
+                }
 
                 let stderr = '';
                 child.stderr?.on('data', (data: Buffer) => {
                     stderr += data.toString();
                 });
 
+                timeoutHandle = setTimeout(() => {
+                    const message = `npm install timed out after ${CODEX_UPGRADE_TIMEOUT_MS / 1000} seconds`;
+                    console.error(`[RuntimeManager] Codex upgrade failed: ${message}`);
+                    if (process.platform === 'win32' && child.pid) {
+                        try {
+                            execSync(`taskkill /PID ${child.pid} /T /F`, { stdio: 'ignore' });
+                        } catch {
+                            child.kill();
+                        }
+                    } else {
+                        child.kill('SIGTERM');
+                    }
+                    finish({ success: false, error: message });
+                }, CODEX_UPGRADE_TIMEOUT_MS);
+
                 child.on('close', async (code) => {
+                    if (settled) return;
                     if (code === 0) {
                         console.log('[RuntimeManager] Codex upgrade complete');
-                        await this.validateRuntime();
-                        resolve({ success: true });
+                        try {
+                            await this.validateRuntime();
+                            finish({ success: true });
+                        } catch (error: any) {
+                            finish({ success: false, error: error?.message || 'Runtime validation failed' });
+                        }
                     } else {
-                        const message = `npm install failed with code ${code}: ${stderr}`;
+                        const message = `npm install failed with code ${code}: ${stderr.slice(-4000)}`;
                         console.error('[RuntimeManager] Codex upgrade failed:', message);
-                        resolve({ success: false, error: message });
+                        finish({ success: false, error: message });
                     }
                 });
 
                 child.on('error', (err) => {
-                    resolve({ success: false, error: err.message });
+                    finish({ success: false, error: err.message });
                 });
             });
         } catch (err: any) {
@@ -706,6 +795,17 @@ class RuntimeManager {
             listener(this.status);
         }
     }
+}
+
+function compareVersions(left: string, right: string): number {
+    const parse = (version: string) => version.split(/[+-]/, 1)[0].split('.').map((part) => Number(part) || 0);
+    const leftParts = parse(left);
+    const rightParts = parse(right);
+    for (let i = 0; i < Math.max(leftParts.length, rightParts.length); i++) {
+        const difference = (leftParts[i] || 0) - (rightParts[i] || 0);
+        if (difference !== 0) return difference;
+    }
+    return 0;
 }
 
 // Singleton instance

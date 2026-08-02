@@ -142,6 +142,9 @@ For Codex CLI, model, runtime, or Playwright MCP changes:
 - `npm run build:docker` when Docker is available.
 - Verify `docs/codex-model-runtime.md` still matches actual Native and Docker
   behavior.
+- Verify all Codex pins resolve to the same version in `package.json`,
+  `resources/*/package-lock.json`, `src/core/runtime-manager.ts`,
+  `scripts/install-codex.js`, and `docker/Dockerfile`.
 - Manually verify one basic Native prompt and one basic Virtual Mode prompt
   before release when the change affects execution behavior.
 
@@ -155,6 +158,8 @@ For dependency updates:
 - Review the latest `Maintenance Watch` issue and the upstream release notes it
   links before selecting versions.
 - Manual app smoke checks on at least Windows or macOS before release.
+- On Windows, upgrade an installation that has an older `userData/codex` copy
+  and verify the packaged CLI version is selected after restart.
 
 ## Recommended Full Validation Checks
 
@@ -226,6 +231,9 @@ These cannot be fully verified in Codex Cloud:
   store status workflow can report Partner Center status, but cannot install or
   validate the package.
 - Microsoft Store install/update/uninstall behavior.
+- Windows Store upgrade with a stale `userData/codex` CLI: confirm the
+  `models_cache` `max` effort error is not shown and a failed runtime update
+  ends with a visible error rather than an indefinite fallback state.
 - First-run Microsoft Store behavior when signed out: browser navigation should
   work without OpenAI sign-in, and Codex should clearly explain the OpenAI
   account requirement.
@@ -248,6 +256,8 @@ These cannot be fully verified in Codex Cloud:
   certificates, `.p8` API key, and provisioning profile.
 - Runtime bundling for arm64/x64 direct macOS builds and the universal Mac App
   Store build.
+- Native CLI selection when a userData runtime upgrade and bundled runtime are
+  both present; the higher installed Codex package version must win.
 - External browser `.app` shortcut bundles and icons.
 - Tray/menu bar behavior and hidden startup.
 - Docker Desktop `host.docker.internal` behavior.

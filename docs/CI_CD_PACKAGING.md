@@ -203,6 +203,9 @@ release approval remain manual gates.
    sandbox image was published. Keep semver/sha tags only as traceability.
 6. Update `docs/codex-model-runtime.md` if model/default-model or outdated-CLI
    failure behavior changed.
+7. For Windows Store updates, verify that `RuntimeManager` compares the
+   packaged `resources/codex` version with the existing `%LOCALAPPDATA%` copy;
+   a successful package build must not leave an older userData CLI selected.
 
 ---
 
@@ -449,7 +452,10 @@ exports.default = async function(context) {
 };
 ```
 
-At runtime, the embedded runtime is migrated to `%LOCALAPPDATA%/GnuNae/` for stability (avoids temp folder deletion issues with portable apps).
+At runtime, the embedded runtime is migrated to `%LOCALAPPDATA%/GnuNae/` for
+stability (avoids temp folder deletion issues with portable apps). On each
+packaged Windows startup, the Codex package version is compared with the
+bundled version and the stable copy is refreshed when the package is newer.
 
 #### Environment Variables
 
