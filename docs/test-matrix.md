@@ -263,3 +263,6 @@ These cannot be fully verified in Codex Cloud:
 - Docker Desktop `host.docker.internal` behavior.
 - Real Codex CLI login, token refresh, and browser automation against external
   browsers.
+- Native and MAS file attachment: choose one or more files with the Codex `+`
+  button and drag files from Finder onto the sidebar; confirm the files appear
+  as attachment pills and the browser UI does not navigate to a blank window.

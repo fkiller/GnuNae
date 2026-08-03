@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { contextBridge, ipcRenderer, IpcRendererEvent, webUtils } from 'electron';
 
 // Tab info type
 export interface TabInfo {
@@ -83,6 +83,8 @@ export interface ElectronAPI {
 
     // File attachment
     attachFiles: () => Promise<{ success: boolean; files: { name: string; originalPath: string; workDirPath: string }[] }>;
+    attachFilePaths: (filePaths: string[]) => Promise<{ success: boolean; files: { name: string; originalPath: string; workDirPath: string }[]; error?: string }>;
+    getPathForFile: (file: File) => string;
     removeAttachedFile: (fileName: string) => Promise<{ success: boolean; error?: string }>;
 
     // External Browser Support
@@ -197,6 +199,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // File attachment
     attachFiles: () => ipcRenderer.invoke('files:attach'),
+    attachFilePaths: (filePaths: string[]) => ipcRenderer.invoke('files:attach-paths', filePaths),
+    getPathForFile: (file: File) => webUtils.getPathForFile(file),
     removeAttachedFile: (fileName: string) => ipcRenderer.invoke('files:remove', fileName),
 
     // Tasks

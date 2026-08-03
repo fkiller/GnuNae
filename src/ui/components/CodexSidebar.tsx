@@ -56,17 +56,21 @@ const CodexSidebar: React.FC<CodexSidebarProps> = ({
     const [lastExecutedPrompt, setLastExecutedPrompt] = useState('');
     const logContainerRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const logIdRef = useRef(0);
     const lastPromptRef = useRef<string>('');
     const modelRef = useRef<CodexModel>(DEFAULT_MODEL);
     const taskModeRef = useRef(false);  // Track taskMode for callbacks
     const taskTabRef = useRef<string | null>(null);  // Track tab created for task execution
     const originalTabRef = useRef<string | null>(null);  // Track user's original tab to switch back
+    const dragDepthRef = useRef(0);
     const dismissedDomainsRef = useRef<Set<string>>(new Set());  // Domains user dismissed for this session
     const [domainTasks, setDomainTasks] = useState<any[]>([]);  // On-going tasks matching current domain
     const [blockedTask, setBlockedTask] = useState<{ type: string; message: string; detail: string } | null>(null);
     const runningTaskIdRef = useRef<string | null>(null);  // Track which task is currently running
     const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);  // Attached files for prompt
+    const [isDragActive, setIsDragActive] = useState(false);
+    const [isAttaching, setIsAttaching] = useState(false);
     const [isLoggingIn, setIsLoggingIn] = useState(false);  // Track if Codex CLI login is in progress
     const [isInitializing, setIsInitializing] = useState(false);  // Track MCP initialization phase
     const [isRuntimeReady, setIsRuntimeReady] = useState(true);  // Track if Codex CLI is available (default true for dev mode)
@@ -530,13 +534,90 @@ You can read, process, or reference these files as needed.
         setActiveMenu(activeMenu === menu ? null : menu);
     };
 
-    const handleAttachFiles = useCallback(async () => {
-        const result = await (window as any).electronAPI?.attachFiles?.();
+    const applyAttachedFiles = useCallback((result: any) => {
         if (result?.success && result.files?.length > 0) {
             setAttachedFiles(prev => [...prev, ...result.files]);
             addLog('info', `📎 Attached ${result.files.length} file(s): ${result.files.map((f: AttachedFile) => f.name).join(', ')}`);
+        } else if (result?.error) {
+            addLog('error', `Attachment failed: ${result.error}`);
         }
     }, [addLog]);
+
+    const handleAttachFiles = useCallback(() => {
+        fileInputRef.current?.click();
+    }, []);
+
+    const getDroppedFilePaths = useCallback((files: FileList | File[]) => {
+        const api = (window as any).electronAPI;
+        return Array.from(files).map((file) => {
+            try {
+                return api?.getPathForFile?.(file) || (file as File & { path?: string }).path || '';
+            } catch (err) {
+                console.error('[CodexSidebar] Failed to resolve dropped file path:', err);
+                return '';
+            }
+        }).filter(Boolean);
+    }, []);
+
+    const attachFilePaths = useCallback(async (filePaths: string[]) => {
+        if (filePaths.length === 0) {
+            addLog('error', 'Could not read the file path. Please use the + button to choose the file.');
+            return;
+        }
+
+        setIsAttaching(true);
+        try {
+            const result = await (window as any).electronAPI?.attachFilePaths?.(filePaths);
+            applyAttachedFiles(result);
+        } catch (err) {
+            console.error('[CodexSidebar] File attachment failed:', err);
+            addLog('error', `Attachment failed: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+            setIsAttaching(false);
+        }
+    }, [addLog, applyAttachedFiles]);
+
+    const handleSelectedFiles = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (!event.target.files || event.target.files.length === 0) {
+            event.target.value = '';
+            return;
+        }
+        const filePaths = getDroppedFilePaths(event.target.files || []);
+        event.target.value = '';
+        await attachFilePaths(filePaths);
+    }, [attachFilePaths, getDroppedFilePaths]);
+
+    const handleDragEnter = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+        if (!Array.from(event.dataTransfer.types).includes('Files')) return;
+        event.preventDefault();
+        event.stopPropagation();
+        dragDepthRef.current += 1;
+        setIsDragActive(true);
+    }, []);
+
+    const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+        if (!Array.from(event.dataTransfer.types).includes('Files')) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'copy';
+    }, []);
+
+    const handleDragLeave = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+        if (!Array.from(event.dataTransfer.types).includes('Files')) return;
+        event.preventDefault();
+        event.stopPropagation();
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+        if (dragDepthRef.current === 0) setIsDragActive(false);
+    }, []);
+
+    const handleDrop = useCallback(async (event: React.DragEvent<HTMLDivElement>) => {
+        if (!Array.from(event.dataTransfer.types).includes('Files')) return;
+        event.preventDefault();
+        event.stopPropagation();
+        dragDepthRef.current = 0;
+        setIsDragActive(false);
+        await attachFilePaths(getDroppedFilePaths(event.dataTransfer.files));
+    }, [attachFilePaths, getDroppedFilePaths]);
 
     const handleRemoveFile = useCallback(async (fileName: string) => {
         await (window as any).electronAPI?.removeAttachedFile?.(fileName);
@@ -544,7 +625,13 @@ You can read, process, or reference these files as needed.
     }, []);
 
     return (
-        <div className="codex-sidebar">
+        <div
+            className={`codex-sidebar${isDragActive ? ' drag-active' : ''}`}
+            onDragEnter={handleDragEnter}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
             {/* Header */}
             <div className="sidebar-header">
                 <h2>Codex</h2>
@@ -705,11 +792,20 @@ You can read, process, or reference these files as needed.
                     <button
                         className="toolbar-btn attach-btn"
                         onClick={handleAttachFiles}
-                        disabled={isProcessing || !isAuthenticated}
+                        disabled={isProcessing || !isAuthenticated || isAttaching}
                         title="Attach files"
                     >
                         +
                     </button>
+                    <input
+                        ref={fileInputRef}
+                        className="attach-file-input"
+                        type="file"
+                        multiple
+                        onChange={handleSelectedFiles}
+                        tabIndex={-1}
+                        aria-hidden="true"
+                    />
                     <button
                         className={`toolbar-btn task-toggle ${taskMode ? 'active' : ''}`}
                         onClick={() => setTaskMode(!taskMode)}
@@ -816,4 +912,3 @@ You can read, process, or reference these files as needed.
 };
 
 export default CodexSidebar;
-

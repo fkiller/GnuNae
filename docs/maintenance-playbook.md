@@ -31,6 +31,9 @@ the map in `AGENTS.md` before opening a PR. In particular:
   pins.
 - Release/store/signing changes must update release docs and remain
   owner-reviewed.
+- The MAS entitlement `com.apple.security.files.user-selected.read-write` is
+  required for the Codex sidebar file picker and Finder drag-and-drop path;
+  validate both flows on a signed MAS build after entitlement changes.
 
 ## Intended Future Workflow
 

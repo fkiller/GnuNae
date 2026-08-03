@@ -197,6 +197,12 @@ interface WindowSession {
     useDocker: boolean;
 }
 
+interface AttachedFile {
+    name: string;
+    originalPath: string;
+    workDirPath: string;
+}
+
 // Registry of all window sessions
 const windowSessions: Map<number, WindowSession> = new Map();
 
@@ -231,6 +237,51 @@ function getSessionBySender(sender: Electron.WebContents): WindowSession | undef
         return windowSessions.get(window.id);
     }
     return getActiveSession();
+}
+
+function copyAttachedFiles(filePaths: string[], senderWindow: BrowserWindow | null): { success: boolean; files: AttachedFile[]; error?: string } {
+    const senderSession = senderWindow ? windowSessions.get(senderWindow.id) : getActiveSession();
+    const workDir = senderSession?.workDir || getLLMWorkingDir();
+    const attachedFiles: AttachedFile[] = [];
+    const errors: string[] = [];
+
+    if (!fs.existsSync(workDir)) {
+        fs.mkdirSync(workDir, { recursive: true });
+    }
+
+    for (const filePath of filePaths) {
+        if (!filePath || !path.isAbsolute(filePath)) {
+            errors.push(`Invalid file path: ${filePath || '(empty)'}`);
+            continue;
+        }
+
+        try {
+            if (!fs.statSync(filePath).isFile()) {
+                errors.push(`Not a file: ${filePath}`);
+                continue;
+            }
+
+            const fileName = path.basename(filePath);
+            const destPath = path.join(workDir, fileName);
+            fs.copyFileSync(filePath, destPath);
+            attachedFiles.push({
+                name: fileName,
+                originalPath: filePath,
+                workDirPath: destPath,
+            });
+            console.log(`[Main] Attached file: ${fileName} -> ${destPath}`);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            errors.push(`${path.basename(filePath)}: ${message}`);
+            console.error(`[Main] Failed to copy file ${filePath}:`, err);
+        }
+    }
+
+    return {
+        success: attachedFiles.length > 0,
+        files: attachedFiles,
+        ...(errors.length > 0 ? { error: errors.join('; ') } : {}),
+    };
 }
 
 // Compatibility: global mainWindow reference (points to first window)
@@ -1555,8 +1606,7 @@ function setupIpcHandlers(): void {
     // Attach files for Codex prompt - copies to working directory
     ipcMain.handle('files:attach', async (event) => {
         const senderWindow = BrowserWindow.fromWebContents(event.sender);
-
-        const result = await dialog.showOpenDialog(senderWindow || mainWindow!, {
+        const options: Electron.OpenDialogOptions = {
             properties: ['openFile', 'multiSelections'],
             title: 'Attach Files',
             filters: [
@@ -1565,38 +1615,44 @@ function setupIpcHandlers(): void {
                 { name: 'Code Files', extensions: ['js', 'ts', 'py', 'html', 'css', 'tsx', 'jsx'] },
                 { name: 'Documents', extensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx'] }
             ]
-        });
+        };
 
-        if (result.canceled || result.filePaths.length === 0) {
-            return { success: false, files: [] };
-        }
+        try {
+            const parentWindow = senderWindow && !senderWindow.isDestroyed()
+                ? senderWindow
+                : mainWindow && !mainWindow.isDestroyed()
+                    ? mainWindow
+                    : undefined;
+            const result = parentWindow
+                ? await dialog.showOpenDialog(parentWindow, options)
+                : await dialog.showOpenDialog(options);
 
-        // Get session working directory
-        const senderSession = senderWindow ? windowSessions.get(senderWindow.id) : getActiveSession();
-        const workDir = senderSession?.workDir || getLLMWorkingDir();
-
-        // Copy files to working directory and track them
-        const attachedFiles: { name: string; originalPath: string; workDirPath: string }[] = [];
-
-        for (const filePath of result.filePaths) {
-            const fileName = path.basename(filePath);
-            const destPath = path.join(workDir, fileName);
-
-            try {
-                // Copy file to working directory
-                fs.copyFileSync(filePath, destPath);
-                attachedFiles.push({
-                    name: fileName,
-                    originalPath: filePath,
-                    workDirPath: destPath
-                });
-                console.log(`[Main] Attached file: ${fileName} -> ${destPath}`);
-            } catch (err) {
-                console.error(`[Main] Failed to copy file ${filePath}:`, err);
+            if (result.canceled || result.filePaths.length === 0) {
+                return { success: false, files: [] };
             }
+
+            return copyAttachedFiles(result.filePaths, senderWindow);
+        } catch (err) {
+            console.error('[Main] Failed to open attach file dialog:', err);
+            return {
+                success: false,
+                files: [],
+                error: err instanceof Error ? err.message : String(err),
+            };
+        }
+    });
+
+    // Attach files selected by the renderer file input or dropped from Finder.
+    ipcMain.handle('files:attach-paths', async (event, filePaths: unknown) => {
+        const senderWindow = BrowserWindow.fromWebContents(event.sender);
+        if (!Array.isArray(filePaths)) {
+            return { success: false, files: [], error: 'Invalid file list.' };
         }
 
-        return { success: true, files: attachedFiles };
+        return copyAttachedFiles(
+            filePaths.filter((filePath): filePath is string => typeof filePath === 'string'),
+            senderWindow,
+        );
     });
 
     // Remove attached file from working directory

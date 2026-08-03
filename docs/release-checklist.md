@@ -149,6 +149,9 @@ by exposing secret values to Codex.
   and `ElectronTeamID` behavior are unchanged unless owner-approved.
 - Confirm `build/entitlements.mas.plist` and
   `build/entitlements.mas.inherit.plist` are correct for sandboxed MAS builds.
+- Confirm `build/entitlements.mas.plist` includes
+  `com.apple.security.files.user-selected.read-write` when validating Codex
+  file attachment with the `+` control or Finder drag-and-drop.
 - Confirm `APPLE_TEAM_ID`, `APPLE_CERTIFICATE_APPLICATION_P12`,
   `APPLE_CERTIFICATE_INSTALLER_P12`, `APPLE_CERTIFICATE_PASSWORD`,
   `APPLE_PROVISIONING_PROFILE`, `ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`, and

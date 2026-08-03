@@ -272,6 +272,10 @@ Do not modify these without explicit owner review:
   `scripts/install-codex.js`, `resources/runtime*`, `resources/codex`, and
   `docker/Dockerfile`.
 
+The MAS entitlement `com.apple.security.files.user-selected.read-write` is
+required by the Codex sidebar file picker and Finder drag-and-drop attachment
+flow; validate both on a signed MAS build when changing attachment behavior.
+
 Do not push release tags, run store upload commands, change app identity, rotate
 signing config, or alter release automation as part of ordinary maintenance.
 

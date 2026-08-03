@@ -114,6 +114,7 @@ graph TB
 - 💬 **Chat Mode** - Sidebar-only mode for use with external browsers (Chrome, Edge, etc.)
 - 🔗 **External Browser Support** - Connect Codex to your existing browser with full automation
 - 🤖 **Codex Sidebar** - AI assistant powered by OpenAI's Codex CLI
+- 📎 **File Attachments** - Choose files with `+` or drag them onto the Codex sidebar
 - 🐳 **Virtual Mode** - Docker-based sandbox for isolated Codex + Playwright execution
 - 💻 **Interactive Terminal** - Full PTY emulation with xterm.js (native shell or Docker bash)
 - 📋 **Output Panel** - View backend process logs and Codex execution status

@@ -360,6 +360,8 @@ The `deploy:mas` script uses `xcrun altool` with API Key authentication to uploa
 <dict>
     <key>com.apple.security.app-sandbox</key>
     <true/>
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
     <key>com.apple.security.network.client</key>
     <true/>
     <key>com.apple.security.network.server</key>
@@ -793,6 +795,9 @@ This is the standard approach for ChatGPT-integrated apps.
 
 ### macOS: General App Store sandbox issues
 - Verify sandbox entitlements in `entitlements.mas.plist`
+- File attachment builds must retain `com.apple.security.files.user-selected.read-write`
+  so files chosen with the `+` control or dropped from Finder can be read and
+  copied into the session working directory.
 - Ensure no hardened runtime entitlements in MAS build
 
 ### Windows: "node_modules not found in packaged app"
