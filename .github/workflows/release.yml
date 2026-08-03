@@ -12,6 +12,7 @@ on:
         default: 'stores-only'
         type: choice
         options:
+          - mas-only
           - stores-only
           - msstore-only
           - full
@@ -139,7 +140,7 @@ jobs:
   # Mac App Store: Build universal MAS package, upload, and submit for review
   # ─────────────────────────────────────────────────────────────
   build-mas:
-    if: ${{ github.event_name == 'push' || inputs.release_mode == 'full' || inputs.release_mode == 'stores-only' }}
+    if: ${{ github.event_name == 'push' || inputs.release_mode == 'full' || inputs.release_mode == 'stores-only' || inputs.release_mode == 'mas-only' }}
     runs-on: macos-latest
 
     steps:

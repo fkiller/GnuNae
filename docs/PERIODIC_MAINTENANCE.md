@@ -310,7 +310,7 @@ git push && git push --tags
 ```
 
 Do not push release tags, submit store packages, manually dispatch
-`release.yml` with `release_mode=stores-only`/`msstore-only`, or run
+`release.yml` with `release_mode=mas-only`/`stores-only`/`msstore-only`, or run
 `npm run deploy:mas` without explicit owner release approval.
 
 ---

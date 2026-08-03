@@ -514,8 +514,9 @@ APPX filename to appear as `PendingUpload` before and after the certification
 metadata update, then publishes the draft with `msstore submission publish`.
 Partner Center can continue showing the copied previous package's version until
 commit, so that version is not used as a pre-commit gate. The same workflow can be
-manually dispatched with `release_mode=stores-only` for owner-approved MAS plus
-Microsoft Store deployment from the selected branch
+manually dispatched with `release_mode=mas-only` for MAS-only deployment, or
+`release_mode=stores-only` for owner-approved MAS plus Microsoft Store deployment
+from the selected branch
 without moving an existing release tag. Use `release_mode=msstore-only` for a
 Microsoft Store-only resubmission after certification feedback. Manual
 `release_mode=full` runs the normal release jobs.

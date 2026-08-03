@@ -79,9 +79,10 @@ Dependency automation:
   the `.appx` extension for Electron CLI discovery, verifies the expected APPX
   filename as `PendingUpload` before and after the metadata update, and then
   publishes the draft. Manual dispatch with
-  `release_mode=stores-only` runs the MAS and Microsoft Store jobs from the
-  selected branch, and `release_mode=msstore-only` runs only the Microsoft Store
-  job without moving an existing release tag.
+  `release_mode=mas-only` runs only the MAS job,
+  `release_mode=stores-only` runs the MAS and Microsoft Store jobs, and
+  `release_mode=msstore-only` runs only the Microsoft Store job without moving
+  an existing release tag.
 
 ## Missing Checks
 

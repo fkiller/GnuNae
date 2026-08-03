@@ -13,9 +13,10 @@ source of truth.
 3. Push a tag matching `v*`.
 4. `.github/workflows/release.yml` starts on the tag. For owner-approved
    store deployment from the selected branch without moving an existing release
-   tag, manually dispatch `release.yml` with `release_mode=stores-only` to run
-   both MAS and Microsoft Store jobs, or `release_mode=msstore-only` for a
-   Microsoft Store-only resubmission after a certification issue.
+   tag, manually dispatch `release.yml` with `release_mode=mas-only` for MAS
+   only, `release_mode=stores-only` for both MAS and Microsoft Store jobs, or
+   `release_mode=msstore-only` for a Microsoft Store-only resubmission after a
+   certification issue.
 5. The matrix `build` job runs on macOS and Ubuntu:
    - `npm ci`
    - `node scripts/inject-build-config.js`
