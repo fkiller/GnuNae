@@ -429,7 +429,7 @@ const DEFAULT_SETTINGS: AppSettings = {
         userAgent: '',
     },
     codex: {
-        model: 'gpt-5.6-sol',
+        model: 'gpt-6-astra',
         mode: 'agent',
         prePrompt: DEFAULT_PRE_PROMPT,
         prePromptCustomized: false,
