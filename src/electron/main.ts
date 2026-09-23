@@ -147,6 +147,7 @@ function recommendedFallbackModel(excludedModel?: string): string | undefined {
     const models = codexModelManifest.models.map((entry) => entry.value);
     return (
         models.find((value) => value !== excludedModel && value.endsWith('-mini')) ||
+        models.find((value) => value !== excludedModel && value.includes('luna')) ||
         models.find((value) => value !== excludedModel && !value.includes('spark')) ||
         models.find((value) => value !== excludedModel)
     );
