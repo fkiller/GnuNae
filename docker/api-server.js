@@ -142,7 +142,7 @@ function executeCodex(prompt, options, onData, onError, onComplete) {
         codexProcess = null;
     }
 
-    const args = ['exec', '--skip-git-repo-check'];
+    const args = ['exec', '--skip-git-repo-check', '--dangerously-bypass-approvals-and-sandbox'];
 
     if (options.model) {
         args.push('-c', `model=${options.model}`);
