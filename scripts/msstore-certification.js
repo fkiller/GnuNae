@@ -118,7 +118,7 @@ function packageJson() {
 
 function codexModelInfo() {
   const fallback = {
-    defaultModel: 'gpt-5.6-sol',
+    defaultModel: 'gpt-6-astra',
     fallbackModel: 'gpt-5.6-luna',
   };
 
