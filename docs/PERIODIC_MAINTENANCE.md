@@ -310,7 +310,7 @@ git push && git push --tags
 ```
 
 Do not push release tags, submit store packages, manually dispatch
-`release.yml` with `release_mode=mas-only`/`stores-only`/`msstore-only`, or run
+`release.yml` with `release_mode=stores-only`/`msstore-only`, or run
 `npm run deploy:mas` without explicit owner release approval.
 
 ---
@@ -323,3 +323,16 @@ Do not push release tags, submit store packages, manually dispatch
 | Stale Docker image | Confirm `.github/workflows/docker.yml` published `latest`; clients pull this tag before sandbox start |
 | Codex CLI upgrade breaks | Check changelog for breaking changes |
 | Playwright browser mismatch | Ensure Dockerfile base matches package.json |
+
+## Cross-harness execution
+
+For OpenCode/Antigravity handoff, follow [the maintenance runbook](handoff/README.md)
+and [startup prompt](handoff/START-HERE.md). They supplement the component map
+above with credential reuse, current blockers, and repeatable checks. Under
+standing maintenance authorization, maintenance agents complete the full
+maintenance cycle: verifying changes, merging PRs, bumping patch versions,
+pushing release tags, and monitoring release pipelines across GitHub Releases,
+GHCR Docker images, MAS, and Microsoft Store. Avoid running plain `npm version`
+because the `postversion` hook pushes tags; use `--no-git-tag-version --ignore-scripts`
+and explicit `git tag vX.Y.Z` commands. Check Docker publication on main as
+well as tags; a main merge can change the rolling sandbox image.

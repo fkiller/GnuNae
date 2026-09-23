@@ -1,5 +1,5 @@
 name: Maintenance task
-description: Scope a GnuNae maintenance task for Codex-first work.
+description: Scope a GnuNae maintenance task for Codex, OpenCode, or Antigravity.
 title: "[Maintenance]: "
 labels:
   - maintenance
@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use this template for Codex Cloud tasks, dependency/runtime updates, docs refreshes, CI changes, and release-prep work.
+        Use this template for Codex, OpenCode, or Antigravity tasks, dependency/runtime updates, docs refreshes, CI changes, and release-prep work. Read docs/handoff/README.md and record verification using docs/handoff/RUN-REPORT-TEMPLATE.md.
   - type: textarea
     id: problem
     attributes:

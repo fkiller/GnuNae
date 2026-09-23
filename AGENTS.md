@@ -277,8 +277,12 @@ The MAS entitlement `com.apple.security.files.user-selected.read-write` is
 required by the Codex sidebar file picker and Finder drag-and-drop attachment
 flow; validate both on a signed MAS build when changing attachment behavior.
 
-Do not push release tags, run store upload commands, change app identity, rotate
-signing config, or alter release automation as part of ordinary maintenance.
+Under standing maintenance authorization, authorized agents may merge verified
+maintenance PRs, bump the application patch version, create and push release
+tags (`v*`), monitor release workflows to completion, and track store submissions.
+However, agents must not arbitrarily change app identity, bundle IDs, rotate
+signing configurations, or modify release workflow definitions without explicit
+owner review.
 
 ## Secrets And Store Credentials
 
@@ -382,3 +386,23 @@ Use this structure in PR descriptions:
 
 For release-sensitive PRs, include a clear statement of which signing, store,
 identity, entitlement, and workflow files were touched or intentionally avoided.
+
+## Cross-harness maintenance handoff
+
+OpenCode, Antigravity, and other maintenance agents operate under standing
+maintenance authorization covering the complete lifecycle: dependency/model
+review, isolated worktree verification, PR merge, patch versioning, release
+pipeline triggering via release tags, and verification across GitHub Releases,
+GHCR sandbox containers, Mac App Store (MAS), and Microsoft Store.
+
+Key operational guidelines:
+- Read `docs/handoff/README.md`, `docs/handoff/CREDENTIALS.md`, and
+  `docs/handoff/START-HERE.md`. Credential references and preflight checks are
+  documented there; never dump or expose secret values.
+- Autonomous continuation: do not block or request approval for routine
+  sub-steps; proceed through verification, merge, version bump, tag creation,
+  and pipeline monitoring.
+- Track every distribution channel with concrete identifiers: new version,
+  build numbers, and submission IDs (never report an older Published state as
+  current success).
+- Use `docs/handoff/RUN-REPORT-TEMPLATE.md` for the unified final report.

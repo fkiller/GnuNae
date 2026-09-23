@@ -381,3 +381,15 @@ For stale docs, prefer a small follow-up PR that:
 5. Expand maintenance automation later to open scoped draft PRs after the owner
    is comfortable with the advisory issue flow. Keep release and store actions
    owner-approved and tag/manual only.
+
+## Harness-independent continuation
+
+The maintenance role can be performed by OpenCode or Antigravity using
+[the shared handoff](handoff/README.md). Keep GitHub Actions schedules and
+repository secrets in place. Use [credential access instructions](handoff/CREDENTIALS.md),
+run the read-only preflight in the actual harness terminal, and record each
+run with [the report template](handoff/RUN-REPORT-TEMPLATE.md). Under standing
+maintenance authorization, maintenance agents complete the full lifecycle:
+merging verified changes, bumping patch versions, pushing release tags, and
+monitoring GitHub Releases, GHCR Docker sandbox, MAS, and Microsoft Store
+submissions to completion.
