@@ -337,4 +337,4 @@ because the `postversion` hook pushes tags; use `--no-git-tag-version --ignore-s
 and explicit `git tag vX.Y.Z` commands. Check Docker publication on main as
 well as tags; a main merge can change the rolling sandbox image.
 
-The entire routine is automated via `scripts/run-weekly-maintenance.sh` (Node runner `scripts/weekly-maintenance-runner.js`) and scheduled via macOS `launchd` (`~/Library/LaunchAgents/com.gnunae.weekly-maintenance.plist`) and Antigravity daemon cron. Due dates are checked against `~/.gnunae/maintenance-state.json`, automatically catching up upon system boot/wake if the 7-day interval has passed while offline.
+The entire routine is automated via `scripts/run-weekly-maintenance.sh` (Node runner `scripts/weekly-maintenance-runner.js`) and scheduled as an Antigravity Scheduled Task (`0 9 * * *`, daemon cron). Due dates are checked against `~/.gnunae/maintenance-state.json`, automatically catching up if the 7-day interval has passed while offline.

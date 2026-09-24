@@ -36,11 +36,11 @@
 | `release.yml` | `v*` 태그 / 수동 | 상시 유지보수 승인 하에 릴리스 태그 생성 및 배포 파이프라인 실행/모니터링 |
 
 권장 하네스 실행 주기: 매주 1회(기본 7일 주기).
-이 전 주기 유지보수는 상시 유지보수 승인 하에 무인(non-interactive) 단일 루틴으로 자동화되어 있습니다:
-- 실행 스크립트: `scripts/run-weekly-maintenance.sh` (`scripts/weekly-maintenance-runner.js`)
-- 스케줄러: macOS `launchd` LaunchAgent (`~/Library/LaunchAgents/com.gnunae.weekly-maintenance.plist`) 및 Antigravity daemon cron (`0 9 * * *`)
-- 누락/지연 자동 실행(Catch-up): 시스템이 꺼져 있거나 잠자기 상태로 인해 주간 due date(7일)가 경과한 경우, 시스템 부팅/로그인 시(`RunAtLoad: true`) `~/.gnunae/maintenance-state.json`을 검사하여 초과된 주간 작업을 즉시 자동 수행합니다.
-- 수동 즉시 실행: `./scripts/run-weekly-maintenance.sh --force`
+이 전 주기 유지보수는 상시 유지보수 승인 하에 Antigravity Scheduled Task로 등록되어 무인(non-interactive) 단일 루틴으로 자율 수행됩니다:
+- 실행 주체: Antigravity Scheduled Task (사이드바 'Scheduled Tasks'에서 확인 및 관리)
+- 등록 스케줄: `0 9 * * *` (상시 데몬 크론으로 매일 점검, 7일 주기 도래 시 전체 사이클 실행)
+- 미실행 지연(Catch-up): 시스템이 꺼져 있거나 비활성 상태로 주간 due date(7일)가 지난 경우, Antigravity 스케줄 태스크 실행 시 `~/.gnunae/maintenance-state.json`을 검사하여 초과된 주간 작업을 즉시 자동 수행(Catch-up)합니다.
+- 수동 즉시 실행: `./scripts/run-weekly-maintenance.sh --force` (또는 Antigravity 태스크 수동 실행)
 - 일정 도래 확인만: `./scripts/run-weekly-maintenance.sh --check-due`
 
 ## 한 번의 유지보수 실행 절차
