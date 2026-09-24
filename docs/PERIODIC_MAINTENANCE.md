@@ -336,3 +336,5 @@ GHCR Docker images, MAS, and Microsoft Store. Avoid running plain `npm version`
 because the `postversion` hook pushes tags; use `--no-git-tag-version --ignore-scripts`
 and explicit `git tag vX.Y.Z` commands. Check Docker publication on main as
 well as tags; a main merge can change the rolling sandbox image.
+
+The entire routine is automated via `scripts/run-weekly-maintenance.sh` (Node runner `scripts/weekly-maintenance-runner.js`) and scheduled via macOS `launchd` (`~/Library/LaunchAgents/com.gnunae.weekly-maintenance.plist`) and Antigravity daemon cron. Due dates are checked against `~/.gnunae/maintenance-state.json`, automatically catching up upon system boot/wake if the 7-day interval has passed while offline.

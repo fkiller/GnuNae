@@ -35,7 +35,13 @@
 | `docker.yml` | Docker 경로 PR/main push, 태그, 수동 | Native와 Virtual의 pin·빌드·이미지 일치 확인 |
 | `release.yml` | `v*` 태그 / 수동 | 상시 유지보수 승인 하에 릴리스 태그 생성 및 배포 파이프라인 실행/모니터링 |
 
-권장 하네스 실행 주기: 매주 월요일 자동화 완료 후(예: 18:00 UTC), 보안 업데이트·모델 장애는 수시. 이것은 **운영 권장 주기**이며 새 스케줄러를 설치하거나 Codex 자동화를 만들지 않았다. 기존 GitHub 스케줄은 계속 작동한다. 반복 실행에는 `START-HERE.md`의 동일 프롬프트를 사용한다. 실행 결과와 다음 할 일은 PR/issue 또는 `RUN-REPORT-TEMPLATE.md`로 남기고 채팅 기억에 의존하지 않는다.
+권장 하네스 실행 주기: 매주 1회(기본 7일 주기).
+이 전 주기 유지보수는 상시 유지보수 승인 하에 무인(non-interactive) 단일 루틴으로 자동화되어 있습니다:
+- 실행 스크립트: `scripts/run-weekly-maintenance.sh` (`scripts/weekly-maintenance-runner.js`)
+- 스케줄러: macOS `launchd` LaunchAgent (`~/Library/LaunchAgents/com.gnunae.weekly-maintenance.plist`) 및 Antigravity daemon cron (`0 9 * * *`)
+- 누락/지연 자동 실행(Catch-up): 시스템이 꺼져 있거나 잠자기 상태로 인해 주간 due date(7일)가 경과한 경우, 시스템 부팅/로그인 시(`RunAtLoad: true`) `~/.gnunae/maintenance-state.json`을 검사하여 초과된 주간 작업을 즉시 자동 수행합니다.
+- 수동 즉시 실행: `./scripts/run-weekly-maintenance.sh --force`
+- 일정 도래 확인만: `./scripts/run-weekly-maintenance.sh --check-due`
 
 ## 한 번의 유지보수 실행 절차
 
