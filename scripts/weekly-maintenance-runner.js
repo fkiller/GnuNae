@@ -51,7 +51,7 @@ function runCmd(cmd, opts = {}) {
     stdio: opts.capture ? 'pipe' : 'inherit',
     encoding: 'utf8',
     env: { ...process.env, ...opts.env },
-    timeout: opts.timeout || 30 * 60 * 1000,
+    timeout: opts.timeout || 120 * 60 * 1000,
   });
 
   if (result.error) {
