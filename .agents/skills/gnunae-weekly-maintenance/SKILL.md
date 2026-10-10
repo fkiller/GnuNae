@@ -20,9 +20,9 @@ It is authorized to run autonomously from start to finish without pausing for in
    - Never print or leak secret keys or API tokens.
    - Mac App Store uploads must verify `releaseType=AFTER_APPROVAL`.
    - Microsoft Store submissions must verify that the built APPX filename is present as `PendingUpload` and matches the package version before draft publishing.
-4. **Catch-up & Due Date Awareness**:
+4. **Scheduled Execution**:
    - Due date state is recorded in `~/.gnunae/maintenance-state.json`.
-   - If the scheduled run was missed because the system was offline, catch up immediately upon startup/trigger.
+   - Execution schedule is controlled externally by the user or task scheduler. When invoked, maintenance proceeds immediately without blocking on an elapsed interval.
 
 ---
 
@@ -36,7 +36,6 @@ cd /Users/wondong/Projects/GnuNae
 ```
 
 Or run with flags:
-- `./scripts/run-weekly-maintenance.sh --force`: Run immediately even if 7 days have not elapsed.
 - `./scripts/run-weekly-maintenance.sh --dry-run`: Run dependency checks, model sync, and builds without pushing commits, tags, or triggering releases.
 - `./scripts/run-weekly-maintenance.sh --check-due`: Check if maintenance is due (exits 0 if up to date, 1 if due).
 
@@ -46,10 +45,9 @@ Or run with flags:
 
 If executing or debugging steps manually within the agent session:
 
-### Step 1: Preflight & Due-Date Check
+### Step 1: Preflight & Environment Check
 1. Read `~/.gnunae/maintenance-state.json`.
-2. Check if 7 days have elapsed since `last_run_timestamp` or if a catch-up run is needed.
-3. Verify GitHub CLI authentication: `gh auth status`.
+2. Verify GitHub CLI authentication: `gh auth status`.
 
 ### Step 2: Worktree Isolation
 1. Fetch latest changes and tags:

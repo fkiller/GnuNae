@@ -4,7 +4,7 @@
   "private": true,
   "description": "GnuNae embedded runtime dependencies",
   "dependencies": {
-    "@openai/codex": "0.160.0",
+    "@openai/codex": "0.162.1",
     "@playwright/mcp": "0.0.70"
   }
 }
