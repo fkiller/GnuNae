@@ -41,7 +41,7 @@ export interface RuntimeStatus {
 }
 
 // Expected Node.js version
-const NODE_VERSION = '22.21.1';
+const NODE_VERSION = '22.23.4';
 
 class RuntimeManager {
     private status: RuntimeStatus;

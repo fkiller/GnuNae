@@ -8,7 +8,7 @@
  * 
  * Options:
  *   --target   Target directory (default: resources/runtime)
- *   --version  Node.js version (default: 22.21.1)
+ *   --version  Node.js version (default: 22.23.4)
  */
 
 const fs = require('fs');
@@ -22,7 +22,7 @@ function parseArgs() {
     const args = process.argv.slice(2);
     const result = {
         target: null,
-        version: '22.21.1',
+        version: '22.23.4',
         platform: null,  // Override platform (darwin, win32, linux)
         arch: null       // Override arch (x64, arm64)
     };

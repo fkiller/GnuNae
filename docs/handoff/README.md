@@ -10,9 +10,9 @@
 |---|---|
 | 저장소 | https://github.com/fkiller/GnuNae · 기본 브랜치 `main` |
 | 원격 기준 | `origin/main` · 앱 `1.1.12` (`v1.1.12`, 2026-11-03 배포) |
-| 작업 공간 격리 | `.worktrees/weekly-maintenance` (`maintenance/auto-weekly` 브랜치) |
+| 작업 공간 격리 | `.worktrees/weekly-maintenance` (`maintenance/auto-weekly` 브랜치) 작업 후 `main` 동기화 및 정리 |
 | 원격 Codex pin | `0.166.0` (기본 모델 `gpt-6-astra`, fallback `gpt-6-luna`) |
-| 기타 원격 pin | MCP `0.0.70`, Playwright `1.59.1`, 내장 Node `22.21.1` (Node 22 LTS); 매 실행 재확인 |
+| 기타 원격 pin | MCP `0.0.70`, Playwright `1.59.1`, 내장 Node `22.23.4` (Node 22 LTS); 매 실행 재확인 |
 | 개발 셸 | Node 22 LTS; CI 및 주간 러너에서도 Node 22 사용 |
 | GitHub | 로컬 `gh` API 접근 성공; repository admin/push/pull 권한 확인 |
 | 하네스 | Antigravity (`gnunae-weekly-maintenance` 스킬 및 `scripts/run-weekly-maintenance.sh` 연동) |
