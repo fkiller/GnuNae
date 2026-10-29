@@ -96,6 +96,24 @@ const files = [
         .replace(/@openai\/codex@[0-9A-Za-z.+-]+/g, `@openai/codex@${CODEX_VERSION}`);
     },
   },
+  {
+    path: 'docs/codex-model-runtime.md',
+    update(text) {
+      return text
+        .replace(/\(default `[^`]+`, falling back to `[^`]+`\)/g, `(default \`${DEFAULT_MODEL}\`, falling back to \`${FALLBACK_MODEL}\`)`)
+        .replace(/The current pinned CLI is `[^`]+`/g, `The current pinned CLI is \`${CODEX_VERSION}\``)
+        .replace(/@openai\/codex@[0-9A-Za-z.+-]+/g, `@openai/codex@${CODEX_VERSION}`)
+        .replace(/\| `[0-9A-Za-z.+-]+` synchronized; image refresh required \|/g, `| \`${CODEX_VERSION}\` synchronized; image refresh required |`);
+    },
+  },
+  {
+    path: 'README.md',
+    update(text) {
+      return text
+        .replace(/\(default `[^`]+`, fallback `[^`]+`\)/g, `(default \`${DEFAULT_MODEL}\`, fallback \`${FALLBACK_MODEL}\`)`)
+        .replace(/The current pinned CLI is `@openai\/codex@[0-9A-Za-z.+-]+`/g, `The current pinned CLI is \`@openai/codex@${CODEX_VERSION}\``);
+    },
+  },
 ];
 
 let changed = false;

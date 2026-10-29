@@ -9,15 +9,15 @@
 | 항목 | 확인 결과 |
 |---|---|
 | 저장소 | https://github.com/fkiller/GnuNae · 기본 브랜치 `main` |
-| 원격 기준 | `e6ad5b4989ecc7cd3a5364434037e4fda1d90ac7` · 앱 `1.1.5` |
-| 기존 로컬 | `/Users/wondong/Projects/GnuNae` · HEAD `7aafcf9` · main보다 6 commits 뒤 · 인계 파일 추가 전 clean |
-| 원격 Codex pin | `0.146.0` (로컬 이전 checkout은 `0.144.3`) |
-| 기타 원격 pin | MCP `0.0.70`, Playwright `1.59.1`, 내장 Node `22.21.1`; 매 실행 재확인 |
-| 개발 셸 | Node `20.19.6`; CI는 Node 22. 하네스 셸에서도 Node 22 사용 |
+| 원격 기준 | `origin/main` · 앱 `1.1.10` (`v1.1.10`, 2026-10-25 배포) |
+| 작업 공간 격리 | `.worktrees/weekly-maintenance` (`maintenance/auto-weekly` 브랜치) |
+| 원격 Codex pin | `0.164.0` (기본 모델 `gpt-6-astra`, fallback `gpt-5.6-luna`) |
+| 기타 원격 pin | MCP `0.0.70`, Playwright `1.59.1`, 내장 Node `22.21.1` (Node 22 LTS); 매 실행 재확인 |
+| 개발 셸 | Node 22 LTS; CI 및 주간 러너에서도 Node 22 사용 |
 | GitHub | 로컬 `gh` API 접근 성공; repository admin/push/pull 권한 확인 |
-| 하네스 | OpenCode 실행 파일 발견; Antigravity CLI는 PATH에서 발견하지 못함. GUI 설치 여부는 미확인 |
-| 최신 store report | Windows Published, MAS 1.1.5 READY_FOR_SALE, 최신 build VALID |
-| 모델 자동화 | 2026-09-21 생성/검사 성공 후 **PR 생성 단계 실패** |
+| 하네스 | Antigravity (`gnunae-weekly-maintenance` 스킬 및 `scripts/run-weekly-maintenance.sh` 연동) |
+| 최신 store report | Windows `1.1.10` Published, MAS `1.1.10` READY_FOR_SALE (`AFTER_APPROVAL`), 최신 build VALID |
+| 주간 리포트 경로 | `docs/handoff/reports/YYYY-MM-DD-weekly-maintenance-vX.Y.Z.md` |
 
 근거: [Store 보고서 #48](https://github.com/fkiller/GnuNae/issues/48), [모델 업데이트 실패 run](https://github.com/fkiller/GnuNae/actions/runs/35622098966), [Maintenance Watch 성공 run](https://github.com/fkiller/GnuNae/actions/runs/35629905385), [최근 Release 성공 run](https://github.com/fkiller/GnuNae/actions/runs/30839110269).
 
@@ -91,11 +91,11 @@ CI의 3개 OS 검사 결과가 **현재 PR HEAD SHA**와 일치해야 한다. �
 
 ### 문서와 완료 조건
 
-AGENTS의 documentation map을 따른다. Codex/runtime 변경은 `docs/codex-model-runtime.md`, `docs/PERIODIC_MAINTENANCE.md`, `docs/test-matrix.md`를 갱신하고, packaging/Docker는 `docs/CI_CD_PACKAGING.md`, 사용자 행동 변경은 README를 반영한다. 적용하지 않은 문서는 PR에 이유를 적는다. 별도의 `npm test`/lint script는 현재 없다. 모델 검사와 빌드를 일반 테스트 스위트라고 부르지 않는다.
+AGENTS의 documentation map을 따른다. Codex/runtime 변경은 `docs/codex-model-runtime.md`, `docs/PERIODIC_MAINTENANCE.md`, `docs/test-matrix.md`를 갱신하고, packaging/Docker는 `docs/CI_CD_PACKAGING.md`, 사용자 행동 및 주간 릴리즈 변경은 `README.md`(`## Version History` 및 버전 핀)를 함께 갱신한다. 적용하지 않은 문서는 PR에 이유를 적는다. 별도의 `npm test`/lint script는 현재 없다. 모델 검사와 빌드를 일반 테스트 스위트라고 부르지 않는다.
 
 ## 배포와 credential 경계
 
-상시 유지보수 승인 하에서는 검증 완료 후 `npm --ignore-scripts --no-git-tag-version version <patch>`로 버전을 올리고, 웹사이트 다운로드 메타데이터(`docs/index.html`) 동기화 및 빌드 검증 후 main에 반영한다. 이후 `git tag vX.Y.Z && git push origin vX.Y.Z`로 release 및 docker 파이프라인을 트리거한다.
+상시 유지보수 승인 하에서는 검증 완료 후 `npm --ignore-scripts --no-git-tag-version version <patch>`로 버전을 올리고, `README.md`(`## Version History`), 런타임 문서(`docs/codex-model-runtime.md`, `docs/PERIODIC_MAINTENANCE.md`), 웹사이트 다운로드 메타데이터(`docs/index.html`) 동기화 및 빌드 검증 후 main에 반영한다. 이후 `git tag vX.Y.Z && git push origin vX.Y.Z`로 release 및 docker 파이프라인을 트리거한다.
 
 **`npm version patch`를 그대로 실행하지 않는다.** 현재 `postversion`은 `git push && git push --tags`여서 의도치 않은 release를 시작할 수 있으므로, 반드시 `--no-git-tag-version --ignore-scripts` 플래그를 사용하고 명시적인 git tag 명령을 사용한다.
 

@@ -340,8 +340,10 @@ Committed docs that need caution:
 - `docs/CI_CD_PACKAGING.md` also omitted several Microsoft Store secrets used by
   `release.yml` (`MSSTORE_TENANT_ID`, `MSSTORE_CLIENT_ID`,
   `MSSTORE_CLIENT_SECRET`) in one secrets table.
-- `README.md` describes the main app and package scripts but its workflow list
-  is incomplete because it omits `docker.yml` and Dependabot.
+- `README.md` lists the main app, package scripts, `.github/workflows/*.yml`
+  suite, `dependabot.yml`, and version history; `scripts/weekly-maintenance-runner.js`
+  and `scripts/update-openai-model-pipeline.js` automatically keep `README.md`
+  and `docs/` synchronized on weekly maintenance releases.
 - `docs/SIGNING.md` contains concrete certificate details and should be treated
   as owner-reviewed signing documentation before reuse or modification.
 

@@ -81,7 +81,7 @@ When implementing dynamic model selection or runtime repair, cover this sequence
 in Native mode:
 
 1. Validate the installed Codex CLI version before trusting model data. The
-   current Native and Docker pin is `@openai/codex@0.160.0`.
+   current Native and Docker pin is `@openai/codex@0.164.0`.
 2. If an older CLI reports a models-cache deserialization error such as
    `unknown variant \`max\``, classify it as an outdated runtime and run the
    bounded Native repair path. GnuNae does not delete `auth.json`.
@@ -123,7 +123,7 @@ For Docker mode, cover the parallel path:
 | Hidden CLI account default is unsupported | Avoid the CLI default by always passing the generated default explicitly | Avoided because the app passes the selected model into the sandbox request | Implemented |
 | Account lacks selected model access | Retry once with generated fallback model; report access/subscription only if fallback also fails | Report access/subscription; do not rebuild image for account-only failures | Implemented for Native, classified for Docker |
 | Auth token expired | Notify re-authentication; do not delete auth during refresh | Notify re-authentication; mounted auth may be refreshing | Partially classified |
-| Docker image lags native pins | Maintenance must update Dockerfile and rebuild image | CI must publish refreshed `latest`; client pulls before sandbox start | `0.160.0` synchronized; image refresh required |
+| Docker image lags native pins | Maintenance must update Dockerfile and rebuild image | CI must publish refreshed `latest`; client pulls before sandbox start | `0.164.0` synchronized; image refresh required |
 
 ## Documentation Checklist
 

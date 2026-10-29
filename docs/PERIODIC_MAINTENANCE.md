@@ -228,11 +228,15 @@ For both paths:
   confirmation if code cannot prove them.
 
 #### E. README.md
-Add version history entry.
+Add a `### vX.Y.Z (YYYY-MM-DD)` entry under `## Version History` and keep the
+pinned `@openai/codex` CLI version and default/fallback model references aligned
+with `src/core/codex-models.json` and `package.json`. (`scripts/weekly-maintenance-runner.js`
+and `scripts/update-openai-model-pipeline.js` perform this synchronization
+automatically during weekly maintenance runs.)
 
 #### F. package.json version
 ```bash
-npm version patch  # or minor/major
+npm --ignore-scripts --no-git-tag-version version patch  # or minor/major
 ```
 
 ### 3. Verify Build

@@ -103,6 +103,66 @@ function notifyUser(title, message) {
   } catch (_) {}
 }
 
+function syncReleaseDocs(workDir, { newVersion, releaseTag, dateStr, currentCodexPin, targetCodex }) {
+  // 1. Synchronize docs/index.html website version metadata
+  const indexHtmlPath = path.join(workDir, 'docs', 'index.html');
+  if (fs.existsSync(indexHtmlPath)) {
+    let html = fs.readFileSync(indexHtmlPath, 'utf8');
+    html = html.replace(/content="v[0-9.]+"/g, `content="${releaseTag}"`);
+    html = html.replace(
+      /<p class="download-info" id="downloadInfo">v[0-9.]+ • Free & Open Source<\/p>/g,
+      `<p class="download-info" id="downloadInfo">${releaseTag} • Free & Open Source</p>`
+    );
+    html = html.replace(/const CURRENT_VERSION = 'v[0-9.]+';/g, `const CURRENT_VERSION = '${releaseTag}';`);
+    fs.writeFileSync(indexHtmlPath, html, 'utf8');
+    log(`Synchronized docs/index.html to ${releaseTag}`);
+  }
+
+  // 2. Synchronize README.md Version History and pinned CLI references
+  const readmePath = path.join(workDir, 'README.md');
+  if (fs.existsSync(readmePath)) {
+    let readme = fs.readFileSync(readmePath, 'utf8');
+    readme = readme.replace(
+      /The current pinned CLI is `@openai\/codex@[0-9A-Za-z.+-]+`/g,
+      `The current pinned CLI is \`@openai/codex@${targetCodex}\``
+    );
+    const versionHeading = `### v${newVersion} (`;
+    if (!readme.includes(versionHeading) && readme.includes('## Version History')) {
+      const codexNote =
+        currentCodexPin !== targetCodex
+          ? `Upgraded pinned \`@openai/codex\` CLI from \`${currentCodexPin}\` to \`${targetCodex}\` across Native mode (\`package.json\`, \`resources/codex\`, \`src/core/runtime-manager.ts\`, \`scripts/install-codex.js\`) and Virtual Mode (\`docker/Dockerfile\`).`
+          : `Verified pinned \`@openai/codex\` CLI (\`${targetCodex}\`) across Native and Docker Virtual Mode runtimes.`;
+      const entry = [
+        `## Version History`,
+        ``,
+        `### v${newVersion} (${dateStr})`,
+        `- **Weekly Maintenance & Codex Runtime Update**`,
+        `  - ${codexNote}`,
+        `  - Verified model manifest alignment, refreshed package lockfiles, and synchronized documentation (\`README.md\`, \`docs/codex-model-runtime.md\`, \`docs/PERIODIC_MAINTENANCE.md\`, \`docs/index.html\`).`,
+        `  - Published multi-channel release across GitHub Releases (macOS DMG/ZIP, Linux AppImage/DEB), GHCR Docker sandbox (\`ghcr.io/fkiller/gnunae/sandbox:latest\` & \`${releaseTag}\`), Microsoft Store APPX, and Mac App Store universal PKG.`,
+      ].join('\n');
+      readme = readme.replace('## Version History', entry);
+    }
+    fs.writeFileSync(readmePath, readme, 'utf8');
+    log(`Synchronized README.md with ${releaseTag} Version History entry`);
+  }
+
+  // 3. Synchronize docs/handoff/README.md snapshot
+  const handoffReadmePath = path.join(workDir, 'docs', 'handoff', 'README.md');
+  if (fs.existsSync(handoffReadmePath)) {
+    let handoff = fs.readFileSync(handoffReadmePath, 'utf8');
+    handoff = handoff
+      .replace(/앱 `[0-9.]+` \(`v[0-9.]+`, [0-9-]+ 배포\)/g, `앱 \`${newVersion}\` (\`${releaseTag}\`, ${dateStr} 배포)`)
+      .replace(/\| 원격 Codex pin \| `[^`]+`/g, `| 원격 Codex pin | \`${targetCodex}\``)
+      .replace(
+        /Windows `[0-9.]+` Published, MAS `[0-9.]+` READY_FOR_SALE/g,
+        `Windows \`${newVersion}\` Published, MAS \`${newVersion}\` READY_FOR_SALE`
+      );
+    fs.writeFileSync(handoffReadmePath, handoff, 'utf8');
+    log(`Synchronized docs/handoff/README.md to ${releaseTag}`);
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const force = args.includes('--force');
@@ -203,7 +263,10 @@ Options:
       const codexRuntimeDoc = path.join(workDir, 'docs', 'codex-model-runtime.md');
       if (fs.existsSync(codexRuntimeDoc)) {
         let content = fs.readFileSync(codexRuntimeDoc, 'utf8');
-        content = content.replace(/The current pinned CLI is\s*`[^`]+`/g, `The current pinned CLI is \`${latestCodex}\``);
+        content = content
+          .replace(/The current pinned CLI is\s*`[^`]+`/g, `The current pinned CLI is \`${latestCodex}\``)
+          .replace(/@openai\/codex@[0-9A-Za-z.+-]+/g, `@openai/codex@${latestCodex}`)
+          .replace(/\| `[0-9A-Za-z.+-]+` synchronized; image refresh required \|/g, `| \`${latestCodex}\` synchronized; image refresh required |`);
         fs.writeFileSync(codexRuntimeDoc, content, 'utf8');
       }
 
@@ -261,17 +324,14 @@ Options:
     releaseTag = `v${newVersion}`;
     log(`Bumped version from ${currentVersion} to ${newVersion} (Tag: ${releaseTag})`);
 
-    // Synchronize docs/index.html website version metadata
-    const indexHtmlPath = path.join(workDir, 'docs', 'index.html');
-    if (fs.existsSync(indexHtmlPath)) {
-      let html = fs.readFileSync(indexHtmlPath, 'utf8');
-      html = html.replace(/content="v[0-9.]+"/g, `content="${releaseTag}"`);
-      html = html.replace(/<p class="download-info" id="downloadInfo">v[0-9.]+ • Free & Open Source<\/p>/g,
-                          `<p class="download-info" id="downloadInfo">${releaseTag} • Free & Open Source</p>`);
-      html = html.replace(/const CURRENT_VERSION = 'v[0-9.]+';/g, `const CURRENT_VERSION = '${releaseTag}';`);
-      fs.writeFileSync(indexHtmlPath, html, 'utf8');
-      log(`Synchronized docs/index.html to ${releaseTag}`);
-    }
+    const releaseDateStr = new Date().toISOString().slice(0, 10);
+    syncReleaseDocs(workDir, {
+      newVersion,
+      releaseTag,
+      dateStr: releaseDateStr,
+      currentCodexPin,
+      targetCodex,
+    });
 
     runCmd('git add .', { cwd: workDir });
     runCmd(`git commit -m "chore(release): v${newVersion} weekly maintenance and model pipeline update"`, { cwd: workDir });

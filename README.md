@@ -257,13 +257,17 @@ When you send a prompt, GnuNae constructs the full prompt in this order:
 ## Building for Distribution
 
 ```bash
-# macOS
+# macOS (DMG + ZIP)
 npm run pack:mac
 
-# Windows
+# Mac App Store (Universal PKG)
+npm run pack:mac-mas
+npm run deploy:mas
+
+# Windows (Microsoft Store APPX)
 npm run pack:win
 
-# Linux
+# Linux (AppImage + DEB)
 npm run pack:linux
 ```
 
@@ -276,16 +280,16 @@ GnuNae configures Codex CLI automatically at runtime via `-c` flags. **No manual
 
 If you have custom settings in `~/.codex/config.toml`, GnuNae overrides Codex
 spawn configuration for app-managed browser automation. Current committed code
-uses the generated model list in `src/core/codex-models.json`, passes the
+uses the generated model list in `src/core/codex-models.json` (default `gpt-6-astra`, fallback `gpt-5.6-luna`), passes the
 selected/default model explicitly with `xhigh` reasoning in Native mode, and
 sends the selected model to Docker/Virtual Mode instead of relying on the Codex
-CLI account default. See
+CLI account default. The current pinned CLI is `@openai/codex@0.164.0`. See
 [`docs/codex-model-runtime.md`](docs/codex-model-runtime.md) for model/runtime
 failure handling and Docker parity requirements. Maintainers can run the
 OpenAI model pipeline task from GitHub Actions (`.github/workflows/codex-models.yml`)
-on demand or on its weekly schedule to regenerate the model manifest, update
-Codex CLI pins across Native/package/Docker paths, refresh lockfiles, and open
-a review PR.
+or execute the automated weekly maintenance runner (`./scripts/run-weekly-maintenance.sh`)
+to regenerate the model manifest, update Codex CLI pins across Native/package/Docker paths,
+refresh lockfiles, update documentation, and publish multi-channel releases.
 
 On Windows Store updates, the bundled Node.js and Codex CLI are copied to
 stable app data so an app update cannot lose them. Existing copies are compared
@@ -322,6 +326,7 @@ src/
 └── core/                   # Shared utilities
     ├── auth.ts             # OpenAI authentication
     ├── browser-detector.ts # External browser detection (Chrome, Edge, etc.)
+    ├── codex-models.json   # Generated OpenAI Codex model manifest
     ├── datastore.ts        # Personal Data Store service
     ├── runtime-manager.ts  # Node.js/npm/Codex runtime management
     ├── tasks.ts            # Task service and scheduler
@@ -336,13 +341,27 @@ docker/                   # Virtual Mode sandbox
 ├── api-server.js         # REST API for Codex execution
 └── playwright.config.ts  # Playwright MCP configuration
 
-docs/                     # GitHub Pages (gnunae.com)
+scripts/                  # Build, packaging, and maintenance automation
+├── run-weekly-maintenance.sh       # Non-interactive weekly maintenance entrypoint
+├── weekly-maintenance-runner.js    # Automated weekly release & store verification runner
+├── update-codex-models.js          # Official Codex model manifest generator
+└── update-openai-model-pipeline.js # Native/Docker Codex CLI pin synchronizer
+
+docs/                     # GitHub Pages (gnunae.com) & maintenance docs
 ├── index.html            # Landing page
 ├── CNAME                 # Custom domain
+├── handoff/              # Cross-harness maintenance runbooks and weekly reports
 └── assets/               # Logo, videos
 
-.github/workflows/
-└── release.yml           # CI/CD for multi-platform builds
+.github/
+├── dependabot.yml            # Weekly npm dependency updates
+└── workflows/
+    ├── ci.yml                # Multi-OS build verification (Windows, macOS, Linux)
+    ├── release.yml           # Tag-triggered macOS, Linux, MAS, and Microsoft Store release pipeline
+    ├── docker.yml            # GHCR sandbox container image build and publication
+    ├── codex-models.yml      # Scheduled/manual OpenAI model manifest and Codex CLI pin pipeline
+    ├── maintenance-watch.yml # Weekly dependency, runtime, and website health monitor
+    └── store-status-watch.yml# 6-hour Microsoft Store & Mac App Store submission status monitor
 ```
 
 ## Tech Stack
@@ -371,6 +390,48 @@ docs/                     # GitHub Pages (gnunae.com)
 | 🔜 Planned | More LLM options including local LLM support |
 
 ## Version History
+
+### v1.1.10 (2026-10-25)
+- **Weekly Maintenance & Codex Runtime Update**
+  - Upgraded pinned `@openai/codex` CLI from `0.163.0` to `0.164.0` across Native mode (`package.json`, `resources/codex`, `src/core/runtime-manager.ts`, `scripts/install-codex.js`) and Virtual Mode (`docker/Dockerfile`).
+  - Verified model manifest alignment (`gpt-6-astra` default, `gpt-5.6-luna` fallback) and refreshed package lockfiles.
+  - Published multi-channel release across GitHub Releases (macOS DMG/ZIP, Linux AppImage/DEB), GHCR Docker sandbox (`ghcr.io/fkiller/gnunae/sandbox:latest` & `v1.1.10`), Microsoft Store APPX, and Mac App Store universal PKG.
+
+### v1.1.9 (2026-10-18)
+- **Weekly Maintenance & Codex Runtime Update**
+  - Upgraded pinned `@openai/codex` CLI from `0.162.1` to `0.163.0` across Native and Docker Virtual Mode runtimes.
+  - Synchronized website release metadata (`docs/index.html`) and published multi-store artifacts.
+
+### v1.1.8 (2026-10-10)
+- **Weekly Maintenance & Codex Runtime Update**
+  - Upgraded pinned `@openai/codex` CLI from `0.160.0` to `0.162.1` across Native and Docker Virtual Mode runtimes.
+  - Extended CI/CD workflow watch timeouts in `scripts/weekly-maintenance-runner.js` and synchronized the `gnunae-weekly-maintenance` skill definition.
+
+### v1.1.7 (2026-10-04)
+- **Weekly Maintenance & Automated Runner**
+  - Upgraded pinned `@openai/codex` CLI from `0.155.1` to `0.160.0` across Native and Docker Virtual Mode runtimes.
+  - Added non-interactive weekly maintenance automation (`scripts/run-weekly-maintenance.sh`, `scripts/weekly-maintenance-runner.js`) and the `gnunae-weekly-maintenance` skill for isolated worktree verification, release tagging, and multi-store monitoring.
+
+### v1.1.6 (2026-09-23)
+- **OpenAI Model Pipeline & Next-Gen Models**
+  - Upgraded `@openai/codex` to `0.155.1` and updated `src/core/codex-models.json` with `gpt-6-astra` (default), `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna` (fallback).
+  - Added cross-harness maintenance handoff documentation (`docs/handoff/`) under standing maintenance authorization.
+
+### v1.1.0 - v1.1.4 (2026-07 - 2026-08)
+- **Generated Codex Model Manifest & Bounded Runtime Repair**
+  - Added `scripts/update-codex-models.js`, `scripts/update-openai-model-pipeline.js`, and `.github/workflows/codex-models.yml` to track official OpenAI Codex models and keep Native/Docker pins synchronized.
+  - Implemented bounded Native Codex CLI runtime repair and automatic fallback-model retry for `models_cache` deserialization (`unknown variant \`max\``) and outdated-CLI errors.
+- **Store & Release Automation**
+  - Added `.github/workflows/store-status-watch.yml` (6-hour Microsoft Store & Mac App Store status monitor) and `.github/workflows/maintenance-watch.yml` (weekly dependency & website health monitor).
+  - Automated Partner Center certification notes (`scripts/msstore-certification.js`) and Mac App Store `AFTER_APPROVAL` review submission.
+- **macOS File Attachments**
+  - Fixed Codex sidebar file picker (`+`) and Finder drag-and-drop attachments for Native and sandboxed MAS builds.
+
+### v0.8.33 - v1.0.60 (2026-02 - 2026-07)
+- **Automated Store Distribution & Packaging**
+  - Automated Microsoft Store APPX/MSIX publishing via `msstore` CLI (`build-msstore`) and universal Mac App Store packaging/upload (`build-mas`) in `.github/workflows/release.yml`.
+  - Upgraded packaging toolchain to `electron-builder` v26, Playwright `1.59.1`, and `@playwright/mcp` `0.0.70`.
+  - Moved runtime and Codex resource copying to `scripts/afterPack.js` to support universal macOS MAS builds without symlink conflicts.
 
 ### v0.8.32 (2026-02-07)
 - **Dependency Upgrades**

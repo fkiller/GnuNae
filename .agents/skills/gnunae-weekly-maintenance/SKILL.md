@@ -94,16 +94,19 @@ If executing or debugging steps manually within the agent session:
    docker info >/dev/null 2>&1 && npm run build:docker || echo "Docker daemon not running; skipping container build."
    ```
 
-### Step 5: Version Bump & Release Tagging
+### Step 5: Version Bump, Documentation Sync & Release Tagging
 1. If updates are present (or periodic maintenance release is due):
    ```bash
    npm --ignore-scripts --no-git-tag-version version patch
    NEW_VER=$(node -p "require('./package.json').version")
    ```
-2. Update website download links and version badge in `docs/index.html` to match `NEW_VER`.
+2. Synchronize documentation and website metadata:
+   - Prepend a `### v${NEW_VER} (YYYY-MM-DD)` entry under `## Version History` in `README.md` and update the pinned `@openai/codex` CLI reference.
+   - Ensure `docs/codex-model-runtime.md`, `docs/PERIODIC_MAINTENANCE.md`, and `docs/handoff/README.md` reflect the current `NEW_VER` and `@openai/codex` pin.
+   - Update website download links and version badge in `docs/index.html` to match `v${NEW_VER}`.
 3. Commit and push:
    ```bash
-   git add package.json package-lock.json resources/ docs/index.html
+   git add package.json package-lock.json resources/ README.md docs/
    git commit -m "chore(release): v${NEW_VER} weekly maintenance and model pipeline update"
    git push origin maintenance/auto-weekly:main
    git tag "v${NEW_VER}"
