@@ -283,7 +283,7 @@ spawn configuration for app-managed browser automation. Current committed code
 uses the generated model list in `src/core/codex-models.json` (default `gpt-6-astra`, fallback `gpt-5.6-luna`), passes the
 selected/default model explicitly with `xhigh` reasoning in Native mode, and
 sends the selected model to Docker/Virtual Mode instead of relying on the Codex
-CLI account default. The current pinned CLI is `@openai/codex@0.164.0`. See
+CLI account default. The current pinned CLI is `@openai/codex@0.166.0`. See
 [`docs/codex-model-runtime.md`](docs/codex-model-runtime.md) for model/runtime
 failure handling and Docker parity requirements. Maintainers can run the
 OpenAI model pipeline task from GitHub Actions (`.github/workflows/codex-models.yml`)
@@ -390,6 +390,12 @@ docs/                     # GitHub Pages (gnunae.com) & maintenance docs
 | 🔜 Planned | More LLM options including local LLM support |
 
 ## Version History
+
+### v1.1.11 (2026-11-01)
+- **Weekly Maintenance & Codex Runtime Update**
+  - Upgraded pinned `@openai/codex` CLI from `0.164.0` to `0.166.0` across Native mode (`package.json`, `resources/codex`, `src/core/runtime-manager.ts`, `scripts/install-codex.js`) and Virtual Mode (`docker/Dockerfile`).
+  - Verified model manifest alignment, refreshed package lockfiles, and synchronized documentation (`README.md`, `docs/codex-model-runtime.md`, `docs/PERIODIC_MAINTENANCE.md`, `docs/index.html`).
+  - Published multi-channel release across GitHub Releases (macOS DMG/ZIP, Linux AppImage/DEB), GHCR Docker sandbox (`ghcr.io/fkiller/gnunae/sandbox:latest` & `v1.1.11`), Microsoft Store APPX, and Mac App Store universal PKG.
 
 ### v1.1.10 (2026-10-25)
 - **Weekly Maintenance & Codex Runtime Update**
