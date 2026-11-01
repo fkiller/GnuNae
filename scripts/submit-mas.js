@@ -697,6 +697,60 @@ async function syncReviewDetail(token, targetVersionId, sourceVersion) {
   }
 }
 
+async function getAgeRatingDeclaration(token, versionId) {
+  try {
+    const result = await requestJson('GET', `/v1/ageRatingDeclarations/${versionId}`, token);
+    return result.data || null;
+  } catch (error) {
+    if (error instanceof ApiError && (error.statusCode === 404 || error.statusCode === 410)) return null;
+    try {
+      const fallback = await requestJson('GET', `/v1/appStoreVersions/${versionId}/ageRatingDeclaration`, token);
+      return fallback.data || null;
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+async function patchAgeRatingDeclaration(token, declarationId, attributes) {
+  return requestJson('PATCH', `/v1/ageRatingDeclarations/${declarationId}`, token, {
+    data: {
+      type: 'ageRatingDeclarations',
+      id: declarationId,
+      attributes,
+    },
+  });
+}
+
+async function syncAgeRatingDeclaration(token, targetVersionId, sourceVersion) {
+  let declarationId = targetVersionId;
+  try {
+    const targetDecl = await getAgeRatingDeclaration(token, targetVersionId);
+    if (targetDecl?.id) {
+      declarationId = targetDecl.id;
+    }
+  } catch (_) {}
+
+  try {
+    await patchAgeRatingDeclaration(token, declarationId, {
+      socialMedia: false,
+    });
+    log(`Updated age rating declaration ${declarationId}: set socialMedia=false`);
+  } catch (error) {
+    log(`Warning: Failed to patch age rating declaration for ${declarationId}: ${error.message}`);
+    if (declarationId !== targetVersionId) {
+      try {
+        await patchAgeRatingDeclaration(token, targetVersionId, {
+          socialMedia: false,
+        });
+        log(`Updated age rating declaration ${targetVersionId}: set socialMedia=false`);
+      } catch (e2) {
+        log(`Warning: Failed direct patch of age rating declaration for ${targetVersionId}: ${e2.message}`);
+      }
+    }
+  }
+}
+
 function buildMatchesPreReleaseVersion(build, includedPreReleaseVersions, targetVersion) {
   const preReleaseId = build.relationships?.preReleaseVersion?.data?.id;
   if (!preReleaseId) return false;
@@ -971,6 +1025,7 @@ async function main() {
 
   await syncLocalizations(token, targetVersionResource.id, sourceVersion, whatsNew);
   await syncReviewDetail(token, targetVersionResource.id, sourceVersion);
+  await syncAgeRatingDeclaration(token, targetVersionResource.id, sourceVersion);
 
   const build = await waitForProcessedBuild(token, appId, targetVersion, args.waitMinutes);
   await setBuildExportComplianceIfConfigured(token, build.id);
