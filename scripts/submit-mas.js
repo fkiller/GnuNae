@@ -697,19 +697,31 @@ async function syncReviewDetail(token, targetVersionId, sourceVersion) {
   }
 }
 
-async function getAgeRatingDeclaration(token, versionId) {
+async function findAgeRatingDeclaration(token, appId, versionId) {
+  // 1. Try from appStoreVersion relationships
   try {
-    const result = await requestJson('GET', `/v1/ageRatingDeclarations/${versionId}`, token);
-    return result.data || null;
-  } catch (error) {
-    if (error instanceof ApiError && (error.statusCode === 404 || error.statusCode === 410)) return null;
-    try {
-      const fallback = await requestJson('GET', `/v1/appStoreVersions/${versionId}/ageRatingDeclaration`, token);
-      return fallback.data || null;
-    } catch (_) {
-      return null;
+    const res = await requestJson('GET', `/v1/appStoreVersions/${versionId}/ageRatingDeclaration`, token);
+    if (res?.data?.id) return res.data;
+  } catch (_) {}
+
+  // 2. Try from appInfos of the app (App Store Connect v4+ structure)
+  try {
+    const infos = await requestJson('GET', `/v1/apps/${appId}/appInfos?include=ageRatingDeclaration`, token);
+    if (Array.isArray(infos?.included)) {
+      const decl = infos.included.find((item) => item.type === 'ageRatingDeclarations');
+      if (decl) return decl;
     }
-  }
+    if (Array.isArray(infos?.data)) {
+      for (const info of infos.data) {
+        try {
+          const res = await requestJson('GET', `/v1/appInfos/${info.id}/ageRatingDeclaration`, token);
+          if (res?.data?.id) return res.data;
+        } catch (_) {}
+      }
+    }
+  } catch (_) {}
+
+  return null;
 }
 
 async function patchAgeRatingDeclaration(token, declarationId, attributes) {
@@ -722,32 +734,20 @@ async function patchAgeRatingDeclaration(token, declarationId, attributes) {
   });
 }
 
-async function syncAgeRatingDeclaration(token, targetVersionId, sourceVersion) {
-  let declarationId = targetVersionId;
-  try {
-    const targetDecl = await getAgeRatingDeclaration(token, targetVersionId);
-    if (targetDecl?.id) {
-      declarationId = targetDecl.id;
-    }
-  } catch (_) {}
+async function syncAgeRatingDeclaration(token, appId, targetVersionId, sourceVersion) {
+  const targetDecl = await findAgeRatingDeclaration(token, appId, targetVersionId);
+  if (!targetDecl?.id) {
+    log(`Warning: Could not resolve age rating declaration for app ${appId} / version ${targetVersionId}`);
+    return;
+  }
 
   try {
-    await patchAgeRatingDeclaration(token, declarationId, {
+    await patchAgeRatingDeclaration(token, targetDecl.id, {
       socialMedia: false,
     });
-    log(`Updated age rating declaration ${declarationId}: set socialMedia=false`);
+    log(`Updated age rating declaration ${targetDecl.id}: set socialMedia=false`);
   } catch (error) {
-    log(`Warning: Failed to patch age rating declaration for ${declarationId}: ${error.message}`);
-    if (declarationId !== targetVersionId) {
-      try {
-        await patchAgeRatingDeclaration(token, targetVersionId, {
-          socialMedia: false,
-        });
-        log(`Updated age rating declaration ${targetVersionId}: set socialMedia=false`);
-      } catch (e2) {
-        log(`Warning: Failed direct patch of age rating declaration for ${targetVersionId}: ${e2.message}`);
-      }
-    }
+    log(`Warning: Failed to patch age rating declaration for ${targetDecl.id}: ${error.message}`);
   }
 }
 
@@ -822,16 +822,24 @@ async function waitForProcessedBuild(token, appId, targetVersion, waitMinutes) {
 async function setBuildExportComplianceIfConfigured(token, buildId) {
   const configuredValue = process.env.APP_STORE_USES_NON_EXEMPT_ENCRYPTION || 'false';
   const value = !/^(false|0|no)$/i.test(configuredValue);
-  await requestJson('PATCH', `/v1/builds/${buildId}`, token, {
-    data: {
-      type: 'builds',
-      id: buildId,
-      attributes: {
-        usesNonExemptEncryption: value,
+  try {
+    await requestJson('PATCH', `/v1/builds/${buildId}`, token, {
+      data: {
+        type: 'builds',
+        id: buildId,
+        attributes: {
+          usesNonExemptEncryption: value,
+        },
       },
-    },
-  });
-  log(`Set build export compliance usesNonExemptEncryption=${value}`);
+    });
+    log(`Set build export compliance usesNonExemptEncryption=${value}`);
+  } catch (error) {
+    if (error instanceof ApiError && (error.statusCode === 409 || error.statusCode === 400)) {
+      log(`Build export compliance for ${buildId} is already set; ignoring`);
+      return;
+    }
+    throw error;
+  }
 }
 
 async function attachBuild(token, versionId, buildId) {
@@ -1025,7 +1033,7 @@ async function main() {
 
   await syncLocalizations(token, targetVersionResource.id, sourceVersion, whatsNew);
   await syncReviewDetail(token, targetVersionResource.id, sourceVersion);
-  await syncAgeRatingDeclaration(token, targetVersionResource.id, sourceVersion);
+  await syncAgeRatingDeclaration(token, appId, targetVersionResource.id, sourceVersion);
 
   const build = await waitForProcessedBuild(token, appId, targetVersion, args.waitMinutes);
   await setBuildExportComplianceIfConfigured(token, build.id);
