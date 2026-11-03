@@ -16,6 +16,7 @@ const ENV_LOCAL_PATH = path.join(ROOT_DIR, '.env.local');
 const WEBSITE_URL = 'https://www.gnunae.com';
 const PRIVACY_URL = 'https://www.gnunae.com/privacy.html';
 const SUPPORT_CONTACT = 'contact@gnunae.com';
+const STORE_DISPLAY_NAME = process.env.MSSTORE_DISPLAY_NAME || 'GNUNae - AI Browser';
 const HTTP_TIMEOUT_MS = Number(process.env.MSSTORE_API_TIMEOUT_MS || 90000);
 const API_RETRIES = Number(process.env.MSSTORE_API_RETRIES || 3);
 const PACKAGE_POLL_INTERVAL_MS = Math.max(
@@ -119,7 +120,7 @@ function packageJson() {
 function codexModelInfo() {
   const fallback = {
     defaultModel: 'gpt-6-astra',
-    fallbackModel: 'gpt-5.6-luna',
+    fallbackModel: 'gpt-6-luna',
   };
 
   try {
@@ -129,6 +130,7 @@ function codexModelInfo() {
     return {
       defaultModel,
       fallbackModel:
+        models.find((value) => value !== defaultModel && value.endsWith('-luna')) ||
         models.find((value) => value !== defaultModel && value.endsWith('-mini')) ||
         models.find((value) => value !== defaultModel && !value.includes('spark')) ||
         models.find((value) => value !== defaultModel) ||
@@ -359,13 +361,14 @@ async function resolvePendingSubmissionId(token, options) {
   throw new Error('No pending Microsoft Store submission found to patch.');
 }
 
-function patchListings(submission, version) {
+function patchListings(submission, version, titleOverride = STORE_DISPLAY_NAME) {
   const listings = submission.listings || {};
 
   for (const listing of Object.values(listings)) {
     const base = listing.baseListing;
     if (!base) continue;
 
+    if (titleOverride) base.title = titleOverride;
     if (!base.privacyPolicy) base.privacyPolicy = PRIVACY_URL;
     if (!base.supportContact) base.supportContact = SUPPORT_CONTACT;
     if (!base.websiteUrl) base.websiteUrl = WEBSITE_URL;
@@ -509,11 +512,19 @@ async function patchPendingSubmission(options, version, notes) {
     verifyPendingPackageFile(submission, options.expectedPackageFile);
   }
 
-  patchListings(submission, version);
+  const originalTitles = new Map();
+  for (const [locale, listing] of Object.entries(submission.listings || {})) {
+    if (listing?.baseListing?.title) {
+      originalTitles.set(locale, listing.baseListing.title);
+    }
+  }
+
+  patchListings(submission, version, STORE_DISPLAY_NAME);
   submission.notesForCertification = notes;
 
   console.log(`[msstore-certification] Pending submission: ${pendingId}`);
   console.log(`[msstore-certification] Current status: ${submission.status || 'unknown'}`);
+  console.log(`[msstore-certification] Target listing title: ${STORE_DISPLAY_NAME}`);
   console.log(`[msstore-certification] Certification notes length: ${notes.length}`);
   if (options.verifyPackageVersion) {
     console.log(`[msstore-certification] Expected Windows package version: ${expectedVersion}`);
@@ -528,8 +539,25 @@ async function patchPendingSubmission(options, version, notes) {
   }
 
   const body = updateRequestFromSubmission(submission);
-  await apiJson('PUT', submissionPath, token, body);
-  console.log('[msstore-certification] Partner Center certification notes updated.');
+  try {
+    const putResult = await apiJson('PUT', submissionPath, token, body);
+    const errors = putResult?.statusDetails?.errors || [];
+    const titleError = errors.find((err) => /title|name|reserved/i.test(`${err.code || ''} ${err.details || ''}`));
+    if (titleError) {
+      throw new Error(`Partner Center statusDetails reported title error: ${titleError.code}: ${titleError.details}`);
+    }
+    console.log(`[msstore-certification] Partner Center certification notes and listing title ("${STORE_DISPLAY_NAME}") updated.`);
+  } catch (err) {
+    console.warn(`[msstore-certification] Warning: Partner Center rejected title "${STORE_DISPLAY_NAME}" (${err.message}). Reverting to existing reserved listing title so submission can proceed.`);
+    for (const [locale, origTitle] of originalTitles.entries()) {
+      if (submission.listings?.[locale]?.baseListing) {
+        submission.listings[locale].baseListing.title = origTitle;
+      }
+    }
+    const fallbackBody = updateRequestFromSubmission(submission);
+    await apiJson('PUT', submissionPath, token, fallbackBody);
+    console.log('[msstore-certification] Partner Center certification notes updated with existing reserved listing title.');
+  }
 
   if (options.verifyPackageVersion || options.expectedPackageFile) {
     const updated = await apiJson('GET', submissionPath, token);

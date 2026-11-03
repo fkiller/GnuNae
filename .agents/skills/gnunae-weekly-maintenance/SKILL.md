@@ -66,21 +66,29 @@ If executing or debugging steps manually within the agent session:
 3. Perform all subsequent operations within `WORKTREE_DIR=.worktrees/weekly-maintenance`.
 
 ### Step 3: Upstream Sync & Model Pipeline
-1. Check upstream `@openai/codex` CLI version:
+1. Sync upstream recommended Codex models from `https://developers.openai.com/codex/models`:
+   ```bash
+   npm run update:codex-models
+   ```
+2. Check upstream `@openai/codex` CLI version:
    ```bash
    npm view @openai/codex version
    ```
-2. If upstream has a newer version than `package.json`:
+3. Run the model pipeline updater (always run this so changes in `src/core/codex-models.json` or `@openai/codex` version propagate across settings, certification notes, and docs):
    ```bash
-   npm run update:openai-model-pipeline -- --codex-version=<NEW_VERSION>
+   npm run update:openai-model-pipeline -- --codex-version=<TARGET_VERSION>
+   ```
+4. If `@openai/codex` version changed, refresh lockfiles:
+   ```bash
    npm install --package-lock-only --ignore-scripts
    npm --prefix resources/codex install --package-lock-only --ignore-scripts
    npm --prefix resources install --package-lock-only --ignore-scripts
    ```
-3. Run model alignment and validation:
+5. Run model alignment and validation (including upstream source verification):
    ```bash
    npm ci
    npm run check:codex-models
+   npm run check:codex-models-source
    npm run check:openai-model-pipeline -- --codex-version=<TARGET_VERSION>
    ```
 

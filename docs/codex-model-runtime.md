@@ -16,7 +16,7 @@ Current committed code uses a static model list:
 - Renderer options live in `src/ui/constants/codex.ts`.
 - The saved default lives in `src/core/settings.ts`.
 - Native Codex execution passes the selected model from
-  `src/core/codex-models.json` (default `gpt-6-astra`, falling back to `gpt-5.6-luna`) plus `model_reasoning_effort=xhigh` from
+  `src/core/codex-models.json` (default `gpt-6-astra`, falling back to `gpt-6-luna`) plus `model_reasoning_effort=xhigh` from
   `src/electron/main.ts`. The generated default is passed explicitly; GnuNae
   does not rely on the Codex CLI account default. The current pinned CLI is `0.166.0`.
 - Docker/Virtual Mode receives the same selected model from the renderer and

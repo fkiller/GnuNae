@@ -119,6 +119,18 @@ function syncReleaseDocs(workDir, { newVersion, releaseTag, dateStr, currentCode
   }
 
   // 2. Synchronize README.md Version History and pinned CLI references
+  const modelManifestPath = path.join(workDir, 'src', 'core', 'codex-models.json');
+  const modelManifest = fs.existsSync(modelManifestPath)
+    ? JSON.parse(fs.readFileSync(modelManifestPath, 'utf8'))
+    : { defaultModel: 'gpt-6-astra', models: [] };
+  const modelList = Array.isArray(modelManifest.models) ? modelManifest.models.map((m) => m.value) : ['gpt-6-astra'];
+  const defaultModel = modelManifest.defaultModel || modelList[0] || 'gpt-6-astra';
+  const fallbackModel =
+    modelList.find((v) => v !== defaultModel && v.endsWith('-luna')) ||
+    modelList.find((v) => v !== defaultModel && v.endsWith('-mini')) ||
+    modelList.find((v) => v !== defaultModel) ||
+    'gpt-6-luna';
+
   const readmePath = path.join(workDir, 'README.md');
   if (fs.existsSync(readmePath)) {
     let readme = fs.readFileSync(readmePath, 'utf8');
@@ -138,7 +150,7 @@ function syncReleaseDocs(workDir, { newVersion, releaseTag, dateStr, currentCode
         `### v${newVersion} (${dateStr})`,
         `- **Weekly Maintenance & Codex Runtime Update**`,
         `  - ${codexNote}`,
-        `  - Verified model manifest alignment, refreshed package lockfiles, and synchronized documentation (\`README.md\`, \`docs/codex-model-runtime.md\`, \`docs/PERIODIC_MAINTENANCE.md\`, \`docs/index.html\`).`,
+        `  - Synchronized upstream Codex model catalog (\`${modelList.join('`, `')}\`; default \`${defaultModel}\`, fallback \`${fallbackModel}\`), refreshed package lockfiles, and synchronized documentation (\`README.md\`, \`docs/codex-model-runtime.md\`, \`docs/PERIODIC_MAINTENANCE.md\`, \`docs/index.html\`).`,
         `  - Published multi-channel release across GitHub Releases (macOS DMG/ZIP, Linux AppImage/DEB), GHCR Docker sandbox (\`ghcr.io/fkiller/gnunae/sandbox:latest\` & \`${releaseTag}\`), Microsoft Store APPX, and Mac App Store universal PKG.`,
       ].join('\n');
       readme = readme.replace('## Version History', entry);
@@ -153,7 +165,7 @@ function syncReleaseDocs(workDir, { newVersion, releaseTag, dateStr, currentCode
     let handoff = fs.readFileSync(handoffReadmePath, 'utf8');
     handoff = handoff
       .replace(/앱 `[0-9.]+` \(`v[0-9.]+`, [0-9-]+ 배포\)/g, `앱 \`${newVersion}\` (\`${releaseTag}\`, ${dateStr} 배포)`)
-      .replace(/\| 원격 Codex pin \| `[^`]+`/g, `| 원격 Codex pin | \`${targetCodex}\``)
+      .replace(/\| 원격 Codex pin \| `[^`]+` \(기본 모델 `[^`]+`, fallback `[^`]+`\)/g, `| 원격 Codex pin | \`${targetCodex}\` (기본 모델 \`${defaultModel}\`, fallback \`${fallbackModel}\`)`)
       .replace(
         /Windows `[0-9.]+` Published, MAS `[0-9.]+` READY_FOR_SALE/g,
         `Windows \`${newVersion}\` Published, MAS \`${newVersion}\` READY_FOR_SALE`
@@ -250,48 +262,34 @@ Options:
     log(`Warning: Failed to query npm view @openai/codex: ${e.message}`);
   }
 
+  // Always sync upstream Codex recommended models from developers.openai.com/codex/models
+  log('Fetching upstream Codex model catalog from developers.openai.com/codex/models...');
+  runCmd('npm run update:codex-models', { cwd: workDir });
+
   let codexUpdated = false;
-  let targetCodex = currentCodexPin;
-  if (latestCodex && latestCodex !== currentCodexPin) {
-    log(`Candidate update detected: @openai/codex ${currentCodexPin} -> ${latestCodex}`);
-    try {
-      runCmd(`npm run update:openai-model-pipeline -- --codex-version=${latestCodex}`, { cwd: workDir });
+  let targetCodex = latestCodex || currentCodexPin;
+  try {
+    if (targetCodex !== currentCodexPin) {
+      log(`Candidate update detected: @openai/codex ${currentCodexPin} -> ${targetCodex}`);
+    }
+    runCmd(`npm run update:openai-model-pipeline -- --codex-version=${targetCodex}`, { cwd: workDir });
+    if (targetCodex !== currentCodexPin) {
       runCmd('npm install --package-lock-only --ignore-scripts', { cwd: workDir });
       runCmd('npm install --package-lock-only --ignore-scripts', { cwd: path.join(workDir, 'resources', 'codex') });
       runCmd('npm install --package-lock-only --ignore-scripts', { cwd: path.join(workDir, 'resources') });
-
-      const codexRuntimeDoc = path.join(workDir, 'docs', 'codex-model-runtime.md');
-      if (fs.existsSync(codexRuntimeDoc)) {
-        let content = fs.readFileSync(codexRuntimeDoc, 'utf8');
-        content = content
-          .replace(/The current pinned CLI is\s*`[^`]+`/g, `The current pinned CLI is \`${latestCodex}\``)
-          .replace(/@openai\/codex@[0-9A-Za-z.+-]+/g, `@openai/codex@${latestCodex}`)
-          .replace(/\| `[0-9A-Za-z.+-]+` synchronized; image refresh required \|/g, `| \`${latestCodex}\` synchronized; image refresh required |`);
-        fs.writeFileSync(codexRuntimeDoc, content, 'utf8');
-      }
-
-      targetCodex = latestCodex;
       codexUpdated = true;
-    } catch (e) {
-      log(`Warning: Automatic update to ${latestCodex} encountered issue: ${e.message}. Keeping ${currentCodexPin}`);
-      targetCodex = currentCodexPin;
     }
-  }
-
-  // Synchronize runner and skill updates to worktree so condition 3 removal is tracked
-  const runnerDest = path.join(workDir, 'scripts', 'weekly-maintenance-runner.js');
-  fs.copyFileSync(path.join(ROOT_DIR, 'scripts', 'weekly-maintenance-runner.js'), runnerDest);
-  const skillSrc = path.join(ROOT_DIR, '.agents', 'skills', 'gnunae-weekly-maintenance', 'SKILL.md');
-  const skillDest = path.join(workDir, '.agents', 'skills', 'gnunae-weekly-maintenance', 'SKILL.md');
-  if (fs.existsSync(skillSrc)) {
-    fs.mkdirSync(path.dirname(skillDest), { recursive: true });
-    fs.copyFileSync(skillSrc, skillDest);
+  } catch (e) {
+    log(`Warning: Automatic update to ${targetCodex} encountered issue: ${e.message}. Keeping ${currentCodexPin}`);
+    targetCodex = currentCodexPin;
+    runCmd(`npm run update:openai-model-pipeline -- --codex-version=${targetCodex}`, { cwd: workDir });
   }
 
   // Phase 4: Build & Local Checks
   log('--- Phase 4: Local Build & Model Manifest Checks ---');
   runCmd('npm ci', { cwd: workDir });
   runCmd('npm run check:codex-models', { cwd: workDir });
+  runCmd('npm run check:codex-models-source', { cwd: workDir });
   runCmd(`npm run check:openai-model-pipeline -- --codex-version=${targetCodex}`, { cwd: workDir });
   runCmd('npm run build', { cwd: workDir });
 

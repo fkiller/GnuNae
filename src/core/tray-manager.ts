@@ -55,7 +55,7 @@ export class TrayManager {
         }
 
         this.tray = new Tray(trayIcon);
-        this.tray.setToolTip('GnuNae - AI Browser');
+        this.tray.setToolTip('GNUNae - AI Browser');
 
         // Build and set the context menu
         await this.updateContextMenu();

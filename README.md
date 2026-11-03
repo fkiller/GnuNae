@@ -280,7 +280,7 @@ GnuNae configures Codex CLI automatically at runtime via `-c` flags. **No manual
 
 If you have custom settings in `~/.codex/config.toml`, GnuNae overrides Codex
 spawn configuration for app-managed browser automation. Current committed code
-uses the generated model list in `src/core/codex-models.json` (default `gpt-6-astra`, fallback `gpt-5.6-luna`), passes the
+uses the generated model list in `src/core/codex-models.json` (default `gpt-6-astra`, fallback `gpt-6-luna`), passes the
 selected/default model explicitly with `xhigh` reasoning in Native mode, and
 sends the selected model to Docker/Virtual Mode instead of relying on the Codex
 CLI account default. The current pinned CLI is `@openai/codex@0.166.0`. See
@@ -390,6 +390,12 @@ docs/                     # GitHub Pages (gnunae.com) & maintenance docs
 | 🔜 Planned | More LLM options including local LLM support |
 
 ## Version History
+
+### v1.1.12 (2026-11-03)
+- **Codex Model Catalog Sync (GPT-6.1-Sol / GPT-6.1-Terra / GPT-6-Luna) & Store Display Name Unification**
+  - Synchronized upstream Codex model catalog (`gpt-6-astra`, `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`; default `gpt-6-astra`, fallback `gpt-6-luna`) across `src/core/codex-models.json`, Native/Docker runtime configuration, Microsoft Store certification notes, and documentation.
+  - Fixed `scripts/weekly-maintenance-runner.js` and the `gnunae-weekly-maintenance` skill to always execute `npm run update:codex-models` and `npm run check:codex-models-source` against `https://developers.openai.com/codex/models`.
+  - Unified store display name to **`GNUNae - AI Browser`** across Mac App Store (`appInfoLocalizations` in `scripts/submit-mas.js`) and Microsoft Store (`baseListing.title` in `scripts/msstore-certification.js`), and resolved App Store Connect editable `ageRatingDeclaration` (`socialMedia=false`) lookup.
 
 ### v1.1.11 (2026-11-01)
 - **Weekly Maintenance & Codex Runtime Update**

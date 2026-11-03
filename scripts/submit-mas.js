@@ -18,6 +18,7 @@ const API_HOST = 'api.appstoreconnect.apple.com';
 const API_BASE = `https://${API_HOST}`;
 const PLATFORM = 'MAC_OS';
 const RELEASE_TYPE = 'AFTER_APPROVAL';
+const APP_STORE_DISPLAY_NAME = process.env.APP_STORE_DISPLAY_NAME || 'GNUNae - AI Browser';
 const APP_STORE_VERSION_FIELDS = 'versionString,appStoreState,platform,createdDate,releaseType';
 const COMPLETE_SUBMISSION_STATES = new Set(['COMPLETE', 'CANCELED', 'CANCELING']);
 const SUBMITTED_SUBMISSION_STATES = new Set(['WAITING_FOR_REVIEW', 'IN_REVIEW', 'UNRESOLVED_ISSUES']);
@@ -697,31 +698,83 @@ async function syncReviewDetail(token, targetVersionId, sourceVersion) {
   }
 }
 
-async function findAgeRatingDeclaration(token, appId, versionId) {
-  // 1. Try from appStoreVersion relationships
+function isEditableAppInfo(info) {
+  const state = info?.attributes?.state || '';
+  const appStoreState = info?.attributes?.appStoreState || '';
+  return state !== 'READY_FOR_DISTRIBUTION' && appStoreState !== 'READY_FOR_SALE';
+}
+
+async function listSortedAppInfos(token, appId) {
+  try {
+    const infos = await requestJson('GET', `/v1/apps/${appId}/appInfos`, token);
+    const list = Array.isArray(infos?.data) ? infos.data : [];
+    return [...list].sort((a, b) => Number(isEditableAppInfo(b)) - Number(isEditableAppInfo(a)));
+  } catch (_) {
+    return [];
+  }
+}
+
+async function syncAppInfoLocalizations(token, appId) {
+  const appInfos = await listSortedAppInfos(token, appId);
+  let updatedAny = false;
+
+  for (const info of appInfos) {
+    if (!isEditableAppInfo(info) && updatedAny) continue;
+    try {
+      const locsRes = await requestJson('GET', `/v1/appInfos/${info.id}/appInfoLocalizations`, token);
+      const locs = Array.isArray(locsRes?.data) ? locsRes.data : [];
+      for (const loc of locs) {
+        if (loc.attributes?.name === APP_STORE_DISPLAY_NAME) {
+          log(`AppInfo localization ${loc.id} (${loc.attributes?.locale}) already has name "${APP_STORE_DISPLAY_NAME}"`);
+          updatedAny = true;
+          continue;
+        }
+        try {
+          await requestJson('PATCH', `/v1/appInfoLocalizations/${loc.id}`, token, {
+            data: {
+              type: 'appInfoLocalizations',
+              id: loc.id,
+              attributes: {
+                name: APP_STORE_DISPLAY_NAME,
+              },
+            },
+          });
+          log(`Updated AppInfo localization ${loc.id} (${loc.attributes?.locale}) name to "${APP_STORE_DISPLAY_NAME}"`);
+          updatedAny = true;
+        } catch (err) {
+          log(`Note: Could not update AppInfo localization ${loc.id} on appInfo ${info.id}: ${err.message}`);
+        }
+      }
+    } catch (_) {}
+  }
+}
+
+async function findAgeRatingDeclarations(token, appId, versionId) {
+  const declarations = [];
+  const seen = new Set();
+  const addDecl = (decl) => {
+    if (decl?.id && !seen.has(decl.id)) {
+      seen.add(decl.id);
+      declarations.push(decl);
+    }
+  };
+
+  // 1. Try from appInfos of the app, prioritizing editable appInfos first
+  const appInfos = await listSortedAppInfos(token, appId);
+  for (const info of appInfos) {
+    try {
+      const res = await requestJson('GET', `/v1/appInfos/${info.id}/ageRatingDeclaration`, token);
+      addDecl(res?.data);
+    } catch (_) {}
+  }
+
+  // 2. Try from appStoreVersion relationships
   try {
     const res = await requestJson('GET', `/v1/appStoreVersions/${versionId}/ageRatingDeclaration`, token);
-    if (res?.data?.id) return res.data;
+    addDecl(res?.data);
   } catch (_) {}
 
-  // 2. Try from appInfos of the app (App Store Connect v4+ structure)
-  try {
-    const infos = await requestJson('GET', `/v1/apps/${appId}/appInfos?include=ageRatingDeclaration`, token);
-    if (Array.isArray(infos?.included)) {
-      const decl = infos.included.find((item) => item.type === 'ageRatingDeclarations');
-      if (decl) return decl;
-    }
-    if (Array.isArray(infos?.data)) {
-      for (const info of infos.data) {
-        try {
-          const res = await requestJson('GET', `/v1/appInfos/${info.id}/ageRatingDeclaration`, token);
-          if (res?.data?.id) return res.data;
-        } catch (_) {}
-      }
-    }
-  } catch (_) {}
-
-  return null;
+  return declarations;
 }
 
 async function patchAgeRatingDeclaration(token, declarationId, attributes) {
@@ -734,20 +787,29 @@ async function patchAgeRatingDeclaration(token, declarationId, attributes) {
   });
 }
 
-async function syncAgeRatingDeclaration(token, appId, targetVersionId, sourceVersion) {
-  const targetDecl = await findAgeRatingDeclaration(token, appId, targetVersionId);
-  if (!targetDecl?.id) {
+async function syncAgeRatingDeclaration(token, appId, targetVersionId) {
+  const declarations = await findAgeRatingDeclarations(token, appId, targetVersionId);
+  if (declarations.length === 0) {
     log(`Warning: Could not resolve age rating declaration for app ${appId} / version ${targetVersionId}`);
     return;
   }
 
-  try {
-    await patchAgeRatingDeclaration(token, targetDecl.id, {
-      socialMedia: false,
-    });
-    log(`Updated age rating declaration ${targetDecl.id}: set socialMedia=false`);
-  } catch (error) {
-    log(`Warning: Failed to patch age rating declaration for ${targetDecl.id}: ${error.message}`);
+  let patched = false;
+  for (const decl of declarations) {
+    try {
+      await patchAgeRatingDeclaration(token, decl.id, {
+        socialMedia: false,
+      });
+      log(`Updated age rating declaration ${decl.id}: set socialMedia=false`);
+      patched = true;
+      break;
+    } catch (error) {
+      log(`Note: Age rating declaration ${decl.id} not editable (${error.statusCode || error.message}); trying next if available`);
+    }
+  }
+
+  if (!patched) {
+    log(`Warning: Could not patch any age rating declaration for app ${appId}`);
   }
 }
 
@@ -1031,9 +1093,10 @@ async function main() {
     return;
   }
 
+  await syncAppInfoLocalizations(token, appId);
   await syncLocalizations(token, targetVersionResource.id, sourceVersion, whatsNew);
   await syncReviewDetail(token, targetVersionResource.id, sourceVersion);
-  await syncAgeRatingDeclaration(token, appId, targetVersionResource.id, sourceVersion);
+  await syncAgeRatingDeclaration(token, appId, targetVersionResource.id);
 
   const build = await waitForProcessedBuild(token, appId, targetVersion, args.waitMinutes);
   await setBuildExportComplianceIfConfigured(token, build.id);

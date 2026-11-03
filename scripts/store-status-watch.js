@@ -485,6 +485,19 @@ async function checkMacAppStore(packageJson) {
       ];
     }
 
+    try {
+      const infos = await httpGetJson(appStoreUrl(`/v1/apps/${appId}/appInfos`, {
+        include: 'appInfoLocalizations',
+        limit: '5',
+      }), token);
+      const locs = Array.isArray(infos.included)
+        ? infos.included.filter((item) => item.type === 'appInfoLocalizations')
+        : [];
+      const localizedName = locs.map((l) => l.attributes?.name).find((n) => n && n.includes('AI Browser'))
+        || locs.map((l) => l.attributes?.name).find(Boolean);
+      if (localizedName) appName = localizedName;
+    } catch (_) {}
+
     const builds = await httpGetJson(appStoreUrl('/v1/builds', {
       'filter[app]': appId,
       'limit': '5',

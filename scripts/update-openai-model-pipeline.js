@@ -23,7 +23,7 @@ if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(CODEX_VERSION)) {
 }
 
 const MODEL_MANIFEST = readJsonIfExists('src/core/codex-models.json');
-const DEFAULT_MODEL = MODEL_MANIFEST?.defaultModel || 'gpt-5.6-sol';
+const DEFAULT_MODEL = MODEL_MANIFEST?.defaultModel || 'gpt-6-astra';
 const FALLBACK_MODEL = fallbackModel(MODEL_MANIFEST, DEFAULT_MODEL);
 
 const files = [
@@ -159,7 +159,7 @@ function fallbackModel(manifest, defaultModel) {
     || models.find((value) => value !== defaultModel && value.endsWith('-mini'))
     || models.find((value) => value !== defaultModel && !value.includes('spark'))
     || models.find((value) => value !== defaultModel)
-    || 'gpt-5.6-luna';
+    || 'gpt-6-luna';
 }
 
 function latestPackageVersion(packageName) {
