@@ -392,8 +392,8 @@ docs/                     # GitHub Pages (gnunae.com) & maintenance docs
 ## Version History
 
 ### v1.1.12 (2026-11-03)
-- **Codex Model Catalog Sync (GPT-6.1-Sol / GPT-6.1-Terra / GPT-6-Luna) & Store Display Name Unification**
-  - Synchronized upstream Codex model catalog (`gpt-6-astra`, `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`; default `gpt-6-astra`, fallback `gpt-6-luna`) across `src/core/codex-models.json`, Native/Docker runtime configuration, Microsoft Store certification notes, and documentation.
+- **Codex Model Catalog Sync (Added: GPT-6.1-Sol / GPT-6.1-Terra / GPT-6-Luna; Decommissioned: GPT-5.6-Sol / GPT-5.6-Terra / GPT-5.6-Luna) & Store Display Name Unification**
+  - Synchronized upstream Codex model catalog (`gpt-6-astra`, `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`; default `gpt-6-astra`, fallback `gpt-6-luna`; **added models**: `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`; **decommissioned/deprecated models**: `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`) across `src/core/codex-models.json`, Native/Docker runtime configuration, Microsoft Store certification notes, and documentation.
   - Fixed `scripts/weekly-maintenance-runner.js` and the `gnunae-weekly-maintenance` skill to always execute `npm run update:codex-models` and `npm run check:codex-models-source` against `https://developers.openai.com/codex/models`.
   - Unified store display name to **`GNUNae - AI Browser`** across Mac App Store (`appInfoLocalizations` in `scripts/submit-mas.js`) and Microsoft Store (`baseListing.title` in `scripts/msstore-certification.js`), and resolved App Store Connect editable `ageRatingDeclaration` (`socialMedia=false`) lookup.
 

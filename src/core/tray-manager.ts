@@ -80,40 +80,29 @@ export class TrayManager {
      * Get the path to the tray icon based on platform
      */
     private getTrayIconPath(): string {
-        const assetsDir = path.join(__dirname, '../../assets');
-        const devAssetsDir = path.join(__dirname, '../../../assets');
+        const assetDirs = [
+            path.join(__dirname, '../assets'),
+            path.join(__dirname, '../../assets'),
+            path.join(__dirname, '../../../assets'),
+        ];
 
-        let iconName: string;
+        const candidateNames =
+            process.platform === 'darwin'
+                ? ['tray-iconTemplate.png', 'gnunae.png']
+                : process.platform === 'win32'
+                    ? ['tray-icon.ico', 'gnunae.ico', 'gnunae.png']
+                    : ['tray-icon.png', 'gnunae.png'];
 
-        if (process.platform === 'darwin') {
-            // macOS uses template images for proper dark/light mode support
-            iconName = 'tray-iconTemplate.png';
-        } else if (process.platform === 'win32') {
-            iconName = 'tray-icon.ico';
-        } else {
-            iconName = 'tray-icon.png';
+        for (const name of candidateNames) {
+            for (const dir of assetDirs) {
+                const candidate = path.join(dir, name);
+                if (fs.existsSync(candidate)) {
+                    return candidate;
+                }
+            }
         }
 
-        // Try production path first
-        const prodPath = path.join(assetsDir, iconName);
-        if (fs.existsSync(prodPath)) {
-            return prodPath;
-        }
-
-        // Try development path
-        const devPath = path.join(devAssetsDir, iconName);
-        if (fs.existsSync(devPath)) {
-            return devPath;
-        }
-
-        // Fallback to main icon
-        const mainIconPng = path.join(assetsDir, 'gnunae.png');
-        if (fs.existsSync(mainIconPng)) {
-            return mainIconPng;
-        }
-
-        const devMainIconPng = path.join(devAssetsDir, 'gnunae.png');
-        return devMainIconPng;
+        return path.join(assetDirs[0], 'gnunae.png');
     }
 
     /**

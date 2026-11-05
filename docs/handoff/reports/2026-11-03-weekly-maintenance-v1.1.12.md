@@ -22,6 +22,12 @@
 | Mac App Store | `1.1.11` (`PREPARE_FOR_SUBMISSION`) | `1.1.12` (`WAITING_FOR_REVIEW`) | `GnuNae-mac-universal.pkg` 업로드 및 자동 심사 제출 | 앱 명칭 `GNUNae - AI Browser` 적용, 빌드 `a0a4402c-58e9-4594-86b8-3b08ec7a01e1` (`VALID`), 심사 제출 `d0bd6b19-a00f-4d9d-95c2-cae9f1976756` (`WAITING_FOR_REVIEW`, `AFTER_APPROVAL`) |
 | Microsoft Store | `1.1.11.0` (`Published`) | `1.1.12.0` (`CommitStarted` / In Review) | Windows APPX 패키징 및 Partner Center 제출 | Submission ID `1152921505702309739` (`GnuNae-win-x64.appx`, `1.1.12.0`) 커밋 완료 |
 
+## Model Catalog Changes (Added / Decommissioned)
+- **추가된 모델 (Added Models)**: `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`
+- **활성 목록에서 폐기/제거된 모델 (Decommissioned / Removed Active Models)**: `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`
+- **신규 Deprecated 등록 모델 (Newly Deprecated Models)**: `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`
+- **현재 활성 추천 모델 목록 (Active Recommended Models)**: `gpt-6-astra` (기본 모델), `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna` (폴백 모델)
+
 ## Summary
 - **원인 분석 및 반성**: 이전 `v1.1.11` 실행 시 `scripts/weekly-maintenance-runner.js`가 `npm run update:codex-models`와 `npm run check:codex-models-source`를 호출하지 않고 로컬 `src/core/codex-models.json`만 검사하는 바람에 업스트림 `https://developers.openai.com/codex/models`에 게시된 `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna` 모델을 놓쳤습니다.
 - `scripts/weekly-maintenance-runner.js`와 `.agents/skills/gnunae-weekly-maintenance/SKILL.md`를 수정하여 매 실행 시 반드시 `npm run update:codex-models`, `npm run update:openai-model-pipeline`, `npm run check:codex-models-source`를 실행하도록 근본 원인을 교정했습니다.

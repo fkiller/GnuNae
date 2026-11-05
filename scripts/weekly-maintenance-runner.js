@@ -103,7 +103,52 @@ function notifyUser(title, message) {
   } catch (_) {}
 }
 
-function syncReleaseDocs(workDir, { newVersion, releaseTag, dateStr, currentCodexPin, targetCodex }) {
+function readModelManifest(dir) {
+  const manifestPath = path.join(dir, 'src', 'core', 'codex-models.json');
+  if (!fs.existsSync(manifestPath)) {
+    return { defaultModel: 'gpt-6-astra', models: [], deprecated: [] };
+  }
+  try {
+    return JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  } catch (_) {
+    return { defaultModel: 'gpt-6-astra', models: [], deprecated: [] };
+  }
+}
+
+function computeModelDiff(prevManifest, nextManifest) {
+  const prevModels = Array.isArray(prevManifest?.models) ? prevManifest.models.map((m) => m.value).filter(Boolean) : [];
+  const nextModels = Array.isArray(nextManifest?.models) ? nextManifest.models.map((m) => m.value).filter(Boolean) : [];
+  const prevDeprecated = Array.isArray(prevManifest?.deprecated) ? prevManifest.deprecated.filter(Boolean) : [];
+  const nextDeprecated = Array.isArray(nextManifest?.deprecated) ? nextManifest.deprecated.filter(Boolean) : [];
+
+  const addedModels = nextModels.filter((m) => !prevModels.includes(m));
+  const removedActiveModels = prevModels.filter((m) => !nextModels.includes(m));
+  const newlyDeprecatedModels = nextDeprecated.filter((m) => !prevDeprecated.includes(m));
+  const decommissionedModels = [...new Set([...removedActiveModels, ...newlyDeprecatedModels])];
+
+  const defaultModel = nextManifest?.defaultModel || nextModels[0] || 'gpt-6-astra';
+  const fallbackModel =
+    nextModels.find((v) => v !== defaultModel && v.endsWith('-luna')) ||
+    nextModels.find((v) => v !== defaultModel && v.endsWith('-mini')) ||
+    nextModels.find((v) => v !== defaultModel) ||
+    'gpt-6-luna';
+
+  return {
+    prevModels,
+    nextModels,
+    prevDeprecated,
+    nextDeprecated,
+    addedModels,
+    removedActiveModels,
+    newlyDeprecatedModels,
+    decommissionedModels,
+    prevDefaultModel: prevManifest?.defaultModel || prevModels[0] || defaultModel,
+    defaultModel,
+    fallbackModel,
+  };
+}
+
+function syncReleaseDocs(workDir, { newVersion, releaseTag, dateStr, currentCodexPin, targetCodex, modelDiff }) {
   // 1. Synchronize docs/index.html website version metadata
   const indexHtmlPath = path.join(workDir, 'docs', 'index.html');
   if (fs.existsSync(indexHtmlPath)) {
@@ -119,17 +164,14 @@ function syncReleaseDocs(workDir, { newVersion, releaseTag, dateStr, currentCode
   }
 
   // 2. Synchronize README.md Version History and pinned CLI references
-  const modelManifestPath = path.join(workDir, 'src', 'core', 'codex-models.json');
-  const modelManifest = fs.existsSync(modelManifestPath)
-    ? JSON.parse(fs.readFileSync(modelManifestPath, 'utf8'))
-    : { defaultModel: 'gpt-6-astra', models: [] };
-  const modelList = Array.isArray(modelManifest.models) ? modelManifest.models.map((m) => m.value) : ['gpt-6-astra'];
-  const defaultModel = modelManifest.defaultModel || modelList[0] || 'gpt-6-astra';
-  const fallbackModel =
-    modelList.find((v) => v !== defaultModel && v.endsWith('-luna')) ||
-    modelList.find((v) => v !== defaultModel && v.endsWith('-mini')) ||
-    modelList.find((v) => v !== defaultModel) ||
-    'gpt-6-luna';
+  const diff = modelDiff || computeModelDiff(readModelManifest(workDir), readModelManifest(workDir));
+  const modelList = diff.nextModels.length ? diff.nextModels : ['gpt-6-astra'];
+  const defaultModel = diff.defaultModel;
+  const fallbackModel = diff.fallbackModel;
+  const addedSummary = diff.addedModels.length ? diff.addedModels.map((m) => `\`${m}\``).join(', ') : 'none';
+  const decommissionedSummary = diff.decommissionedModels.length
+    ? diff.decommissionedModels.map((m) => `\`${m}\``).join(', ')
+    : 'none';
 
   const readmePath = path.join(workDir, 'README.md');
   if (fs.existsSync(readmePath)) {
@@ -150,7 +192,7 @@ function syncReleaseDocs(workDir, { newVersion, releaseTag, dateStr, currentCode
         `### v${newVersion} (${dateStr})`,
         `- **Weekly Maintenance & Codex Runtime Update**`,
         `  - ${codexNote}`,
-        `  - Synchronized upstream Codex model catalog (\`${modelList.join('`, `')}\`; default \`${defaultModel}\`, fallback \`${fallbackModel}\`), refreshed package lockfiles, and synchronized documentation (\`README.md\`, \`docs/codex-model-runtime.md\`, \`docs/PERIODIC_MAINTENANCE.md\`, \`docs/index.html\`).`,
+        `  - Synchronized upstream Codex model catalog (\`${modelList.join('`, `')}\`; default \`${defaultModel}\`, fallback \`${fallbackModel}\`; added models: ${addedSummary}; decommissioned/deprecated models: ${decommissionedSummary}), refreshed package lockfiles, and synchronized documentation (\`README.md\`, \`docs/codex-model-runtime.md\`, \`docs/PERIODIC_MAINTENANCE.md\`, \`docs/index.html\`).`,
         `  - Published multi-channel release across GitHub Releases (macOS DMG/ZIP, Linux AppImage/DEB), GHCR Docker sandbox (\`ghcr.io/fkiller/gnunae/sandbox:latest\` & \`${releaseTag}\`), Microsoft Store APPX, and Mac App Store universal PKG.`,
       ].join('\n');
       readme = readme.replace('## Version History', entry);
@@ -262,9 +304,20 @@ Options:
     log(`Warning: Failed to query npm view @openai/codex: ${e.message}`);
   }
 
+  // Snapshot previous model manifest before updating so we can report added & decommissioned models
+  const prevModelManifest = readModelManifest(workDir);
+
   // Always sync upstream Codex recommended models from developers.openai.com/codex/models
   log('Fetching upstream Codex model catalog from developers.openai.com/codex/models...');
   runCmd('npm run update:codex-models', { cwd: workDir });
+
+  const nextModelManifest = readModelManifest(workDir);
+  const modelDiff = computeModelDiff(prevModelManifest, nextModelManifest);
+  log(
+    `Model catalog diff -> Added: [${modelDiff.addedModels.join(', ') || 'none'}], ` +
+    `Decommissioned/Removed: [${modelDiff.removedActiveModels.join(', ') || 'none'}], ` +
+    `Newly Deprecated: [${modelDiff.newlyDeprecatedModels.join(', ') || 'none'}]`
+  );
 
   let codexUpdated = false;
   let targetCodex = latestCodex || currentCodexPin;
@@ -329,14 +382,23 @@ Options:
       dateStr: releaseDateStr,
       currentCodexPin,
       targetCodex,
+      modelDiff,
     });
 
+    const addedNote = modelDiff.addedModels.length ? modelDiff.addedModels.join(', ') : 'none';
+    const decommNote = modelDiff.decommissionedModels.length ? modelDiff.decommissionedModels.join(', ') : 'none';
     runCmd('git add .', { cwd: workDir });
-    runCmd(`git commit -m "chore(release): v${newVersion} weekly maintenance and model pipeline update"`, { cwd: workDir });
+    runCmd(
+      `git commit -m "chore(release): v${newVersion} weekly maintenance (models added: ${addedNote}; decommissioned: ${decommNote})"`,
+      { cwd: workDir }
+    );
     runCmd('git push origin maintenance/auto-weekly:main', { cwd: workDir });
     log(`Pushed changes to origin/main`);
 
-    runCmd(`git tag -a ${releaseTag} -m "Release ${releaseTag}: Codex ${targetCodex}"`, { cwd: workDir });
+    runCmd(
+      `git tag -a ${releaseTag} -m "Release ${releaseTag}: Codex ${targetCodex} (models added: ${addedNote}; decommissioned: ${decommNote})"`,
+      { cwd: workDir }
+    );
     runCmd(`git push origin ${releaseTag}`, { cwd: workDir });
     log(`Pushed tag ${releaseTag} to origin`);
 
@@ -390,6 +452,21 @@ Options:
   const formalReportPath = path.join(workDir, 'docs', 'handoff', 'reports', formalReportName);
   const rootReportPath = path.join(REPORTS_DIR, formalReportName);
 
+  const addedModelsText = modelDiff.addedModels.length
+    ? modelDiff.addedModels.map((m) => `\`${m}\``).join(', ')
+    : '없음 (None)';
+  const removedModelsText = modelDiff.removedActiveModels.length
+    ? modelDiff.removedActiveModels.map((m) => `\`${m}\``).join(', ')
+    : '없음 (None)';
+  const newlyDeprecatedText = modelDiff.newlyDeprecatedModels.length
+    ? modelDiff.newlyDeprecatedModels.map((m) => `\`${m}\``).join(', ')
+    : '없음 (None)';
+  const activeModelsText = modelDiff.nextModels.map((m) => `\`${m}\``).join(', ');
+  const prevModelsText = modelDiff.prevModels.map((m) => `\`${m}\``).join(', ');
+  const allDeprecatedText = modelDiff.nextDeprecated.length
+    ? modelDiff.nextDeprecated.map((m) => `\`${m}\``).join(', ')
+    : '없음 (None)';
+
   const reportContent = `# GnuNae maintenance run
 
 - 일시 / 하네스 / host / OS: ${new Date().toISOString()} / Antigravity / macOS (${process.platform}-${process.arch})
@@ -399,29 +476,38 @@ Options:
   - Issue [#48](https://github.com/fkiller/GnuNae/issues/48) ("Store status watch")
   - Release workflow run [${releaseRunId || 'N/A'}](https://github.com/fkiller/GnuNae/actions/runs/${releaseRunId || ''}) (tag \`${releaseTag || 'None'}\`)
   - Docker Build workflow run [${dockerRunId || 'N/A'}](https://github.com/fkiller/GnuNae/actions/runs/${dockerRunId || ''}) (tag \`${releaseTag || 'None'}\`)
-- 이번 범위 / no-op 여부: Upstream @openai/codex ${targetCodex} CLI 동기화, Docker sandbox 패리티 빌드, GnuNae v${newVersion} 패치 릴리즈
+- 이번 범위 / no-op 여부: Upstream @openai/codex ${targetCodex} CLI 동기화, 모델 카탈로그(추가/폐기) 점검, Docker sandbox 패리티 빌드, GnuNae v${newVersion} 패치 릴리즈
 
 | 구성요소 | 이전 버전 | 목표 버전 | upstream 근거 | Native/Docker 영향 |
 |---|---|---|---|---|
 | \`@openai/codex\` | ${currentCodexPin} | ${targetCodex} | \`npm view @openai/codex version\` -> ${latestCodex} | Native 런타임 핀 동기화 및 Dockerfile 패리티 빌드 |
+| Codex 모델 카탈로그 (\`src/core/codex-models.json\`) | ${prevModelsText} | ${activeModelsText} | \`https://developers.openai.com/codex/models\` | 추가: ${addedModelsText} / 폐기(decommission): ${removedModelsText} (신규 deprecated: ${newlyDeprecatedText}) |
 | GnuNae App | ${currentVersion} | ${newVersion} | 주간 정기 유지보수 및 릴리즈 주기 | 앱 버전 bump, website 메타데이터(\`docs/index.html\`) 동기화 |
 | GHCR Docker sandbox | v${currentVersion} / latest | v${newVersion} / latest | Codex ${targetCodex} 패리티 | \`ghcr.io/fkiller/gnunae/sandbox:latest\` 및 \`v${newVersion}\` |
 | Microsoft Store | ${currentVersion} | ${newVersion} | Windows APPX 패키징 및 Partner Center 자동 제출 | CI 빌드 및 제출 트리거 |
 
+## Model Catalog Changes (Added / Decommissioned)
+- **추가된 모델 (Added Models)**: ${addedModelsText}
+- **활성 목록에서 폐기/제거된 모델 (Decommissioned / Removed Active Models)**: ${removedModelsText}
+- **신규 Deprecated 등록 모델 (Newly Deprecated Models)**: ${newlyDeprecatedText}
+- **현재 활성 추천 모델 목록 (Active Recommended Models)**: ${activeModelsText} (기본 모델: \`${modelDiff.defaultModel}\`, 폴백 모델: \`${modelDiff.fallbackModel}\`)
+- **누적 Deprecated/Decommissioned 모델 목록**: ${allDeprecatedText}
+
 ## Summary
 - 주간 정기 유지보수 스케줄러 실행에 착수했습니다.
-- 작업 공간 격리 규칙에 따라 루트 작업 디렉터리를 일체 수정하지 않고 \`.worktrees/weekly-maintenance\`에서 \`origin/main\` 기반으로 작업을 완벽히 격리했습니다.
+- 업스트림 공식 모델 문서(\`https://developers.openai.com/codex/models\`)와 \`src/core/codex-models.json\`을 비교하여 추가된 모델(${addedModelsText}) 및 폐기/decommission된 모델(${removedModelsText}, 신규 deprecated: ${newlyDeprecatedText}) 여부를 점검하고 반영했습니다.
 - 업스트림 \`@openai/codex\` CLI 최신 버전 ${targetCodex}를 감지하여 모델 파이프라인, 의존성 락파일, 런타임 매니저, Dockerfile, 설치 스크립트 및 런타임 문서를 동기화했습니다.
 - 로컬 \`npm ci\`, 모델 무결성 검사, TypeScript 빌드, Vite UI 번들링, Docker 컨테이너 이미지 빌드 검증을 모두 수행했습니다.
-- \`v${newVersion}\` 패치 버전을 생성하고 태그를 origin에 푸시하여 CI/CD 배포 파이프라인(\`release.yml\`, \`docker.yml\`)을 가동했습니다.
-- \`store-status-watch.yml\` 워크플로를 트리거하여 Issue #48 상태를 갱신했습니다.
+- \`v${newVersion}\` 패치 버전을 생성하고 \`main\` 브랜치 및 태그를 origin에 푸시하여 CI/CD 배포 파이프라인(\`release.yml\`, \`docker.yml\`)을 가동했습니다.
+- \`store-status-watch.yml\` 워크플로를 트리거하여 Issue #48 상태를 갱신하고, 작업 종료 후 로컬 \`main\` 브랜치를 \`origin/main\`과 동기화 및 임시 작업트리를 정리했습니다.
 
 ## Verification
 
 | 명령 또는 수동 검사 | PASS / FAIL / NOT RUN | HEAD SHA / run 링크 / 이유 |
 |---|---|---|
 | npm ci | PASS | Node 22 환경 패키지 정상 정렬 |
-| npm run check:codex-models | PASS | 기본 모델 매니페스트 정합성 확인 |
+| npm run check:codex-models | PASS | 기본 모델 매니페스트 정합성 확인 (추가: ${addedModelsText}, 폐기: ${removedModelsText}) |
+| npm run check:codex-models-source | PASS | 공식 모델 페이지(\`developers.openai.com/codex/models\`) 대조 통과 |
 | npm run check:openai-model-pipeline -- --codex-version=${targetCodex} | PASS | 모든 구성요소의 ${targetCodex} 핀 정합성 확인 |
 | npm run build | PASS | TypeScript(\`tsc\`) + Vite UI 번들 정상 생성 |
 | Docker build (npm run build:docker) | ${dockerRunning ? 'PASS' : 'SKIPPED'} | ${dockerRunning ? '로컬 Docker 샌드박스 빌드 성공' : 'Docker 데몬 미실행'} |
@@ -435,14 +521,13 @@ Options:
 - **Mac App Store**: \`build-mas\`를 통한 altool 업로드 트리거.
 
 ## Native and Docker impact
-- Native 모드: 번들 및 런타임 매니저가 \`@openai/codex@${targetCodex}\`를 사용하도록 업데이트되었습니다.
+- Native 모드: 번들 및 런타임 매니저가 \`@openai/codex@${targetCodex}\` 및 활성 모델 카탈로그(${activeModelsText})를 사용하도록 업데이트되었습니다.
 - Docker Virtual 모드: 컨테이너 Dockerfile의 베이스 패키지가 \`@openai/codex@${targetCodex}\`로 갱신되었습니다.
 `;
 
   fs.mkdirSync(path.dirname(formalReportPath), { recursive: true });
   fs.writeFileSync(formalReportPath, reportContent, 'utf8');
-  fs.writeFileSync(rootReportPath, reportContent, 'utf8');
-  log(`Report saved to ${formalReportPath} and ${rootReportPath}`);
+  log(`Report saved to ${formalReportPath}`);
 
   if (hasChanges && !dryRun) {
     try {
@@ -453,6 +538,24 @@ Options:
     } catch (e) {
       log(`Warning: Failed to commit formal report: ${e.message}`);
     }
+  }
+
+  // Phase 9: Clean up worktree/branches and sync root workspace to main
+  log('--- Phase 9: Worktree Cleanup & Root main Branch Sync ---');
+  try {
+    runCmd(`git worktree remove --force ${WORKTREE_DIR}`, { cwd: ROOT_DIR, allowFailure: true });
+    runCmd('git branch -D maintenance/auto-weekly', { cwd: ROOT_DIR, allowFailure: true });
+    runCmd('git fetch origin main --tags --prune', { cwd: ROOT_DIR, allowFailure: true });
+    const rootDirty = runCapture('git status --porcelain', { cwd: ROOT_DIR, allowFailure: true });
+    if (!rootDirty) {
+      runCmd('git checkout main', { cwd: ROOT_DIR, allowFailure: true });
+      runCmd('git merge --ff-only origin/main', { cwd: ROOT_DIR, allowFailure: true });
+      log('Synchronized root workspace to origin/main on branch main');
+    } else {
+      log('Root workspace has uncommitted local changes; skipped automatic root checkout/reset');
+    }
+  } catch (e) {
+    log(`Warning during worktree/branch cleanup: ${e.message}`);
   }
 
   const newState = {

@@ -134,27 +134,52 @@ async function main() {
     throw new Error(`No recommended Codex models found at ${SOURCE_URL}`);
   }
 
+  const current = fs.existsSync(OUTPUT) ? fs.readFileSync(OUTPUT, 'utf8') : '';
+  let prevManifest = { defaultModel: null, models: [], deprecated: [], updatedAt: null };
+  if (current) {
+    try {
+      prevManifest = JSON.parse(current);
+    } catch (_) {}
+  }
+
+  const prevModels = Array.isArray(prevManifest.models) ? prevManifest.models.map((m) => m.value) : [];
+  const prevDeprecated = Array.isArray(prevManifest.deprecated) ? prevManifest.deprecated : [];
+  const addedModels = recommended.filter((m) => !prevModels.includes(m));
+  const removedModels = prevModels.filter((m) => !recommended.includes(m));
+  const newlyDeprecated = extractDeprecatedModels(html).filter((m) => !prevDeprecated.includes(m));
+  const decommissionedModels = [...new Set([...removedModels, ...newlyDeprecated])];
+
+  const modelsUnchanged =
+    prevManifest.defaultModel === recommended[0] &&
+    JSON.stringify(prevManifest.models) === JSON.stringify(recommended.map((value) => ({ value, label: labelFor(value) }))) &&
+    JSON.stringify(prevDeprecated) === JSON.stringify(extractDeprecatedModels(html));
+
   const manifest = {
     sourceUrl: SOURCE_URL,
     defaultModel: recommended[0],
     models: recommended.map((value) => ({ value, label: labelFor(value) })),
     deprecated: extractDeprecatedModels(html),
-    updatedAt: new Date().toISOString().slice(0, 10),
+    updatedAt: modelsUnchanged && prevManifest.updatedAt ? prevManifest.updatedAt : new Date().toISOString().slice(0, 10),
   };
 
   const next = `${JSON.stringify(manifest, null, 2)}\n`;
-  const current = fs.existsSync(OUTPUT) ? fs.readFileSync(OUTPUT, 'utf8') : '';
+
   if (CHECK) {
-    if (current !== next) {
+    if (!modelsUnchanged) {
       console.error('Codex model manifest is stale. Run `npm run update:codex-models`.');
+      console.error(`  Added models: ${addedModels.length ? addedModels.join(', ') : 'none'}`);
+      console.error(`  Decommissioned/removed models: ${decommissionedModels.length ? decommissionedModels.join(', ') : 'none'}`);
       process.exit(1);
     }
-    console.log(`Codex model manifest is current (${recommended.join(', ')}).`);
+    console.log(`Codex model manifest is current (${recommended.join(', ')}; added=none, decommissioned=none).`);
     return;
   }
 
   fs.writeFileSync(OUTPUT, next, 'utf8');
   console.log(`Wrote ${path.relative(ROOT, OUTPUT)} from ${SOURCE_URL}: ${recommended.join(', ')}`);
+  console.log(`  Added models: ${addedModels.length ? addedModels.join(', ') : 'none'}`);
+  console.log(`  Decommissioned/removed active models: ${removedModels.length ? removedModels.join(', ') : 'none'}`);
+  console.log(`  Newly deprecated models: ${newlyDeprecated.length ? newlyDeprecated.join(', ') : 'none'}`);
 }
 
 main().catch((error) => {

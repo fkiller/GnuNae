@@ -8,7 +8,15 @@
 
 | 구성요소 | 이전 버전 | 목표 버전 | upstream 근거 | Native/Docker 영향 |
 |---|---|---|---|---|
-| | | | | |
+| `@openai/codex` | | | | |
+| Codex 모델 카탈로그 (`src/core/codex-models.json`) | | | `https://developers.openai.com/codex/models` | 추가 모델: `...` / 폐기(decommission) 모델: `...` |
+
+## Model Catalog Changes (Added / Decommissioned)
+- **추가된 모델 (Added Models)**: (신규 추가된 모델명 명시, 없으면 `없음 (None)`)
+- **활성 목록에서 폐기/제거된 모델 (Decommissioned / Removed Active Models)**: (제거된 모델명 명시, 없으면 `없음 (None)`)
+- **신규 Deprecated 등록 모델 (Newly Deprecated Models)**: (새로 deprecated 목록에 편입된 모델명 명시, 없으면 `없음 (None)`)
+- **현재 활성 추천 모델 목록 (Active Recommended Models)**: (기본 모델 및 폴백 모델 포함)
+- **누적 Deprecated/Decommissioned 모델 목록**:
 
 ## Summary
 ## What I inspected

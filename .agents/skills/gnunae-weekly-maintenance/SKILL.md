@@ -13,14 +13,20 @@ It is authorized to run autonomously from start to finish without pausing for in
 1. **Standing Maintenance Authorization**:
    - The agent is pre-authorized to complete the full routine: dependency review, model catalog sync, packaging, patch version bump, git commit/tag push, CI/CD monitoring, and store submission verification.
    - Do NOT stop for step-by-step confirmation. Proceed through the entire lifecycle and produce a final report.
-2. **Workspace Isolation**:
+2. **Workspace Isolation & Final `main` Branch Convergence**:
    - **NEVER** modify or stage dirty files in the root workspace (`/Users/wondong/Projects/GnuNae`).
    - All maintenance, package changes, builds, and version bumps must occur inside an isolated worktree at `.worktrees/weekly-maintenance` based on `origin/main`.
-3. **Store & Credential Safety**:
+   - **Upon completion**, all changes must be merged/pushed into `origin/main`, the temporary worktree (`.worktrees/weekly-maintenance`) and any temporary/merged branches must be cleaned up, and the root workspace (`/Users/wondong/Projects/GnuNae`) must be checked out on `main` and fast-forwarded to `origin/main`.
+3. **Explicit Model Addition & Decommission Tracking**:
+   - Whenever `src/core/codex-models.json` is checked or updated against `https://developers.openai.com/codex/models`, you **MUST** compare the before/after model manifest and explicitly record:
+     - **Added models (`추가된 모델`)**: Newly added active models (or `none` / `없음` if unchanged).
+     - **Decommissioned / Deprecated models (`폐기/Decommission된 모델`)**: Models removed from the active `models` list or newly added to `deprecated` (or `none` / `없음` if unchanged).
+   - This model addition/decommission summary **MUST** be included in `README.md` (`## Version History`), the git commit/tag message, and the handoff report (`docs/handoff/reports/YYYY-MM-DD-weekly-maintenance-v<NEW_VER>.md`).
+4. **Store & Credential Safety**:
    - Never print or leak secret keys or API tokens.
    - Mac App Store uploads must verify `releaseType=AFTER_APPROVAL`.
    - Microsoft Store submissions must verify that the built APPX filename is present as `PendingUpload` and matches the package version before draft publishing.
-4. **Scheduled Execution**:
+5. **Scheduled Execution**:
    - Due date state is recorded in `~/.gnunae/maintenance-state.json`.
    - Execution schedule is controlled externally by the user or task scheduler. When invoked, maintenance proceeds immediately without blocking on an elapsed interval.
 
@@ -109,7 +115,7 @@ If executing or debugging steps manually within the agent session:
    NEW_VER=$(node -p "require('./package.json').version")
    ```
 2. Synchronize documentation and website metadata:
-   - Prepend a `### v${NEW_VER} (YYYY-MM-DD)` entry under `## Version History` in `README.md` and update the pinned `@openai/codex` CLI reference.
+   - Prepend a `### v${NEW_VER} (YYYY-MM-DD)` entry under `## Version History` in `README.md`, explicitly listing **added models** and **decommissioned/deprecated models** alongside the active model catalog and pinned `@openai/codex` CLI reference.
    - Ensure `docs/codex-model-runtime.md`, `docs/PERIODIC_MAINTENANCE.md`, and `docs/handoff/README.md` reflect the current `NEW_VER` and `@openai/codex` pin.
    - Update website download links and version badge in `docs/index.html` to match `v${NEW_VER}`.
 3. Commit and push:
@@ -153,5 +159,6 @@ If executing or debugging steps manually within the agent session:
      "last_version": "v<NEW_VER>"
    }
    ```
-2. Generate handoff report at `docs/handoff/reports/YYYY-MM-DD-weekly-maintenance-v<NEW_VER>.md` following `docs/handoff/RUN-REPORT-TEMPLATE.md`.
+2. Generate handoff report at `docs/handoff/reports/YYYY-MM-DD-weekly-maintenance-v<NEW_VER>.md` following `docs/handoff/RUN-REPORT-TEMPLATE.md`, including the dedicated **Model Catalog Changes (Added / Decommissioned)** section.
 3. Push report to `origin/main`.
+4. Remove `.worktrees/weekly-maintenance`, delete temporary/merged branches (`maintenance/auto-weekly`), and fast-forward the root workspace (`/Users/wondong/Projects/GnuNae`) on `main` to `origin/main`.

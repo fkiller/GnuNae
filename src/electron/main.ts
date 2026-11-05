@@ -786,6 +786,20 @@ function createMenu(): void {
     Menu.setApplicationMenu(menu);
 }
 
+function getWindowIconPath(): string | undefined {
+    const iconName = process.platform === 'win32' ? 'gnunae.ico' : 'gnunae.png';
+    const candidates = [
+        path.join(__dirname, '../assets', iconName),
+        path.join(__dirname, '../../assets', iconName),
+    ];
+    for (const candidate of candidates) {
+        if (fs.existsSync(candidate)) {
+            return candidate;
+        }
+    }
+    return undefined;
+}
+
 function createWindow(): void {
     // Initialize auth service (only once)
     if (!authService) {
@@ -798,6 +812,7 @@ function createWindow(): void {
         height: 900,
         minWidth: 800,
         minHeight: 700,
+        icon: getWindowIconPath(),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -937,6 +952,7 @@ function createChatWindow(options: ChatWindowOptions): BrowserWindow {
         height: 700,
         minWidth: 350,
         minHeight: 500,
+        icon: getWindowIconPath(),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -1080,6 +1096,7 @@ function createSettingsWindow(): void {
         minWidth: 480,
         minHeight: 500,
         resizable: true,
+        icon: getWindowIconPath(),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,

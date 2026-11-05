@@ -80,5 +80,34 @@ exports.default = async function (context) {
         copyReplacing(codexSrc, codexDest);
 
         console.log('[afterPack] Done copying runtime and codex');
+
+        // On Windows, when signAndEditExecutable is false (used to build unsigned APPX for MS Store),
+        // embed assets/gnunae.ico into the executable via rcedit so the .exe and taskbar window have
+        // the transparent custom icon instead of the default Electron icon.
+        if (platformName === 'windows' && context.packager.platformSpecificBuildOptions.signAndEditExecutable === false) {
+            const exePath = path.join(appOutDir, `${context.packager.appInfo.productFilename}.exe`);
+            const icoPath = path.join(__dirname, '..', 'assets', 'gnunae.ico');
+            if (fs.existsSync(exePath) && fs.existsSync(icoPath)) {
+                try {
+                    const { executeAppBuilder } = require('builder-util');
+                    const rceditArgs = [
+                        exePath,
+                        '--set-icon',
+                        icoPath,
+                        '--set-version-string',
+                        'FileDescription',
+                        context.packager.appInfo.productName,
+                        '--set-version-string',
+                        'ProductName',
+                        context.packager.appInfo.productName,
+                    ];
+                    console.log(`[afterPack] Embedding icon into ${exePath} via rcedit...`);
+                    await executeAppBuilder(['rcedit', '--args', JSON.stringify(rceditArgs)], undefined, {}, 3);
+                    console.log('[afterPack] Embedded Windows executable icon successfully');
+                } catch (err) {
+                    console.warn(`[afterPack] Warning: rcedit icon embedding failed: ${err.message}`);
+                }
+            }
+        }
     }
 };

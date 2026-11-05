@@ -12,9 +12,9 @@ GnuNae의 정기 유지보수를 수행하라. 앱 안의 Codex는 유지하고,
 먼저 루트 AGENTS.md와 docs/handoff/README.md, CREDENTIALS.md, RUN-REPORT-TEMPLATE.md를 읽고, python3 docs/handoff/preflight.py --repo . --github를 실행하라.
 현재 main·열린 PR·maintenance/store issue·Actions 실행을 다시 확인하고, 최신 origin/main 기준 별도 브랜치에서 작업하라. 사용자 dirty 변경을 보존하라.
 
-Codex/모델, Playwright/MCP, Electron/Node 및 기타 의존성의 변경을 공식 upstream 자료와 비교하라. 기존 자동 생성/Dependabot PR을 먼저 검토하고 중복 PR을 만들지 마라. 버전 pin과 root/resources/resources/codex lockfiles, Native/Docker를 함께 맞추고 모델 검사·빌드·필요한 Docker 검증 및 문서 갱신을 완료하라.
+Codex/모델, Playwright/MCP, Electron/Node 및 기타 의존성의 변경을 공식 upstream 자료와 비교하라. 특히 `https://developers.openai.com/codex/models`와 `src/core/codex-models.json`을 비교할 때 **어떤 모델이 새로 추가(Added)되었고 어떤 모델이 폐기/제거(Decommissioned / Deprecated)되었는지** 반드시 diff로 추출하여 커밋 메시지, `README.md`의 `## Version History`, PR 설명, 최종 보고서에 구체적인 모델명과 함께 명시하라(변동이 없으면 '추가/폐기된 모델 없음'으로 명시). 기존 자동 생성/Dependabot PR을 먼저 검토하고 중복 PR을 만들지 마라. 버전 pin과 root/resources/resources/codex lockfiles, Native/Docker를 함께 맞추고 모델 검사·빌드·필요한 Docker 검증 및 문서 갱신을 완료하라.
 
-상시 유지보수 승인 하에서 하네스는 변경 검증부터 PR merge, 앱 버전 bump, release tag 생성/푸시, 릴리스 파이프라인(GitHub Release, GHCR Docker sandbox, Mac App Store, Microsoft Store) 실행 및 결과 확인까지의 전체 주기를 자율적으로 완수한다. 일상적인 단계마다 확인을 요청하지 말고, 실패 발생 시 이를 적극적으로 해결하라.
+상시 유지보수 승인 하에서 하네스는 변경 검증부터 PR merge, 앱 버전 bump, release tag 생성/푸시, 릴리스 파이프라인(GitHub Release, GHCR Docker sandbox, Mac App Store, Microsoft Store) 실행 및 결과 확인까지의 전체 주기를 자율적으로 완수한다. 일상적인 단계마다 확인을 요청하지 말고, 실패 발생 시 이를 적극적으로 해결하라. 모든 작업이 끝나면 변경 사항이 빠짐없이 `main` 브랜치에 머지되어 있어야 하며, 임시 worktree 및 병합 완료된 로컬/원격 브랜치를 정리하고 루트 워크스페이스를 최신 `main` 브랜치 상태로 유지하라.
 
 GitHub secret 값은 조회/복사하지 말고 기존 Actions에서 계속 사용하라. 같은 Mac의 gh 인증은 재사용하되 credential 본문을 출력하지 마라. signing credential은 dependency 업데이트에 주입하지 마라. 앱 identity/entitlement/workflow 정의는 임의로 변경하지 마라.
 일반 npm version에는 자동 tag push hook이 있으므로 `npm --ignore-scripts --no-git-tag-version version patch`를 사용하여 버전을 올리고, 웹사이트(`docs/index.html`) 메타데이터를 맞춘 뒤 명시적으로 `v*` git tag를 푸시하라.

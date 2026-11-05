@@ -22,14 +22,12 @@ Create the following assets from your main `gnunae.png`:
 | `SplashScreen.png` | 620x300 | Splash screen |
 | `BadgeLogo.png` | 24x24 | Badge notifications |
 
-## Quick Generation (macOS)
+## Generation
+
+Run the icon generator script to regenerate `assets/gnunae.ico` (with valid 32-bit BGRA alpha and 1-bit AND masks) and all transparent APPX tile, scale (`.scale-125`..`.scale-400`), and taskbar unplated/lightunplated (`.targetsize-*`) assets from `assets/gnunae.png`:
 
 ```bash
-cd /Users/wondong/Projects/GnuNae
-sips -z 50 50 assets/gnunae.png --out build/appx/StoreLogo.png
-sips -z 150 150 assets/gnunae.png --out build/appx/Square150x150Logo.png
-sips -z 44 44 assets/gnunae.png --out build/appx/Square44x44Logo.png
-sips -z 310 150 assets/gnunae.png --out build/appx/Wide310x150Logo.png
+node scripts/generate-appx-icons.js
 ```
 
-Note: For Wide310x150Logo, you may want to create a proper wide version manually.
+Note: `package.json` configures `build.appx.backgroundColor` as `"transparent"` and `Square44x44Logo.targetsize-*` / `.scale-*` assets trigger `makepri.exe` (`resources.pri`) during `electron-builder --win appx` so Microsoft Store and Windows 10/11 dark & light taskbars render icons without a black background plate.

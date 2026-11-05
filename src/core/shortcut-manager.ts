@@ -656,18 +656,17 @@ Categories=Network;WebBrowser;
      * Get the GnuNae icon path
      */
     private getGnuNaeIcon(): string {
-        const assetsDir = path.join(__dirname, '../../assets');
-        const devAssetsDir = path.join(__dirname, '../../../assets');
-
-        if (this.platform === 'win32') {
-            const iconPath = path.join(assetsDir, 'gnunae.ico');
+        const assetDirs = [
+            path.join(__dirname, '../assets'),
+            path.join(__dirname, '../../assets'),
+            path.join(__dirname, '../../../assets'),
+        ];
+        const iconName = this.platform === 'win32' ? 'gnunae.ico' : 'gnunae.png';
+        for (const dir of assetDirs) {
+            const iconPath = path.join(dir, iconName);
             if (fs.existsSync(iconPath)) return iconPath;
-            return path.join(devAssetsDir, 'gnunae.ico');
-        } else {
-            const iconPath = path.join(assetsDir, 'gnunae.png');
-            if (fs.existsSync(iconPath)) return iconPath;
-            return path.join(devAssetsDir, 'gnunae.png');
         }
+        return path.join(assetDirs[0], iconName);
     }
 
     /**
@@ -676,8 +675,11 @@ Categories=Network;WebBrowser;
      * Returns .ico on Windows, .png on macOS/Linux
      */
     getBrowserIcon(browserId: string): string {
-        const assetsDir = path.join(__dirname, '../../assets');
-        const devAssetsDir = path.join(__dirname, '../../../assets');
+        const assetDirs = [
+            path.join(__dirname, '../assets'),
+            path.join(__dirname, '../../assets'),
+            path.join(__dirname, '../../../assets'),
+        ];
 
         // Determine extension based on platform
         const ext = this.platform === 'win32' ? 'ico' : 'png';
@@ -693,12 +695,10 @@ Categories=Network;WebBrowser;
             return this.getGnuNaeIcon();
         }
 
-        // Try production assets first, then development assets
-        const iconPath = path.join(assetsDir, iconName);
-        if (fs.existsSync(iconPath)) return iconPath;
-
-        const devIconPath = path.join(devAssetsDir, iconName);
-        if (fs.existsSync(devIconPath)) return devIconPath;
+        for (const dir of assetDirs) {
+            const iconPath = path.join(dir, iconName);
+            if (fs.existsSync(iconPath)) return iconPath;
+        }
 
         // Final fallback to GnuNae icon
         return this.getGnuNaeIcon();
