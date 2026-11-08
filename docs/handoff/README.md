@@ -9,14 +9,14 @@
 | 항목 | 확인 결과 |
 |---|---|
 | 저장소 | https://github.com/fkiller/GnuNae · 기본 브랜치 `main` |
-| 원격 기준 | `origin/main` · 앱 `1.1.12` (`v1.1.12`, 2026-11-03 배포) |
+| 원격 기준 | `origin/main` · 앱 `1.1.13` (`v1.1.13`, 2026-11-08 배포) |
 | 작업 공간 격리 | `.worktrees/weekly-maintenance` (`maintenance/auto-weekly` 브랜치) 작업 후 `main` 동기화 및 정리 |
-| 원격 Codex pin | `0.166.0` (기본 모델 `gpt-6-astra`, fallback `gpt-6-luna`) |
+| 원격 Codex pin | `0.167.0` (기본 모델 `gpt-6-astra`, fallback `gpt-6-luna`) |
 | 기타 원격 pin | MCP `0.0.70`, Playwright `1.59.1`, 내장 Node `22.23.4` (Node 22 LTS); 매 실행 재확인 |
 | 개발 셸 | Node 22 LTS; CI 및 주간 러너에서도 Node 22 사용 |
 | GitHub | 로컬 `gh` API 접근 성공; repository admin/push/pull 권한 확인 |
 | 하네스 | Antigravity (`gnunae-weekly-maintenance` 스킬 및 `scripts/run-weekly-maintenance.sh` 연동) |
-| 최신 store report | Windows `1.1.12` Published, MAS `1.1.12` READY_FOR_SALE (`AFTER_APPROVAL`), 최신 build VALID |
+| 최신 store report | Windows `1.1.13` Published, MAS `1.1.13` READY_FOR_SALE (`AFTER_APPROVAL`), 최신 build VALID |
 | 주간 리포트 경로 | `docs/handoff/reports/YYYY-MM-DD-weekly-maintenance-vX.Y.Z.md` |
 
 근거: [Store 보고서 #48](https://github.com/fkiller/GnuNae/issues/48), [모델 업데이트 실패 run](https://github.com/fkiller/GnuNae/actions/runs/35622098966), [Maintenance Watch 성공 run](https://github.com/fkiller/GnuNae/actions/runs/35629905385), [최근 Release 성공 run](https://github.com/fkiller/GnuNae/actions/runs/30839110269).

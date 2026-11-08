@@ -283,7 +283,7 @@ spawn configuration for app-managed browser automation. Current committed code
 uses the generated model list in `src/core/codex-models.json` (default `gpt-6-astra`, fallback `gpt-6-luna`), passes the
 selected/default model explicitly with `xhigh` reasoning in Native mode, and
 sends the selected model to Docker/Virtual Mode instead of relying on the Codex
-CLI account default. The current pinned CLI is `@openai/codex@0.166.0`. See
+CLI account default. The current pinned CLI is `@openai/codex@0.167.0`. See
 [`docs/codex-model-runtime.md`](docs/codex-model-runtime.md) for model/runtime
 failure handling and Docker parity requirements. Maintainers can run the
 OpenAI model pipeline task from GitHub Actions (`.github/workflows/codex-models.yml`)
@@ -390,6 +390,12 @@ docs/                     # GitHub Pages (gnunae.com) & maintenance docs
 | 🔜 Planned | More LLM options including local LLM support |
 
 ## Version History
+
+### v1.1.13 (2026-11-08)
+- **Weekly Maintenance & Codex Runtime Update**
+  - Upgraded pinned `@openai/codex` CLI from `0.166.0` to `0.167.0` across Native mode (`package.json`, `resources/codex`, `src/core/runtime-manager.ts`, `scripts/install-codex.js`) and Virtual Mode (`docker/Dockerfile`).
+  - Synchronized upstream Codex model catalog (`gpt-6-astra`, `gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-6-luna`; default `gpt-6-astra`, fallback `gpt-6-luna`; added models: none; decommissioned/deprecated models: none), refreshed package lockfiles, and synchronized documentation (`README.md`, `docs/codex-model-runtime.md`, `docs/PERIODIC_MAINTENANCE.md`, `docs/index.html`).
+  - Published multi-channel release across GitHub Releases (macOS DMG/ZIP, Linux AppImage/DEB), GHCR Docker sandbox (`ghcr.io/fkiller/gnunae/sandbox:latest` & `v1.1.13`), Microsoft Store APPX, and Mac App Store universal PKG.
 
 ### v1.1.12 (2026-11-03)
 - **Codex Model Catalog Sync (Added: GPT-6.1-Sol / GPT-6.1-Terra / GPT-6-Luna; Decommissioned: GPT-5.6-Sol / GPT-5.6-Terra / GPT-5.6-Luna) & Store Display Name Unification**
