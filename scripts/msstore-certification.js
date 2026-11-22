@@ -119,7 +119,7 @@ function packageJson() {
 
 function codexModelInfo() {
   const fallback = {
-    defaultModel: 'gpt-6-astra',
+    defaultModel: 'gpt-6.2-astra',
     fallbackModel: 'gpt-6-luna',
   };
 

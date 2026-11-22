@@ -1,7 +1,15 @@
 {
   "sourceUrl": "https://developers.openai.com/codex/models",
-  "defaultModel": "gpt-6-astra",
+  "defaultModel": "gpt-6.2-astra",
   "models": [
+    {
+      "value": "gpt-6.2-astra",
+      "label": "GPT-6.2-Astra"
+    },
+    {
+      "value": "gpt-6.2-sol",
+      "label": "GPT-6.2-Sol"
+    },
     {
       "value": "gpt-6-astra",
       "label": "GPT-6-Astra"
@@ -20,5 +28,5 @@
     }
   ],
   "deprecated": [],
-  "updatedAt": "2026-11-03"
+  "updatedAt": "2026-11-22"
 }
